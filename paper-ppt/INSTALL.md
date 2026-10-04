@@ -1,62 +1,74 @@
-# INSTALL：paper-ppt 安装指南
+# 安装与工具接入
 
-把 skill 文件夹放进 `<项目>/.agents/skills/` 或 `~/.agents/skills/` 后，AI 客户端（ZCode 等）
-在新会话里即可自动发现。下面是它依赖的外部组件——**这些不在包里，需要按需自装**。
+## 1. 必需的是 AI 能力，不是指定供应商
 
-## 一、只在"生成 PPT"时需要（必装）
+将 Skill 目录放入客户端支持的位置（例如 `.agents/skills/`）。在新会话确认其已被发现，不覆盖已有系统提示词。
 
-| 组件 | 用途 | 安装 |
-| --- | --- | --- |
-| Node.js ≥ 18 | 运行 pptxgenjs 生成脚本 | 官网/winget 安装 |
-| pptxgenjs | 生成 .pptx | `npm install -g pptxgenjs` |
-| LibreOffice | 把 pptx 渲染成 PDF/PNG 做视觉验收 | [清华镜像](https://mirrors.tuna.tsinghua.edu.cn/libreoffice/libreoffice/stable/) 下 win/x86_64 的 msi；无管理员权限可用管理员解包模式 `msiexec /a xxx.msi /qn TARGETDIR=D:\lo\`，运行 `lo\program\soffice.com`（**不是 soffice.exe**，GUI 进程会挂住） |
-| pdftoppm（poppler） | PDF → PNG | `winget install poppler`，或装了 TeX Live 就已自带 |
+完整流程需要实际图像输入能力、论文读取、PPT 创建/编辑以及可查看的渲染结果。可以使用宿主现成工具，也可以使用下面的本地备用链路。**模型、视觉插件和 API 额度不随仓库提供**；不能把某个不存在的 `visual-judge` 工具写成调用成功。主模型可看图时允许分阶段自审；纯文本模型只能产草案，不能验收。
 
-## 二、只在"论文提取入库"时需要（可选；做 PPT 前需要先把论文转成 md+图）
+## 2. 本地备用工具链
 
-| 组件 | 用途 | 安装 |
-| --- | --- | --- |
-| Python 3.10 环境 | MinerU / paper-mcp 运行环境 | conda 或 venv 均可，如 `conda create -n paper-mcp python=3.10` |
-| MinerU | PDF 解析引擎（**首次运行自动下载数 GB 模型**，国内加速：先 `set MINERU_MODEL_SOURCE=modelscope`，或用 `mineru-models-download` 预下载） | `uv pip install -U "mineru[all]"`；有 NVIDIA 显卡可先装 CUDA 版 torch 更快，纯 CPU 也能跑 |
-| paper-mcp | 论文库（SQLite 去重/检索/打标签）+ MCP 接口 | `git clone` 后 `pip install -e .`；是本项目作者的仓库，朋友也可自己实现同等接口 |
-| MCP 客户端配置 | 让 AI 客户端发现 paper-mcp 工具 | 见下方 json |
-
-MCP 配置示例（ZCode：`~/.zcode/cli/config.json`；Claude Desktop 等类似）：
-
-```json
-{
-  "mcp": {
-    "servers": {
-      "paper-mcp": {
-        "command": "<paper-mcp 环境的 python.exe 绝对路径>",
-        "args": ["-m", "paper_mcp"],
-        "env": { "PAPER_MCP_CONFIG": "<config.yaml 绝对路径>" }
-      }
-    }
-  }
-}
-```
-
-MinerU 常驻服务（可选，避免每次提取冷启动）：
+在 `paper-ppt/` 目录执行（Windows PowerShell、Git Bash 和 Linux 均可使用这些命令）：
 
 ```bash
-"<paper-mcp 环境>/Scripts/mineru-api.exe" --host 127.0.0.1 --port 8000
+npm install
+python -m pip install -r requirements.txt
+python scripts/bridge.py doctor
 ```
 
-## 三、代理环境（Clash 等）注意
+需要 Node.js 20+、Python 3.10+、LibreOffice、Poppler 的 `pdftoppm`。`npm install` 使用本目录依赖，避免要求全局 `NODE_PATH`。`doctor` 从当前目录检查 Node 包，因而应在 `paper-ppt/` 下运行；它不测试视觉模型，也不证明字体或 PowerPoint 兼容。
 
-系统代理若不排除回环地址，访问 `127.0.0.1:8000` 的健康检查会被拦成 502。
-本包 `scripts/extract_offline.py` 只在进程内注入 `NO_PROXY=localhost,127.0.0.1` 绕开，**不改系统配置**。
-手检服务是否存活时务必加 `--noproxy "*"`。
+LibreOffice/Poppler 通过系统包管理器或官方安装包安装。脚本先查 PATH 和常见安装位置；便携版可通过命令行指定，不需要修改系统环境：
 
-## 四、随包自带 / 不随包
+```bash
+python scripts/bridge.py render /path/to/deck.pptx --out /path/to/renders/r01 --soffice /path/to/soffice --pdftoppm /path/to/pdftoppm
+```
 
-- **随包上传**：SKILL.md、references/（结构与排版规则）、assets/（ppt-helpers.js、fix_pPr.py、example-build.js 完整示例）、scripts/（提取兜底脚本）。
-- **不随包、需自装**：上表所有组件；MinerU 模型（数 GB，首次运行自动下）；论文库数据。
-- **字体**：微软雅黑、Arial 为 Windows 自带，无需安装。
+Windows 控制台优先指定 `soffice.com`；Linux/macOS 使用对应命令。也可使用现有进程环境变量 `LIBREOFFICE_PATH`、`PDFTOPPM_PATH`。路径含空格时用引号包裹。每轮必须使用新输出目录，防止把旧截图当作新结果。渲染用临时 LibreOffice profile，不占用用户日常配置。
 
-## 五、装完自测
+默认 150 DPI，可通过 `--dpi` 指定 72–600。输出 PDF、每页 PNG、`contact-sheet.png` 和 `render.json`。脚本不会调用视觉模型；AI 接着必须通过宿主看图工具读取这些图片。
 
-1. `NODE_PATH=$(npm root -g) node assets/ppt-helpers.js` —— 生成 deck.pptx 即 OK（删掉即可）。
-2. `"…/soffice.com" --headless --convert-to pdf deck.pptx` —— 出 PDF 即渲染链路 OK。
-3. （可选）对任意 PDF 跑 `scripts/extract_offline.py <pdf>` —— 出 markdown 即提取链路 OK。
+## 3. 无论文素材自测
+
+```bash
+node assets/smoke-build.js smoke.pptx
+python scripts/bridge.py render smoke.pptx --out smoke-render-r01
+```
+
+让视觉模型实际查看输出全页图，检查中文、英文、符号、备注与可编辑文本。字体缺失时使用目标机和构建机都有的字体；自测可设置进程变量 `PAPER_PPT_TEST_FONT`，不要提交字体文件。
+
+这只是工具链自测，不是论文质量验证。`assets/example-build.js` 为历史参考，含作者机器路径且不附原论文图片，不作为上述自测入口。
+
+## 4. 审阅记录检查
+
+实际执行各轮视觉调用后，依 [视觉协议](references/visual-review.md) 保存日志，再执行：
+
+```bash
+python scripts/check_review.py /path/to/renders/r01/render.json /path/to/review-log.json
+```
+
+检查结果只证明日志结构、版本和覆盖一致，不证明模型调用真实性，不是自动审美评分。主/子 Agent 必须给出真实观察和可追溯的调用引用。
+
+## 5. OOXML 按需修复
+
+不是所有 PptxGenJS 版本都会遇到重复段落属性。先检查实际输出，确实有问题才运行：
+
+```bash
+python assets/fix_pPr.py deck.pptx --out deck.fixed.pptx
+```
+
+原文件不覆盖。相同属性可去重；冲突属性拒绝猜测，返回绘制源修复。修复后重新渲染和看图。这个脚本不等于完整 OOXML 校验器，也不保证 PowerPoint 兼容。
+
+## 6. 可选论文提取后端
+
+宿主已有 PDF 阅读/提取工具或已有 Markdown+图片时，无需安装 MinerU。只有选择原有本地路径时，才在独立环境安装 MinerU 与用户实际使用的 paper-mcp。模型下载大小、硬件要求和安装方式以所选后端版本文档为准。本仓库没有附带 paper-mcp 服务端源码或论文库。
+
+脚本用法见 [paper-extract](../paper-extract/SKILL.md)；独立安装 paper-ppt 时，本包也保留同一份 `scripts/extract_offline.py`。默认不再复制孤立 Markdown，避免图片失联；需要副本时显式 `--copy-bundle`。
+
+## 7. 技术参考
+
+- PptxGenJS 图片 API：https://gitbrent.github.io/PptxGenJS/docs/api-images/
+- PptxGenJS 备注 API：https://gitbrent.github.io/PptxGenJS/docs/speaker-notes/
+- LibreOffice 命令行参数：https://help.libreoffice.org/latest/en-US/text/shared/guide/start_parameters.html
+
+上述是工具文档，不是论文事实依据。宿主工具接口以实际发现的版本为准。
