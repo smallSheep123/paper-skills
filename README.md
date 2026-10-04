@@ -6,7 +6,7 @@
 
 | Skill | 用途 | 触发示例 |
 | --- | --- | --- |
-| [paper-extract](paper-extract/SKILL.md) | PDF 提取、论文库检索与进程级代理排障 | “提取这篇论文并入库” |
+| [paper-extract](paper-extract/SKILL.md) | MinerU 模型下载 + PDF/文档 → Markdown，直接交给 AI | “把这篇论文转成 md 给 AI 读” |
 | [paper-ppt](paper-ppt/SKILL.md) | AI 读论文、视觉设计、逐页制作、事实校核、看图迭代 | “做成 8 分钟课堂汇报，正式学术风格” |
 
 ## 谁做决定？
@@ -66,7 +66,7 @@ python -m pip install -r requirements.txt
 python scripts/bridge.py doctor
 ```
 
-LibreOffice 和 Poppler 另装；MinerU / paper-mcp 只在需要该提取路径时安装。完整说明见 [INSTALL.md](paper-ppt/INSTALL.md)。`doctor` 只检查本地工具，**不检查视觉模型是否已连接**。
+LibreOffice 和 Poppler 另装；需要本地论文提取时只需安装 MinerU 4.x，不依赖 paper-mcp。完整说明见 [INSTALL.md](paper-ppt/INSTALL.md)。`doctor` 只检查本地工具，**不检查视觉模型是否已连接**。
 
 可以直接对 AI 说：
 
@@ -79,7 +79,7 @@ LibreOffice 和 Poppler 另装；MinerU / paper-mcp 只在需要该提取路径�
 - `paper-ppt/assets/ppt-helpers.js`：可选低层绘制辅助，无自动生成副作用。
 - `paper-ppt/assets/fix_pPr.py`：按需修复重复段落属性，默认另存，不覆盖原文件。
 - `paper-ppt/assets/smoke-build.js`：无外部论文素材的工具链自测，**不是设计模板**。
-- `paper-ppt/assets/example-build.js`：保留的历史 DVLA 手工绘制参考；需要作者原始图片和路径，不是开箱可运行示例，也不作为论文事实来源。
+- `paper-extract/scripts/mineru_models.py`：调用 MinerU 官方 CLI 下载/校验模型。\n- `paper-extract/scripts/mineru_extract.py`：调用无状态 `mineru-kit parse` 生成 Markdown。\n- `paper-ppt/assets/example-build.js`：保留的历史 DVLA 手工绘制参考；需要作者原始图片和路径，不是开箱可运行示例，也不作为论文事实来源.
 
 不上传论文库、API 密钥、个人机器配置和工作目录。保留每轮预览用于回溯，交付时不要删除用户原始文件。
 
