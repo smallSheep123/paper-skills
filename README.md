@@ -44,7 +44,9 @@
 | [Academic Clean](paper-ppt/references/academic-clean.md) | 克制、论文证据优先、简洁标注 | 组会、论文精读、答辩、正式简约 |
 | [Academic Rich](paper-ppt/references/academic-rich.md) | 非对称构图、层级与页面节奏、视觉叙事 | 课程展示、公开技术演讲、跨领域讲解 |
 
-用户指定优先；未指定时由 AI 根据场景选择，不确定就用 Clean。两者都必须忠实论文，不能用商业卡片或装饰代替技术解释。[学术设计参考原则](paper-ppt/references/academic-slide-distillation.md)供 AI 提炼表达方式，实际设计仍要用真实样页和视觉审阅验证。\n\n**风格输入不等于 PPTX 模板。** 用户可以只给一个风格名、文字描述、截图/图片或网页/slide 参考；不要求提供 `.pptx`。AI 只提炼配色、层级、密度、留白、构图和节奏等视觉语言，再针对当前论文重新设计，不把参考文件当成可套版资产。
+用户指定优先；未指定时由 AI 根据场景选择，不确定就用 Clean。两者都必须忠实论文，不能用商业卡片或装饰代替技术解释。[学术设计参考原则](paper-ppt/references/academic-slide-distillation.md)供 AI 提炼表达方式，实际设计仍要用真实样页和视觉审阅验证。
+
+**风格输入不等于 PPTX 模板。** 用户可以只给一个风格名、文字描述、截图/图片或网页/slide 参考；不要求提供 `.pptx`。AI 只提炼配色、层级、密度、留白、构图和节奏等视觉语言，再针对当前论文重新设计，不把参考文件当成可套版资产。
 
 ## 设计要求
 
