@@ -1,6 +1,6 @@
 ---
 name: paper-extract
-description: 使用 MinerU 4.x 将论文/文档无状态解析为 Markdown，供 AI 直接阅读；包含独立模型下载/校验脚本。用户要求“PDF转md、提取论文、准备论文给AI读、下载MinerU模型”时使用。不依赖 paper-mcp，不需要常驻服务。
+description: 使用 MinerU 4.x 将论文/文档无状态解析为 Markdown，供 AI 直接阅读；包含独立模型下载/校验脚本。用户要求“PDF转md、提取论文、准备论文给AI读、下载MinerU模型”时使用。不需要任何额外论文库或常驻服务。
 ---
 
 # paper-extract：MinerU → Markdown → AI
