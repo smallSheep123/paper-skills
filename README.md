@@ -66,7 +66,7 @@ python -m pip install -r requirements.txt
 python scripts/bridge.py doctor
 ```
 
-LibreOffice 和 Poppler 另装；需要本地论文提取时只需安装 MinerU 4.x，不依赖 paper-mcp。完整说明见 [INSTALL.md](paper-ppt/INSTALL.md)。`doctor` 只检查本地工具，**不检查视觉模型是否已连接**。
+LibreOffice 和 Poppler 另装；需要本地论文提取时只需安装 MinerU 4.x。完整说明见 [INSTALL.md](paper-ppt/INSTALL.md)。`doctor` 只检查本地工具，**不检查视觉模型是否已连接**。
 
 可以直接对 AI 说：
 
