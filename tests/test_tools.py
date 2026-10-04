@@ -27,7 +27,8 @@ def load(name: str, path: Path):
 
 
 fix = load('fix_pPr', ROOT / 'paper-ppt/assets/fix_pPr.py')
-extract = load('extract_offline', ROOT / 'paper-extract/scripts/extract_offline.py')
+mineru_models = load('mineru_models', ROOT / 'paper-extract/scripts/mineru_models.py')
+mineru_extract = load('mineru_extract', ROOT / 'paper-extract/scripts/mineru_extract.py')
 
 
 class ReviewTests(unittest.TestCase):
@@ -222,32 +223,56 @@ class BridgeTests(unittest.TestCase):
 
 
 class ExtractionTests(unittest.TestCase):
-    def test_proxy_preserves_existing_values(self):
-        with patch.dict(os.environ, {'NO_PROXY': 'example.org,localhost', 'no_proxy': 'other.org'}, clear=True):
-            extract.configure()
-            extract.configure()
-            self.assertIn('example.org', os.environ['NO_PROXY'])
-            self.assertIn('other.org', os.environ['no_proxy'])
-            self.assertEqual(os.environ['NO_PROXY'].split(',').count('localhost'), 1)
-            self.assertNotIn('PAPER_MCP_CONFIG', os.environ)
+    def test_model_download_command(self):
+        cmd = mineru_models.build_download(
+            "mineru-kit", "standard", "modelscope", None, None
+        )
+        self.assertEqual(
+            cmd,
+            ["mineru-kit", "models", "download", "--tier", "standard",
+             "--source", "modelscope"],
+        )
 
-    def test_config_must_exist(self):
-        with tempfile.TemporaryDirectory() as td, self.assertRaises(ValueError):
-            extract.configure(str(Path(td) / 'missing.yaml'))
+    def test_model_verify_command(self):
+        cmd = mineru_models.build_verify(
+            "mineru-kit", "standard", "onnx", "llama-cpp"
+        )
+        self.assertEqual(
+            cmd,
+            ["mineru-kit", "models", "verify", "--tier", "standard",
+             "--small-backend", "onnx", "--vlm-engine", "llama-cpp"],
+        )
 
-    def test_explicit_config(self):
-        with tempfile.TemporaryDirectory() as td, patch.dict(os.environ, {}, clear=True):
-            config = Path(td) / 'config.yaml'
-            config.write_text('test', encoding='utf-8')
-            extract.configure(str(config))
-            self.assertEqual(os.environ['PAPER_MCP_CONFIG'], str(config.resolve()))
+    def test_extract_command_is_stateless(self):
+        cmd = mineru_extract.build_command(
+            "mineru-kit",
+            Path("/tmp/paper.pdf"),
+            Path("/tmp/out/paper.md"),
+            "standard",
+            "all",
+            "ocr",
+        )
+        self.assertEqual(cmd[:2], ["mineru-kit", "parse"])
+        self.assertIn("--tier", cmd)
+        self.assertNotIn("mineru", cmd[:1])
+        self.assertNotIn("server", cmd)
 
-    def test_standalone_copies_are_identical(self):
-        self.assertEqual((ROOT / 'paper-extract/scripts/extract_offline.py').read_bytes(),
-                         (ROOT / 'paper-ppt/scripts/extract_offline.py').read_bytes())
+    def test_extract_help_without_mineru_installed(self):
+        result = subprocess.run(
+            [sys.executable,
+             str(ROOT / "paper-extract/scripts/mineru_extract.py"),
+             "--help"],
+            capture_output=True,
+        )
+        self.assertEqual(result.returncode, 0)
 
-    def test_help_without_optional_backend(self):
-        result = subprocess.run([sys.executable, str(ROOT / 'paper-extract/scripts/extract_offline.py'), '--help'], capture_output=True)
+    def test_models_help_without_mineru_installed(self):
+        result = subprocess.run(
+            [sys.executable,
+             str(ROOT / "paper-extract/scripts/mineru_models.py"),
+             "--help"],
+            capture_output=True,
+        )
         self.assertEqual(result.returncode, 0)
 
 

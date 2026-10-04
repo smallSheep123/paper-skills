@@ -1,44 +1,105 @@
 ---
 name: paper-extract
-description: 论文/文档提取为 Markdown、论文库检索与进程级代理排障。用户要求“PDF转md、提取入库、查论文库、按章节读取、打标签”，或 paper-mcp/MinerU 提取失败时使用。不修改系统代理。
+description: 使用 MinerU 4.x 将论文/文档无状态解析为 Markdown，供 AI 直接阅读；包含独立模型下载/校验脚本。用户要求“PDF转md、提取论文、准备论文给AI读、下载MinerU模型”时使用。不需要任何额外论文库或常驻服务。
 ---
 
-# paper-extract：提取与证据交接
+# paper-extract：MinerU → Markdown → AI
 
-优先复用已有提取产物。先发现实际连接的提取/论文库工具及其参数，不假设所有客户端都安装了 paper-mcp，不因名称相同就假定 API 兼容。用户提供完整 Markdown 与图片时，不需要为了跑流程重新下载模型。
+目标只有一件事：**把论文可靠地转换成 AI 可直接读取的 Markdown（以及 MinerU 产生的相邻素材）**。
 
-## 正常路径
+不维护论文数据库，不做标签/搜索系统，不依赖 MCP 服务，也不要求启动常驻 MinerU API。代码只调用 MinerU 官方 4.x CLI。
 
-有 paper-mcp 时，按实际工具说明使用提取、按章节读取、搜索和打标签能力；先查缓存再提取，不默认 force。服务返回任务 ID 时按真实状态轮询，不能把“已受理”说成“已完成”。没有该后端时可用宿主已有 PDF 提取工具，并说明是否真正入库。
+## 0. 依赖
 
-提取后检查正文、公式、图片引用和来源。向 paper-ppt 交接：原始 PDF、Markdown 的真实位置、图片目录、论文版本、提取器及未解决问题。不要只拷贝 Markdown 导致相对图片链接断掉。
-
-## 图片不是纯文本附件
-
-拟用于汇报的图/表/公式必须由视觉 AI 查看原 PDF 页面与提取图；文本匹配只作候选。保留图号、页码、caption、子图关系与原文件位置。不把 OCR 猜测当作数字证据，不默认运行额外 OCR；已有可读文本和原始页面时优先直接读取。
-
-若当前模型不能看图，明确标记视觉核对尚未完成，交给有图像输入能力的宿主后续处理，不声称图表核对通过。
-
-## 本地服务与代理排障
-
-`502` 可能由代理、服务或其他网络问题造成，不直接断言一定是 Clash。先核实配置中的实际端口与服务地址。只有确认是回环地址时，检查可用：
+MinerU 4.x 要求 Python `>=3.10,<3.15`。推荐在独立虚拟环境安装：
 
 ```bash
-curl --noproxy "*" http://127.0.0.1:8000/docs
+python -m pip install -U "mineru>=4.0,<5"
+mineru-kit --help
 ```
 
-上例端口仅为示例。地址不是回环时不能盲目绕开用户代理。服务未启动时，在实际安装环境和用户授权范围内运行 MinerU 的本地入口；不写死作者的 Python 路径，不承诺固定启动时长，不擅自修改开机启动项。
+需要 GPU 高吞吐时按 MinerU 官方平台说明选择 `mineru[torch]` / `mineru[full]`；不要在脚本里替用户改 CUDA、驱动或全局 Python 环境。
 
-## 备用连接脚本
+## 1. 模型下载与解析分离
 
-在已安装 paper-mcp 的 Python 环境运行：
+**先下载模型，再解析文档。** 两步彼此独立。
+
+默认 Standard 档位：
 
 ```bash
-python scripts/extract_offline.py /path/to/paper.pdf --config /path/to/config.yaml
+python scripts/mineru_models.py download --tier standard
+python scripts/mineru_models.py verify --tier standard
 ```
 
-`--config` 可省略，此时沿用 paper-mcp 的正常配置发现机制/`PAPER_MCP_CONFIG`。脚本在导入后端前仅向自身进程的 `NO_PROXY`/`no_proxy` 补充 localhost、127.0.0.1、::1，保留已有项，不改系统和 Clash。
+网络环境需要 ModelScope 时：
 
-默认返回库内路径，不复制文件。`--copy-bundle` 显式复制 Markdown 所在目录及相邻素材到新的 `<stem>_extracted/`；`--no-copy` 保留为兼容参数。`--no-lib` 只提取到新的 `<stem>_md/`。已有目标目录会报错，不覆盖。复制前确认库的单篇目录确实只包含该论文素材。
+```bash
+python scripts/mineru_models.py download --tier standard --source modelscope
+```
 
-这个脚本针对现有 paper-mcp Python 接口；不是本仓库内置后端。后端版本不兼容时检查实际接口，不修改用户库结构。不要重复提取，不上传私有论文和库数据，不擅自修改用户环境。
+查看当前模型配置：
+
+```bash
+python scripts/mineru_models.py show
+```
+
+脚本只是转发官方 `mineru-kit models ...` 命令，不实现下载器、不伪造完成标记。
+
+## 2. 生成 Markdown
+
+模型已准备好后：
+
+```bash
+python scripts/mineru_extract.py /path/to/paper.pdf
+```
+
+默认输出：
+
+```text
+/path/to/paper_mineru/
+└── paper.md
+```
+
+脚本默认设置当前子进程 `MINERU_MODEL_SOURCE=local`，因此**不会一边解析一边偷偷下载模型**；缺模型就明确失败。需要允许 MinerU 自动选择远端模型源时显式使用：
+
+```bash
+python scripts/mineru_extract.py paper.pdf --model-source auto
+```
+
+常用参数：
+
+```bash
+# 指定页面
+python scripts/mineru_extract.py paper.pdf --pages "1-8"
+
+# OCR 扫描件
+python scripts/mineru_extract.py paper.pdf --ocr-mode ocr
+
+# 指定输出目录
+python scripts/mineru_extract.py paper.pdf --out-dir ./paper-output
+```
+
+`mineru-kit parse` 是无状态转换，不使用 MinerU 文档库数据库/缓存，也不需要启动 API Server。单文件模式直接写完整 Markdown。
+
+## 3. 给 AI 的交接
+
+AI 后续至少拿到：
+
+- 原始 PDF；
+- 生成的 Markdown；
+- MinerU 在输出位置生成或引用的图片/素材（若本次解析包含）；
+- 实际使用的 MinerU tier 与未解决的解析问题。
+
+Markdown 用于快速理解正文；**原 PDF 页面仍然是图、表、公式的视觉真值**。拟用于 PPT 的 Figure/Table/公式必须让视觉模型实际查看原 PDF 或对应图片，不能只根据 Markdown 文本猜。
+
+如果 Markdown 中出现图片引用，保持输出目录结构，不单独搬走 `.md` 导致相对路径失效。
+
+## 4. 不做的事情
+
+- 不提供论文数据库、去重、标签或搜索。
+- 不要求常驻 `mineru-kit api-server`。
+- 不自动修改系统代理、CUDA、驱动、全局环境变量。
+- 不重复下载已经通过 `models verify` 的模型。
+- 不把 OCR / 模型推断结果当作实验数字的最终证据。
+
+如果宿主本身已经能高质量读取 PDF，可以直接复用宿主结果；只有需要稳定 Markdown 产物时再走 MinerU。
