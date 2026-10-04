@@ -61,7 +61,7 @@ python assets/fix_pPr.py deck.pptx --out deck.fixed.pptx
 
 ## 6. 可选 MinerU 本地提取
 
-宿主已有高质量 PDF 阅读能力或已有 Markdown 时，无需 MinerU。需要稳定的本地 Markdown 产物时，安装 MinerU 4.x 即可，**不需要 paper-mcp，也不需要常驻 API 服务**。
+宿主已有高质量 PDF 阅读能力或已有 Markdown 时，无需 MinerU。需要稳定的本地 Markdown 产物时，安装 MinerU 4.x 即可，**不需要额外论文库，也不需要常驻 API 服务**。
 
 ```bash
 python -m pip install -U "mineru>=4.0,<5"
