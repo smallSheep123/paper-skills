@@ -1,72 +1,82 @@
-"""paper-mcp 兜底提取脚本（给 AI 会话用，正常情况请优先用 MCP 工具）。
+"""Optional paper-mcp bridge. Only modifies this process's environment.
 
-背景：系统常开着代理（如 Clash，http_proxy=127.0.0.1:7897）且未设 NO_PROXY。
-paper-mcp 调用的 mineru CLI 访问本地 MinerU 服务(127.0.0.1:8000)时，
-请求被代理拦截返回 502，导致提取报 "Failed to query MinerU API health"。
-
-本脚本只在【本进程内】把 localhost/127.0.0.1 加入 NO_PROXY 绕开代理，
-不修改任何系统环境变量、不修改任何配置文件，进程退出即失效。
-
-用法（必须用 paper-mcp 环境的 python 运行）：
-  D:/Programming/Python/envs/paper-mcp/python.exe extract_offline.py <文件路径> [--force] [--no-lib] [--no-copy]
-
-  --force    忽略论文库哈希缓存，强制重新提取
-  --no-lib   只提取 markdown 不入库（extract_to_markdown，产物存到 <源文件名>_md/ 目录）
-  --no-copy  入库后不把 paper.md 拷贝到源文件同目录
-
-输出：一行 JSON（paper_id / title / md 路径 / abstract 等），直接解析即可。
+Use the paper-mcp Python environment. No bundled backend or personal config path.
+Default returns library paths so Markdown image references keep working.
 """
+from __future__ import annotations
 
+import argparse
+import json
 import os
-
-# --- 进程内代理豁免：必须发生在 import paper_mcp 之前 ---
-_PROXY_HOSTS = "localhost,127.0.0.1"
-for _key in ("NO_PROXY", "no_proxy"):
-    _cur = os.environ.get(_key, "").strip()
-    os.environ[_key] = f"{_cur},{_PROXY_HOSTS}" if _cur else _PROXY_HOSTS
-os.environ.setdefault("PAPER_MCP_CONFIG", r"D:\Learning\paper知识库\project\tool\config.yaml")
-
-import argparse  # noqa: E402
-import json  # noqa: E402
-import shutil  # noqa: E402
-from pathlib import Path  # noqa: E402
+from pathlib import Path
+import shutil
+import sys
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("path", help="PDF/DOCX/PPTX/XLSX/图片 的绝对路径")
-    ap.add_argument("--force", action="store_true", help="忽略库内缓存强制重提取")
-    ap.add_argument("--no-lib", action="store_true", help="只提取 markdown，不入库")
-    ap.add_argument("--no-copy", action="store_true", help="入库后不拷贝 md 到源文件同目录")
-    args = ap.parse_args()
-
-    from paper_mcp.server import build_context
-
-    ctx = build_context()
-
-    if args.no_lib:
-        from paper_mcp.tools.extract_to_markdown import extract_to_markdown
-
-        save_dir = str(Path(args.path).parent / (Path(args.path).stem + "_md"))
-        res = extract_to_markdown(ctx, args.path, save_dir=save_dir)
-        print(json.dumps(res, ensure_ascii=False, default=str))
-        return
-
-    from paper_mcp.tools.extract_pdf import extract_pdf
-
-    res = extract_pdf(ctx, args.path, force=args.force)
-    out = dict(res)
-    paper_id = res.get("paper_id")
-    paper = ctx.store.get_paper(paper_id) if paper_id else None
-    if paper and paper.md_path:
-        md_abs = os.path.join(str(ctx.config.data_dir), paper.md_path)
-        out["lib_md"] = md_abs
-        if not args.no_copy:
-            dst = str(Path(args.path).with_suffix(".md"))
-            shutil.copy2(md_abs, dst)
-            out["copied_md"] = dst
-    print(json.dumps(out, ensure_ascii=False, default=str))
+def configure(config: str | None = None) -> None:
+    if config:
+        path = Path(config).expanduser().resolve()
+        if not path.is_file():
+            raise ValueError(f'Config does not exist: {path}')
+        os.environ['PAPER_MCP_CONFIG'] = str(path)
+    for key in ('NO_PROXY', 'no_proxy'):
+        hosts = [s.strip() for s in os.environ.get(key, '').split(',') if s.strip()]
+        for host in ('localhost', '127.0.0.1', '::1'):
+            if host not in hosts:
+                hosts.append(host)
+        os.environ[key] = ','.join(hosts)
 
 
-if __name__ == "__main__":
-    main()
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('path', type=Path, help='Existing input document')
+    parser.add_argument('--config', help='paper-mcp config; otherwise use its normal configuration discovery')
+    parser.add_argument('--force', action='store_true', help='Explicitly ignore extraction cache')
+    parser.add_argument('--no-lib', action='store_true', help='Extract to <stem>_md without importing')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--copy-bundle', action='store_true', help='Copy Markdown and sibling assets to a new <stem>_extracted directory')
+    group.add_argument('--no-copy', action='store_true', help='Legacy flag; no-copy is now the default')
+    args = parser.parse_args()
+    source = args.path.expanduser().resolve()
+    try:
+        if not source.is_file():
+            raise ValueError(f'Input does not exist: {source}')
+        if args.no_lib and args.copy_bundle:
+            raise ValueError('--copy-bundle only applies to library extraction')
+        target = source.parent / (source.stem + ('_md' if args.no_lib else '_extracted'))
+        if (args.no_lib or args.copy_bundle) and target.exists():
+            raise ValueError(f'Output already exists; preserve or move it first: {target}')
+        configure(args.config)  # Must precede paper_mcp imports.
+        from paper_mcp.server import build_context
+        ctx = build_context()
+        if args.no_lib:
+            from paper_mcp.tools.extract_to_markdown import extract_to_markdown
+            result = extract_to_markdown(ctx, str(source), save_dir=str(target))
+        else:
+            from paper_mcp.tools.extract_pdf import extract_pdf
+            result = dict(extract_pdf(ctx, str(source), force=args.force))
+            paper_id = result.get('paper_id')
+            paper = ctx.store.get_paper(paper_id) if paper_id else None
+            if paper and paper.md_path:
+                md = (Path(ctx.config.data_dir) / paper.md_path).resolve()
+                result['lib_md'] = str(md)
+                if args.copy_bundle:
+                    # Keep relative image links, unlike copying only paper.md.
+                    library = Path(ctx.config.data_dir).resolve()
+                    if md.parent == library or not md.is_relative_to(library):
+                        raise ValueError('Refusing to copy a library root or external directory')
+                    if target.is_relative_to(md.parent):
+                        raise ValueError('Bundle destination cannot be inside its source')
+                    shutil.copytree(md.parent, target, symlinks=True)
+                    result['copied_md'] = str(target / md.name)
+        print(json.dumps(result, ensure_ascii=False, default=str))
+        return 0
+    except ImportError as exc:
+        print(json.dumps({'error': f'paper-mcp environment/dependency missing: {exc}'}, ensure_ascii=False), file=sys.stderr)
+    except Exception as exc:
+        print(json.dumps({'error': str(exc)}, ensure_ascii=False), file=sys.stderr)
+    return 1
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

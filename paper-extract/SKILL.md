@@ -1,80 +1,44 @@
 ---
 name: paper-extract
-description: 论文/文档提取为 Markdown 并入库（paper-mcp + MinerU）的可靠用法与故障自愈。当用户要"把 PDF/论文转成 md、提取入库、查论文库、按章节取内容、给论文打标签"，或 paper-mcp 工具报 502 / "Failed to query MinerU API health" / "mineru 退出码 1" 时使用。系统开着代理（Clash 等）的环境下尤其要看。
+description: 论文/文档提取为 Markdown、论文库检索与进程级代理排障。用户要求“PDF转md、提取入库、查论文库、按章节读取、打标签”，或 paper-mcp/MinerU 提取失败时使用。不修改系统代理。
 ---
 
-# paper-extract：论文提取入库与代理故障自愈
+# paper-extract：提取与证据交接
 
-用户的论文库基于 paper-mcp（MinerU 提取 + SQLite 论文库 + MCP 接口）。
-本 skill 教你：正常怎么用、服务没起怎么拉、被代理拦了怎么绕。**不修改任何系统配置。**
+优先复用已有提取产物。先发现实际连接的提取/论文库工具及其参数，不假设所有客户端都安装了 paper-mcp，不因名称相同就假定 API 兼容。用户提供完整 Markdown 与图片时，不需要为了跑流程重新下载模型。
 
-## 关键背景（为什么会被代理拦）
+## 正常路径
 
-用户系统常设 `http_proxy=http://127.0.0.1:7897`（Clash）且无 `NO_PROXY`。
-Clash 会拒绝回环目标：任何进程若带着这个代理变量去访问 `127.0.0.1:8000`，会得到 502。
-这就是 `Failed to query MinerU API health from http://127.0.0.1:8000: 502 Bad Gateway` 的来源——
-**不是 MinerU 服务坏了，是请求被代理劫持了。**
+有 paper-mcp 时，按实际工具说明使用提取、按章节读取、搜索和打标签能力；先查缓存再提取，不默认 force。服务返回任务 ID 时按真实状态轮询，不能把“已受理”说成“已完成”。没有该后端时可用宿主已有 PDF 提取工具，并说明是否真正入库。
 
-**已有修复（2026-09）**：paper_mcp 源码加了开关 `extract.localhost_bypass_proxy`（config.yaml，默认 `true`），
-mineru 子进程会把 localhost 注入自己的 NO_PROXY，不再被代理拦截。新起的 MCP 进程（ZCode / Claude Desktop / opencode 等）
-都自动免疫。兜底脚本只在两种情况下还需要：① MCP 进程还是修复前启动的老进程；② 有人把开关设成了 `false`。
+提取后检查正文、公式、图片引用和来源。向 paper-ppt 交接：原始 PDF、Markdown 的真实位置、图片目录、论文版本、提取器及未解决问题。不要只拷贝 Markdown 导致相对图片链接断掉。
 
-## 正常路径（优先）
+## 图片不是纯文本附件
 
-直接调 MCP 工具：
+拟用于汇报的图/表/公式必须由视觉 AI 查看原 PDF 页面与提取图；文本匹配只作候选。保留图号、页码、caption、子图关系与原文件位置。不把 OCR 猜测当作数字证据，不默认运行额外 OCR；已有可读文本和原始页面时优先直接读取。
 
-- `mcp__paper-mcp__extract_pdf(path)`：提取入库，命中哈希缓存秒回。>20 页建议 `async_mode=true`，用 `get_job` 轮询，`done` 后 `get_paper` 取内容。
-- `extract_to_markdown(path, save_dir)`：只出 markdown 不入库。
-- `get_paper(paper_id, section?)` / `search_library(query)` / `set_paper_tags(paper_id, tags)`。
+若当前模型不能看图，明确标记视觉核对尚未完成，交给有图像输入能力的宿主后续处理，不声称图表核对通过。
 
-提取成功后读返回的 `abstract`，给论文打小写标签（如 `moe,scheduling`）。
-`set_paper_tags` 不依赖 MinerU，服务挂了也能用。
+## 本地服务与代理排障
 
-## 第一步：确认 MinerU 常驻服务在跑
-
-paper-mcp 依赖本地 MinerU 服务（127.0.0.1:8000）。**检查时必须绕开代理**：
+`502` 可能由代理、服务或其他网络问题造成，不直接断言一定是 Clash。先核实配置中的实际端口与服务地址。只有确认是回环地址时，检查可用：
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}" --noproxy "*" http://127.0.0.1:8000/docs
+curl --noproxy "*" http://127.0.0.1:8000/docs
 ```
 
-- `200`：服务正常，直接调 MCP 工具。若仍报 502，走下面的兜底脚本。
-- 连接失败：服务没起。用 run_in_background 启动（约 5 秒后 /docs 返回 200；模型在首次提取时加载，首次提取约 1–3 分钟）：
+上例端口仅为示例。地址不是回环时不能盲目绕开用户代理。服务未启动时，在实际安装环境和用户授权范围内运行 MinerU 的本地入口；不写死作者的 Python 路径，不承诺固定启动时长，不擅自修改开机启动项。
+
+## 备用连接脚本
+
+在已安装 paper-mcp 的 Python 环境运行：
 
 ```bash
-"D:/Programming/Python/envs/paper-mcp/Scripts/mineru-api.exe" --host 127.0.0.1 --port 8000
+python scripts/extract_offline.py /path/to/paper.pdf --config /path/to/config.yaml
 ```
 
-（开机自启可让用户双击 `D:\Learning\paper知识库\project\tool\scripts\mineru-api.bat`。）
+`--config` 可省略，此时沿用 paper-mcp 的正常配置发现机制/`PAPER_MCP_CONFIG`。脚本在导入后端前仅向自身进程的 `NO_PROXY`/`no_proxy` 补充 localhost、127.0.0.1、::1，保留已有项，不改系统和 Clash。
 
-## 兜底脚本（MCP 工具仍报 502 时用）
+默认返回库内路径，不复制文件。`--copy-bundle` 显式复制 Markdown 所在目录及相邻素材到新的 `<stem>_extracted/`；`--no-copy` 保留为兼容参数。`--no-lib` 只提取到新的 `<stem>_md/`。已有目标目录会报错，不覆盖。复制前确认库的单篇目录确实只包含该论文素材。
 
-适用场景：MCP 进程是修复前启动的老进程、`localhost_bypass_proxy` 被关了、或换了别的环境。
-脚本只在**自身进程内**注入 `NO_PROXY=localhost,127.0.0.1`，不改系统、不改配置，退出即失效。
-
-```bash
-"D:/Programming/Python/envs/paper-mcp/python.exe" \
-  "C:/Users/steve/.agents/skills/paper-extract/scripts/extract_offline.py" \
-  "D:/path/to/paper.pdf" [--force] [--no-lib] [--no-copy]
-```
-
-- 默认行为：提取 + 入库 + 把 md 拷贝为源文件同名的 `.md`。
-- 输出为一行 JSON：`paper_id`、`title`、`lib_md`（库内 md 绝对路径）、`copied_md`、`abstract`。
-- 大文件（>20 页）耗时 2–3 分钟，bash 加大 timeout 或放后台跑。
-
-## 位置速查
-
-| 项 | 路径 |
-| --- | --- |
-| MCP 服务端 | `D:\Programming\Python\envs\paper-mcp\python.exe -m paper_mcp` |
-| 配置 | `D:\Learning\paper知识库\project\tool\config.yaml`（环境变量 `PAPER_MCP_CONFIG` 指向它） |
-| 论文库数据 | `D:\Learning\paper知识库\project\tool\data`（SQLite + 提取产物） |
-| MinerU 启动脚本 | `D:\Learning\paper知识库\project\tool\scripts\mineru-api.bat` |
-| 兜底脚本 | 本 skill 的 `scripts/extract_offline.py` |
-
-## 禁止事项
-
-- 不要修改用户系统环境变量或 Clash 配置（用户明确拒绝过）。源码只保留已批准的最小改动：
-  `extract.localhost_bypass_proxy` 开关（config.py / mineru_cli.py / 两份 yaml），不要再扩大源码改动面。
-- 不要在检查/访问 127.0.0.1 服务时省略 `--noproxy "*"`。
-- 不要重复提取：先调 `extract_pdf`（哈希去重），确认失败再考虑 `--force`。
+这个脚本针对现有 paper-mcp Python 接口；不是本仓库内置后端。后端版本不兼容时检查实际接口，不修改用户库结构。不要重复提取，不上传私有论文和库数据，不擅自修改用户环境。
