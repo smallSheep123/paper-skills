@@ -1,14 +1,16 @@
-# 安装与工具接入
+# paper-ppt 安装与工具接入
 
-## 1. 必需的是 AI 能力，不是指定供应商
+`paper-ppt` 的核心依赖不是某个固定模型，而是三类能力：
 
-将 Skill 目录放入客户端支持的位置（例如 `.agents/skills/`）。在新会话确认其已被发现，不覆盖已有系统提示词。
+1. **能读论文和图片的 AI**
+2. **能创建/编辑 PPTX 的工具**
+3. **能把 PPTX 渲染成图片供视觉复审的工具**
 
-完整流程需要实际图像输入能力、论文读取、PPT 创建/编辑以及可查看的渲染结果。可以使用宿主现成工具，也可以使用下面的本地备用链路。**模型、视觉插件和 API 额度不随仓库提供**；不能把某个不存在的 `visual-judge` 工具写成调用成功。主模型可看图时允许分阶段自审；纯文本模型只能产草案，不能验收。
+优先使用宿主已经提供的能力；下面的本地工具链只是备用方案。
 
-## 2. 本地备用工具链
+## 1. 安装本地 PPT 工具
 
-在 `paper-ppt/` 目录执行（Windows PowerShell、Git Bash 和 Linux 均可使用这些命令）：
+在 `paper-ppt/` 目录：
 
 ```bash
 npm install
@@ -16,66 +18,128 @@ python -m pip install -r requirements.txt
 python scripts/bridge.py doctor
 ```
 
-需要 Node.js 20+、Python 3.10+、LibreOffice、Poppler 的 `pdftoppm`。`npm install` 使用本目录依赖，避免要求全局 `NODE_PATH`。`doctor` 从当前目录检查 Node 包，因而应在 `paper-ppt/` 下运行；它不测试视觉模型，也不证明字体或 PowerPoint 兼容。
+建议环境：
 
-LibreOffice/Poppler 通过系统包管理器或官方安装包安装。脚本先查 PATH 和常见安装位置；便携版可通过命令行指定，不需要修改系统环境：
+- Node.js 20+
+- Python 3.10+
+- LibreOffice
+- Poppler（提供 `pdftoppm`）
+
+`doctor` 只检查本地工具链，不检查视觉模型是否可用，也不代表 PowerPoint 兼容性已经验证。
+
+## 2. 渲染 PPTX
 
 ```bash
-python scripts/bridge.py render /path/to/deck.pptx --out /path/to/renders/r01 --soffice /path/to/soffice --pdftoppm /path/to/pdftoppm
+python scripts/bridge.py render deck.pptx --out renders/r01
 ```
 
-Windows 控制台优先指定 `soffice.com`；Linux/macOS 使用对应命令。也可使用现有进程环境变量 `LIBREOFFICE_PATH`、`PDFTOPPM_PATH`。路径含空格时用引号包裹。每轮必须使用新输出目录，防止把旧截图当作新结果。渲染用临时 LibreOffice profile，不占用用户日常配置。
+输出包括：
 
-默认 150 DPI，可通过 `--dpi` 指定 72–600。输出 PDF、每页 PNG、`contact-sheet.png` 和 `render.json`。脚本不会调用视觉模型；AI 接着必须通过宿主看图工具读取这些图片。
+```text
+renders/r01/
+├── <deck>.pdf
+├── slide-1.png
+├── slide-2.png
+├── ...
+├── contact-sheet.png
+└── render.json
+```
 
-## 3. 无论文素材自测
+每轮修改使用新的输出目录，例如 `r01`、`r02`，避免新旧预览混淆。
+
+需要显式指定工具路径时：
+
+```bash
+python scripts/bridge.py render deck.pptx \
+  --out renders/r01 \
+  --soffice /path/to/soffice \
+  --pdftoppm /path/to/pdftoppm
+```
+
+Windows 控制台优先使用 `soffice.com`；其他平台使用实际可执行文件。
+
+默认 150 DPI，可通过 `--dpi` 调整。
+
+## 3. 工具链自测
 
 ```bash
 node assets/smoke-build.js smoke.pptx
 python scripts/bridge.py render smoke.pptx --out smoke-render-r01
 ```
 
-让视觉模型实际查看输出全页图，检查中文、英文、符号、备注与可编辑文本。字体缺失时使用目标机和构建机都有的字体；自测可设置进程变量 `PAPER_PPT_TEST_FONT`，不要提交字体文件。
+然后让视觉模型**实际查看**生成的全页图片，确认：
 
-这只是工具链自测，不是论文质量验证。`assets/example-build.js` 为历史参考，含作者机器路径且不附原论文图片，不作为上述自测入口。
+- 中文与英文正常；
+- 符号没有乱码；
+- 字体替换没有破坏版面；
+- 演讲备注存在；
+- 文本仍然可编辑。
+
+这只是工具链测试，不代表真实论文 PPT 已通过内容和视觉验收。
 
 ## 4. 审阅记录检查
 
-实际执行各轮视觉调用后，依 [视觉协议](references/visual-review.md) 保存日志，再执行：
+真实完成视觉审阅后，可运行：
 
 ```bash
-python scripts/check_review.py /path/to/renders/r01/render.json /path/to/review-log.json
+python scripts/check_review.py renders/r01/render.json review-log.json
 ```
 
-检查结果只证明日志结构、版本和覆盖一致，不证明模型调用真实性，不是自动审美评分。主/子 Agent 必须给出真实观察和可追溯的调用引用。
+它检查的是：
 
-## 5. OOXML 按需修复
+- 审阅记录结构；
+- 当前页面是否有对应记录；
+- 图片/整套 deck 是否被修改过；
+- 最终版本与通过记录是否匹配。
 
-不是所有 PptxGenJS 版本都会遇到重复段落属性。先检查实际输出，确实有问题才运行：
+它**不会调用视觉模型，也不会判断页面好不好看或论文事实是否正确**。
+
+## 5. 可选 OOXML 修复
+
+仅在确实遇到 PptxGenJS 多 run 段落的重复 `<a:pPr>` 问题时使用：
 
 ```bash
 python assets/fix_pPr.py deck.pptx --out deck.fixed.pptx
 ```
 
-原文件不覆盖。相同属性可去重；冲突属性拒绝猜测，返回绘制源修复。修复后重新渲染和看图。这个脚本不等于完整 OOXML 校验器，也不保证 PowerPoint 兼容。
+脚本默认另存，不覆盖源文件。出现冲突属性时应回到生成源修复，而不是让脚本猜。
 
-## 6. 可选 MinerU 本地提取
+修复后必须重新渲染并复审。
 
-宿主已有高质量 PDF 阅读能力或已有 Markdown 时，无需 MinerU。需要稳定的本地 Markdown 产物时，安装 MinerU 4.x 即可，**不需要额外论文库，也不需要常驻 API 服务**。
+## 6. 可选：MinerU 本地论文提取
+
+如果宿主已经能稳定读取 PDF，或已经有 Markdown，可以跳过 MinerU。
+
+需要本地 Markdown 产物时：
 
 ```bash
 python -m pip install -U "mineru>=4.0,<5"
+
 python ../paper-extract/scripts/mineru_models.py download --tier standard
 python ../paper-extract/scripts/mineru_models.py verify --tier standard
+
 python ../paper-extract/scripts/mineru_extract.py /path/to/paper.pdf
 ```
 
-模型下载和文档解析是两步；解析脚本默认只使用已下载的本地模型。详细说明见 [paper-extract](../paper-extract/SKILL.md)。独立只安装 `paper-ppt` 时不会复制一份 MinerU 脚本，避免两套实现漂移；需要本地提取就同时安装 `paper-extract`。
+模型准备和文档解析是两步；默认解析只使用本地已下载模型。详细说明见 [paper-extract](../paper-extract/SKILL.md)。
 
-## 7. 技术参考
+`paper-ppt` 不复制另一套 MinerU 脚本，避免两个 Skill 的实现发生漂移。
 
-- PptxGenJS 图片 API：https://gitbrent.github.io/PptxGenJS/docs/api-images/
-- PptxGenJS 备注 API：https://gitbrent.github.io/PptxGenJS/docs/speaker-notes/
-- LibreOffice 命令行参数：https://help.libreoffice.org/latest/en-US/text/shared/guide/start_parameters.html
+## 7. 视觉能力要求
 
-上述是工具文档，不是论文事实依据。宿主工具接口以实际发现的版本为准。
+完整工作流需要真实图像输入能力：
+
+- 可以是独立视觉审阅 Agent；
+- 也可以是同一个多模态主 Agent 分阶段完成设计与复审。
+
+只读取文件名、图片尺寸、替代文本或 XML **不算看图**。
+
+没有视觉能力时，可以生成内容草案或结构方案，但不能声称“视觉验收通过”。
+
+## 8. 技术参考
+
+- PptxGenJS 图片 API：<https://gitbrent.github.io/PptxGenJS/docs/api-images/>
+- PptxGenJS speaker notes：<https://gitbrent.github.io/PptxGenJS/docs/speaker-notes/>
+- LibreOffice 命令行参数：<https://help.libreoffice.org/latest/en-US/text/shared/guide/start_parameters.html>
+
+这些链接用于工具实现，不是论文事实依据。

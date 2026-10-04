@@ -1,92 +1,175 @@
-# paper-skills：AI 主导的论文阅读与视觉汇报工作流
+# paper-skills
 
-**不是把论文灌进固定模板，而是让 AI 理解论文、设计表达、看图修改，直到做出能讲清楚的学术 PPT。**
+**AI 主导的论文阅读与学术汇报工作流。**
 
-两个可独立安装的 Skill：
+让 AI 负责理解论文、组织叙事、设计页面、查看渲染结果并持续修改；代码只负责连接 MinerU、PPTX 生成、渲染和检查工具。
 
-| Skill | 用途 | 触发示例 |
+> 目标不是“自动套模板做 PPT”，而是让 AI 像研究助理 + 视觉编辑一样参与整个过程。
+
+## 两个 Skill
+
+| Skill | 作用 | 常见触发 |
 | --- | --- | --- |
-| [paper-extract](paper-extract/SKILL.md) | MinerU 模型下载 + PDF/文档 → Markdown，直接交给 AI | “把这篇论文转成 md 给 AI 读” |
-| [paper-ppt](paper-ppt/SKILL.md) | AI 读论文、视觉设计、逐页制作、事实校核、看图迭代 | “做成 8 分钟课堂汇报，正式学术风格” |
+| [paper-extract](paper-extract/SKILL.md) | MinerU 模型准备与论文 → Markdown | “把这篇论文转成 md 给 AI 读” |
+| [paper-ppt](paper-ppt/SKILL.md) | 论文理解、视觉设计、逐页制作、事实校核与视觉迭代 | “把这篇论文做成 8 分钟组会 PPT” |
 
-## 谁做决定？
+二者可以独立使用。已经有可靠 Markdown/PDF 阅读能力时，可以直接使用 `paper-ppt`。
 
-**AI 负责内容和视觉决策；代码只连接提取、绘制、渲染、记录与检查工具。**
-
-不提供 `deck-plan → 固定布局 → 自动填充` 的幻灯片编译器。逐页计划是 AI 的创作说明，不是模板引擎输入。AI 可以使用宿主的演示文稿工具，也可以编写临时 PptxGenJS 绘制指令；这些指令落实当次设计，不替代设计判断。
+## 核心工作流
 
 ```text
-论文正文 + 原始页面 + 用户参考图
-              ↓ 视觉 AI 看原图 / 校核图表
-       研究主线 + 证据笔记
-              ↓ 视觉 AI 分析参考 / 制定视觉方案
-       设计简报 + 逐页创作说明
-              ↓ AI 制作代表性样页，渲染后看图修改
-       方法页 / 实验页的视觉样板
-              ↓ AI 每次制作 1–3 页，逐页看图修复
-       全文汇报 + 可编辑图文 + 演讲备注
-              ↓ 事实核对 + 全页视觉审阅 + 全套节奏审阅
-       PPTX + 备注 + 预览 + 可追溯审阅记录
+PDF / Markdown / 风格参考
+          ↓
+     AI 理解论文
+          ↓
+视觉 AI 核对 Figure / Table / 公式
+          ↓
+  讲述主线 + 设计简报 + storyboard
+          ↓
+   方法页 / 实验页代表性样页
+          ↓
+      渲染 → 看图 → 修改
+          ↓
+   1–3 页一批继续制作与复审
+          ↓
+  事实终审 + 整套视觉终审
+          ↓
+PPTX + 演讲备注 + 预览 + QA 记录
 ```
 
-## 视觉模型不是最后一道装饰
+### AI 做什么
 
-五个必经节点：**原图审阅、设计定调、样页审阅、逐页审阅、整套终审**。修改后的页面必须重新渲染和看图。
+- 判断论文真正值得讲的主线；
+- 选择、裁剪和解释论文图；
+- 根据听众和场景决定页面结构；
+- 将风格参考转化为配色、层级、留白、密度和节奏；
+- 制作样页并根据真实渲染结果修改；
+- 核对页面、演讲备注与论文证据是否一致。
 
-使用当前客户端实际可用的多模态模型或视觉工具。没有独立审稿 Agent 时，由具备看图能力的主 Agent 分开执行设计与审阅，并明确记录“自审”。**没有视觉能力就标记 `blocked_visual`，不能靠图片尺寸、XML 或假造的评分声称视觉通过。** 本仓库不附带模型、不自动提供 API 额度、不假定某个插件一定存在。
+### 代码做什么
 
-## 两套学术视觉风格
+- 调用 MinerU 下载/校验模型和生成 Markdown；
+- 用 PptxGenJS 等工具把 AI 的设计落到可编辑 PPTX；
+- 用 LibreOffice / Poppler 渲染预览；
+- 记录文件版本、页面哈希和审阅覆盖；
+- 做必要的低层兼容性修复。
 
-保留两套由 AI 选择和运用的视觉语言，而不是两个自动套版模板：
+**代码不负责自动选模板、自动决定视觉风格，也不替代视觉模型做审美判断。**
 
-| 风格 | 表达重点 | 适用场景 |
+## 风格不是模板
+
+项目内置两套**视觉语言**，不是两个 PPTX 模板：
+
+| 风格 | 特点 | 更适合 |
 | --- | --- | --- |
-| [Academic Clean](paper-ppt/references/academic-clean.md) | 克制、论文证据优先、简洁标注 | 组会、论文精读、答辩、正式简约 |
-| [Academic Rich](paper-ppt/references/academic-rich.md) | 非对称构图、层级与页面节奏、视觉叙事 | 课程展示、公开技术演讲、跨领域讲解 |
+| [Academic Clean](paper-ppt/references/academic-clean.md) | 克制、paper-faithful、论文证据优先 | 组会、精读、答辩、正式汇报 |
+| [Academic Rich](paper-ppt/references/academic-rich.md) | 非对称构图、编辑式层级、页面节奏更强 | 课程展示、公开技术演讲、跨领域讲解 |
 
-用户指定优先；未指定时由 AI 根据场景选择，不确定就用 Clean。两者都必须忠实论文，不能用商业卡片或装饰代替技术解释。[学术设计参考原则](paper-ppt/references/academic-slide-distillation.md)供 AI 提炼表达方式，实际设计仍要用真实样页和视觉审阅验证。
+用户也可以只给一句风格描述、一张截图、几张参考图或网页 slide。**不要求提供 PPTX。**  
+AI 只提炼视觉语言，并针对当前论文重新设计；不会抽取固定槽位去套版。
 
-**风格输入不等于 PPTX 模板。** 用户可以只给一个风格名、文字描述、截图/图片或网页/slide 参考；不要求提供 `.pptx`。AI 只提炼配色、层级、密度、留白、构图和节奏等视觉语言，再针对当前论文重新设计，不把参考文件当成可套版资产。
+设计原则见：
 
-## 设计要求
+- [学术 PPT 设计规范](paper-ppt/references/style-guide.md)
+- [讲述结构](paper-ppt/references/talk-structure.md)
+- [视觉 AI 审阅协议](paper-ppt/references/visual-review.md)
+- [学术演讲参考原则](paper-ppt/references/academic-slide-distillation.md)
 
-正式学术、教学友好、可编辑。统一字体、颜色、对齐与间距，但允许 AI 根据内容自由安排页面。方法要有讲得清楚的示意图，实验要保留比较对象和条件，图注与数据必须可追溯。不堆装饰卡片，不靠缩小字号塞内容，不用 AI 生成实验曲线，不把整页截图冒充可编辑 PPT。
+## 快速开始
 
-详见 [设计规范](paper-ppt/references/style-guide.md)、[讲述结构](paper-ppt/references/talk-structure.md)、[视觉审阅协议](paper-ppt/references/visual-review.md)。
+### 1. 安装 Skill
 
-## 安装与开始
+把需要的目录复制到 AI 客户端支持的 Skill 路径，例如：
 
-将两个目录复制到客户端支持的 Skill 目录，例如 `<项目>/.agents/skills/`。发现机制以客户端为准；无需修改已有系统提示词或删除其他 Skill。
+```text
+<project>/.agents/skills/
+├── paper-extract/
+└── paper-ppt/
+```
 
-宿主已有 PPT 制作和渲染工具时，优先使用。需要本地备用工具链时，在 `paper-ppt/` 下安装：
+具体发现机制以你的 AI 客户端为准。
+
+### 2. 可选：用 MinerU 生成 Markdown
+
+如果宿主已经能稳定读取 PDF，可以跳过这一步。
 
 ```bash
+python -m pip install -U "mineru>=4.0,<5"
+
+python paper-extract/scripts/mineru_models.py download --tier standard
+python paper-extract/scripts/mineru_models.py verify --tier standard
+
+python paper-extract/scripts/mineru_extract.py /path/to/paper.pdf
+```
+
+模型准备和文档解析是两步；默认解析只使用本地已下载模型。
+
+### 3. 安装本地 PPT 工具链
+
+如果宿主已经提供 PPT 创建与渲染能力，也可以跳过。
+
+```bash
+cd paper-ppt
 npm install
 python -m pip install -r requirements.txt
 python scripts/bridge.py doctor
 ```
 
-LibreOffice 和 Poppler 另装；需要本地论文提取时只需安装 MinerU 4.x。完整说明见 [INSTALL.md](paper-ppt/INSTALL.md)。`doctor` 只检查本地工具，**不检查视觉模型是否已连接**。
+本地渲染还需要 LibreOffice 与 Poppler（`pdftoppm`）。详见 [INSTALL.md](paper-ppt/INSTALL.md)。
 
-可以直接对 AI 说：
+### 4. 直接交给 AI
 
-> 用 paper-ppt 做这篇论文的 8 分钟中文汇报。先看原论文图和我的参考图，制定设计简报，做方法和实验样页；由你自行评审后继续。全程实际看图，保留可编辑 PPT、演讲备注、来源和审阅记录。不要固定模板套版，不要编造论文结论。
+例如：
 
-## 仓库中的代码
+> 用 paper-ppt 做这篇论文的 8 分钟中文组会汇报。风格偏 Academic Clean。先理解论文和原始图表，再做方法页、实验页样稿；实际渲染后自己看图修改，再完成全稿。保留可编辑 PPT、演讲备注和来源，不要套固定模板，也不要编造论文结论。
 
-- `paper-ppt/scripts/bridge.py`：工具检测、PPTX/PDF → PNG、缩略图总览、文件指纹。
-- `paper-ppt/scripts/check_review.py`：检查审阅记录覆盖与文件版本；**不是视觉评分器**。
-- `paper-ppt/assets/ppt-helpers.js`：可选低层绘制辅助，无自动生成副作用。
-- `paper-ppt/assets/fix_pPr.py`：按需修复重复段落属性，默认另存，不覆盖原文件。
-- `paper-ppt/assets/smoke-build.js`：无外部论文素材的工具链自测，**不是设计模板**。
-- `paper-extract/scripts/mineru_models.py`：调用 MinerU 官方 CLI 下载/校验模型。\n- `paper-extract/scripts/mineru_extract.py`：调用无状态 `mineru-kit parse` 生成 Markdown。\n- `paper-ppt/assets/example-build.js`：保留的历史 DVLA 手工绘制参考；需要作者原始图片和路径，不是开箱可运行示例，也不作为论文事实来源.
+## 输出原则
 
-不上传论文库、API 密钥、个人机器配置和工作目录。保留每轮预览用于回溯，交付时不要删除用户原始文件。
+一份合格的结果至少应做到：
 
-## 开发自测
+- **准确**：数字、比较对象、实验条件和结论可追溯；
+- **可讲**：页面服务演讲，不是论文截图合集；
+- **可读**：Figure、图例、公式和正文在实际显示尺寸下可读；
+- **可编辑**：正文、标注和自绘解释图尽量保持可编辑；
+- **可复核**：最终版本经过真实渲染和视觉审阅；
+- **可增量修改**：局部需求只改相关页面，不默认整套重做。
+
+## 目录
+
+```text
+paper-skills/
+├── paper-extract/
+│   ├── SKILL.md
+│   └── scripts/
+│       ├── mineru_models.py
+│       └── mineru_extract.py
+│
+├── paper-ppt/
+│   ├── SKILL.md
+│   ├── INSTALL.md
+│   ├── assets/
+│   ├── references/
+│   └── scripts/
+│
+└── tests/
+```
+
+其中：
+
+- `mineru_models.py`：调用 MinerU 官方 CLI 下载、校验和查看模型配置；
+- `mineru_extract.py`：无状态调用 `mineru-kit parse` 生成 Markdown；
+- `bridge.py`：PPTX/PDF 渲染、总览图和文件指纹；
+- `check_review.py`：检查审阅记录与当前渲染版本是否一致；
+- `ppt-helpers.js`：可选的低层绘制辅助，不负责自动设计；
+- `fix_pPr.py`：必要时处理特定 OOXML 段落属性问题；
+- `example-build.js`：历史手工绘制案例，只作为代码参考，不是模板。
+
+## 开发与边界
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
-单元测试检查连接层与记录校验；不能替代视觉 AI 审美、论文事实审查或真实 PowerPoint 打开测试。
+测试用于检查工具连接、版本记录和低层脚本行为，**不能替代论文事实审查、视觉模型看图或真实 PowerPoint 兼容性测试**。
+
+项目不会上传论文库、模型密钥、个人机器配置或字体文件，也不会擅自修改系统代理、CUDA、驱动和全局环境变量。
