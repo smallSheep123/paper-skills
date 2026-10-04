@@ -59,11 +59,18 @@ python assets/fix_pPr.py deck.pptx --out deck.fixed.pptx
 
 原文件不覆盖。相同属性可去重；冲突属性拒绝猜测，返回绘制源修复。修复后重新渲染和看图。这个脚本不等于完整 OOXML 校验器，也不保证 PowerPoint 兼容。
 
-## 6. 可选论文提取后端
+## 6. 可选 MinerU 本地提取
 
-宿主已有 PDF 阅读/提取工具或已有 Markdown+图片时，无需安装 MinerU。只有选择原有本地路径时，才在独立环境安装 MinerU 与用户实际使用的 paper-mcp。模型下载大小、硬件要求和安装方式以所选后端版本文档为准。本仓库没有附带 paper-mcp 服务端源码或论文库。
+宿主已有高质量 PDF 阅读能力或已有 Markdown 时，无需 MinerU。需要稳定的本地 Markdown 产物时，安装 MinerU 4.x 即可，**不需要 paper-mcp，也不需要常驻 API 服务**。
 
-脚本用法见 [paper-extract](../paper-extract/SKILL.md)；独立安装 paper-ppt 时，本包也保留同一份 `scripts/extract_offline.py`。默认不再复制孤立 Markdown，避免图片失联；需要副本时显式 `--copy-bundle`。
+```bash
+python -m pip install -U "mineru>=4.0,<5"
+python ../paper-extract/scripts/mineru_models.py download --tier standard
+python ../paper-extract/scripts/mineru_models.py verify --tier standard
+python ../paper-extract/scripts/mineru_extract.py /path/to/paper.pdf
+```
+
+模型下载和文档解析是两步；解析脚本默认只使用已下载的本地模型。详细说明见 [paper-extract](../paper-extract/SKILL.md)。独立只安装 `paper-ppt` 时不会复制一份 MinerU 脚本，避免两套实现漂移；需要本地提取就同时安装 `paper-extract`。
 
 ## 7. 技术参考
 
