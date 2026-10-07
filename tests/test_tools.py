@@ -29,6 +29,7 @@ def load(name: str, path: Path):
 fix = load('fix_pPr', ROOT / 'paper-ppt/assets/fix_pPr.py')
 mineru_models = load('mineru_models', ROOT / 'paper-extract/scripts/mineru_models.py')
 mineru_extract = load('mineru_extract', ROOT / 'paper-extract/scripts/mineru_extract.py')
+pdf_snap = load('pdf_snap', ROOT / 'paper-extract/scripts/pdf_snap.py')
 
 
 class ReviewTests(unittest.TestCase):
@@ -275,6 +276,37 @@ class ExtractionTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0)
 
+
+
+class NativeSourceTests(unittest.TestCase):
+    def test_page_ranges(self):
+        self.assertEqual(pdf_snap.parse_pages('1-3,5,3', 8), [1, 2, 3, 5])
+        self.assertEqual(pdf_snap.parse_pages(None, 3), [1, 2, 3])
+        self.assertEqual(pdf_snap.parse_pages('7-', 9), [7, 8, 9])
+        with self.assertRaises(ValueError):
+            pdf_snap.parse_pages('0-2', 5)
+
+    def test_box_is_page_fraction(self):
+        self.assertEqual(pdf_snap.parse_box('0.1,0.2,0.5,0.6'), (0.1, 0.2, 0.5, 0.6))
+        for bad in ('0.5,0.2,0.1,0.6', '0,0,1.2,1', '0.1,0.2,0.3'):
+            with self.assertRaises(ValueError):
+                pdf_snap.parse_box(bad)
+
+    def test_captions_split_layout_columns(self):
+        page = ('Figure 4: Duration of hotspots.        Figure 5: Hotspots by rack type.\n'
+                'As Figure 4 shows, most hotspots last hours.\n'
+                'Table 1: Load-tolerance of benchmarks.\n')
+        items = pdf_snap.find_captions([page, '图 2：系统结构\nFigure 4: duplicate'])
+        self.assertEqual([(i['kind'], i['id'], i['page']) for i in items],
+                         [('Figure', '2', 2), ('Figure', '4', 1), ('Figure', '5', 1), ('Table', '1', 1)])
+
+    def test_in_text_mentions_are_not_captions(self):
+        self.assertEqual(pdf_snap.find_captions(['Figure 12a shows p95 latency.\nFig. 3 depicts it.']), [])
+
+    def test_help_without_tools(self):
+        with self.assertRaises(SystemExit) as ctx:
+            pdf_snap.main(['--help'])
+        self.assertEqual(ctx.exception.code, 0)
 
 
 class JavaScriptTests(unittest.TestCase):

@@ -2,7 +2,7 @@
 
 **AI 主导的论文阅读与学术汇报工作流。**
 
-让 AI 负责理解论文、组织叙事、设计页面、查看渲染结果并持续修改；代码只负责连接 MinerU、PPTX 生成、渲染和检查工具。
+让 AI 负责理解论文、组织叙事、设计页面、查看渲染结果并持续修改；代码只负责截图/裁切、连接 MinerU（可选）、PPTX 生成、渲染和检查工具。
 
 > 目标不是“自动套模板做 PPT”，而是让 AI 像研究助理 + 视觉编辑一样参与整个过程。
 
@@ -10,7 +10,7 @@
 
 | Skill | 作用 | 常见触发 |
 | --- | --- | --- |
-| [paper-extract](paper-extract/SKILL.md) | MinerU 模型准备与论文 → Markdown | “把这篇论文转成 md 给 AI 读” |
+| [paper-extract](paper-extract/SKILL.md) | 论文 → AI 可读素材：原生截图/识别，或 MinerU → Markdown（并列可选） | “把这篇论文准备好给 AI 读” |
 | [paper-ppt](paper-ppt/SKILL.md) | 论文理解、视觉设计、逐页制作、事实校核与视觉迭代 | “把这篇论文做成 8 分钟组会 PPT” |
 
 二者可以独立使用。已经有可靠 Markdown/PDF 阅读能力时，可以直接使用 `paper-ppt`。
@@ -91,9 +91,20 @@ AI 只提炼视觉语言，并针对当前论文重新设计；不会抽取固�
 
 具体发现机制以你的 AI 客户端为准。
 
-### 2. 可选：用 MinerU 生成 Markdown
+### 2. 准备论文素材（两条并列可选路径）
 
-如果宿主已经能稳定读取 PDF，可以跳过这一步。
+**路径 A：原生（无需模型）**——宿主 AI 能看图时默认使用：
+
+```bash
+python paper-extract/scripts/pdf_snap.py pages     paper.pdf --out work/pages
+python paper-extract/scripts/pdf_snap.py text      paper.pdf --out work/paper.txt.md
+python paper-extract/scripts/pdf_snap.py inventory paper.pdf --out work/inventory.md
+python paper-extract/scripts/pdf_snap.py crop      paper.pdf --page 5 --box 0.05,0.08,0.45,0.30 --out work/figs/fig4.png
+```
+
+只需要 Poppler（`pdftoppm` / `pdftotext`）或 `pip install pymupdf`。AI 看截图决定裁切坐标，并在 Design 前做[内容充足性自检](paper-ppt/references/source-sufficiency.md)。
+
+**路径 B：MinerU**——扫描件、公式要转 LaTeX、表格多、需要可复用 Markdown，或宿主不能看图时使用；也可以与 A 并行：
 
 ```bash
 python -m pip install -U "mineru>=4.0,<5"
@@ -143,6 +154,7 @@ paper-skills/
 ├── paper-extract/
 │   ├── SKILL.md
 │   └── scripts/
+│       ├── pdf_snap.py
 │       ├── mineru_models.py
 │       └── mineru_extract.py
 │
@@ -158,6 +170,7 @@ paper-skills/
 
 其中：
 
+- `pdf_snap.py`：原生路径——页面截图、每页文本、图表清单初稿、按页面比例坐标高分辨率裁切；
 - `mineru_models.py`：调用 MinerU 官方 CLI 下载、校验和查看模型配置；
 - `mineru_extract.py`：无状态调用 `mineru-kit parse` 生成 Markdown；
 - `bridge.py`：PPTX/PDF 渲染、总览图和文件指纹；
