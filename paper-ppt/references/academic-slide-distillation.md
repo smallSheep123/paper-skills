@@ -3,6 +3,8 @@
 这不是模板收藏，也不是要求照抄某套 slide。  
 它用于告诉视觉 AI：**优秀学术演讲通常为什么清楚。**
 
+具体可执行的版式手法，以及海外 / 国内组会两种风格方言，见 [slide-style-gallery.md](slide-style-gallery.md)。
+
 ## 参考来源
 
 ### MIT AeroAstro Communication Lab — Slide Design

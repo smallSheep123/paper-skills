@@ -74,6 +74,7 @@ AI 只提炼视觉语言，并针对当前论文重新设计；不会抽取固�
 - [讲述结构](paper-ppt/references/talk-structure.md)
 - [视觉 AI 审阅协议](paper-ppt/references/visual-review.md)
 - [学术演讲参考原则](paper-ppt/references/academic-slide-distillation.md)
+- [风格蒸馏库](paper-ppt/references/slide-style-gallery.md)：从 Kaiming He、Chris Ré、Song Han、CS231n、Jure Leskovec、VALSE、李宏毅等真实 deck 蒸馏的版式手法，含**海外组会 / 国内组会**两种风格方言
 
 ## 快速开始
 

@@ -49,6 +49,8 @@
 ## 视觉方案
 
 - 选择：Academic Clean / Academic Rich / 用户自定义风格
+- 风格方言：International（海外组会）/ Domestic（国内组会）/ 无，见 slide-style-gallery.md
+- 采用的蒸馏手法（P1–P11）：
 - 选择理由：
 - 视觉语气：
 - 字体与字号策略：

@@ -78,12 +78,21 @@ Markdown 用于理解正文，**原 PDF 页面是 Figure、Table 和公式的视
 - [talk-structure.md](references/talk-structure.md)
 - [style-guide.md](references/style-guide.md)
 - [Academic Clean](references/academic-clean.md) 或 [Academic Rich](references/academic-rich.md)
+- [slide-style-gallery.md](references/slide-style-gallery.md)：从真实顶会/组会 deck 蒸馏的 11 条版式手法，以及海外 / 国内组会两种风格方言
 
 默认路由：
 
 - 组会 / 精读 / 答辩 / 简洁正式 → **Academic Clean**
 - 课程展示 / 公开分享 / 更强演示感 → **Academic Rich**
 - 不确定 → **Academic Clean**
+
+风格方言（与上面的视觉语言叠加使用，见 [slide-style-gallery.md](references/slide-style-gallery.md) §2–§3）：
+
+- 英文汇报 / 海外组会 / reading group → **International**：白底、标题即结论、增量构建、研究问题编号导航；
+- 中文组会 / 国内学术报告 → **Domestic**：提纲页、“一、二、三”标题前缀、标题关键词强调、出处标签、结尾讨论问题；
+- 用户未说明时，按汇报语言选择：中文 → Domestic，英文 → International。
+
+选定方言写入 `design-brief.md`。
 
 用户明确指定风格时优先遵循用户要求。
 
