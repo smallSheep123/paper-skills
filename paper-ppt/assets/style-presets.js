@@ -13,6 +13,8 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const {containGeometry} = require('./image-geometry');
+const {addEquation, equationGeometry} = require('./equations');
 
 const STYLE_DIR = path.join(__dirname, '..', 'styles');
 
@@ -45,7 +47,18 @@ function runColor(t, r, o, src) {
   if (r.accent) return o.accentColor || t.color.accent;
   return src.color || o.color;
 }
-const fontFor = (t, o) => o.mono ? t.fonts.mono[0] : (o.font || (o.heading && t.fonts.heading) || t.fonts.body || t.fonts.cjk[0]);
+function scriptRuns(text) {
+  return text.split(/([\u2E80-\u9FFF\uF900-\uFAFF\u3000-\u303F\uFF00-\uFFEF\uAC00-\uD7AF]+)/g)
+    .filter(Boolean).map(text => ({text, cjk: /[\u2E80-\u9FFF\uF900-\uFAFF\u3000-\u303F\uFF00-\uFFEF\uAC00-\uD7AF]/.test(text)}));
+}
+function fontFor(t, o, src = {}, cjk = false) {
+  // Explicit fonts and style heading/body choices take precedence over script defaults.
+  const explicit = src.fontFace || src.font || o.fontFace || o.font;
+  if (explicit) return explicit;
+  if (o.mono) return t.fonts.mono[0];
+  if (cjk) return t.fonts.cjk[0];
+  return (o.heading && t.fonts.heading) || t.fonts.body || t.fonts.latin[0];
+}
 
 // ---------- backends ----------
 class PptxCanvas {
@@ -56,18 +69,20 @@ class PptxCanvas {
     const runs = [];
     paras.forEach((p, i) => {
       const src = typeof p === 'string' ? {text: p} : p;
-      const prs = parseRuns(src.text);
+      const prs = parseRuns(src.text).flatMap(r => scriptRuns(r.text).map(part => ({...r, ...part})));
       prs.forEach((r, j) => {
         const opt = {
           color: runColor(t, r, o, src),
           bold: !!(r.bold || o.bold || src.bold),
           italic: !!(o.italic || src.italic),
           fontSize: src.size || o.size,
+          fontFace: fontFor(t, o, src, r.cjk),
         };
         if (j === prs.length - 1 && i < paras.length - 1) opt.breakLine = true;
-        if (j === 0 && (src.bullet || o.bullet)) opt.bullet = {indent: 18};
-        if (j === 0 && src.indent) opt.indentLevel = src.indent;
-        if (j === 0 && (src.paraSpaceBefore || o.paraSpaceBefore)) opt.paraSpaceBefore = src.paraSpaceBefore || o.paraSpaceBefore;
+        // PptxGenJS emits pPr per run; keep paragraph properties identical.
+        if (src.bullet || o.bullet) opt.bullet = {indent: 18};
+        if (src.indent) opt.indentLevel = src.indent;
+        if (src.paraSpaceBefore || o.paraSpaceBefore) opt.paraSpaceBefore = src.paraSpaceBefore || o.paraSpaceBefore;
         runs.push({text: r.text, options: opt});
       });
     });
@@ -95,8 +110,9 @@ class PptxCanvas {
       line: {color: o.color, width: o.w || 1, dashType: o.dash ? 'dash' : 'solid', endArrowType: o.arrow ? 'triangle' : undefined}});
   }
   image(file, o) {
-    this.slide.addImage({path: file, x: o.x, y: o.y, w: o.w, h: o.h, sizing: {type: 'contain', w: o.w, h: o.h}, altText: o.alt || ''});
+    this.slide.addImage({path: file, ...containGeometry(file, o), altText: o.alt || ''});
   }
+  equation(asset, box, options = {}) { return addEquation(this.slide, asset, box, options); }
   background(color) { this.slide.background = {color}; }
   ellipse(o) {
     this.slide.addShape('ellipse', {x: o.x, y: o.y, w: o.w, h: o.h, fill: o.fill ? {color: o.fill} : {type: 'none'},
@@ -127,7 +143,7 @@ class SvgCanvas {
     // cairosvg resolves only the first family through fontconfig: CJK lines use the last (open) CJK font,
     // Latin lines use fonts.preview (metric look-alikes such as Nimbus Sans / P052 / LM Sans), else the CJK font.
     const hasCJK = paras.some((p) => [...(typeof p === 'string' ? p : p.text)].some(isCJK));
-    const font = (o.mono ? t.fonts.mono : [...(hasCJK ? t.fonts.cjk.slice(-1) : []), ...(t.fonts.preview || t.fonts.cjk.slice(-1)), fontFor(t, o), ...t.fonts.latin, 'sans-serif']).map(fam).join(',');
+    const font = o.fontFace || o.font || (o.mono ? t.fonts.mono : [...(hasCJK ? t.fonts.cjk.slice(-1) : []), ...(t.fonts.preview || t.fonts.cjk.slice(-1)), fontFor(t, o), ...t.fonts.latin, 'sans-serif']).map(fam).join(',');
     const lineSp = o.lineSpacing || 1.15;
     let y = o.y * PX;
     const lines = [];
@@ -191,6 +207,11 @@ class SvgCanvas {
     const ext = path.extname(file).slice(1).replace('jpg', 'jpeg');
     const data = fs.readFileSync(file).toString('base64');
     this.parts.push(`<image x="${o.x * PX}" y="${o.y * PX}" width="${o.w * PX}" height="${o.h * PX}" preserveAspectRatio="xMidYMid meet" href="data:image/${ext};base64,${data}"/>`);
+  }
+  equation(asset, box, options = {}) {
+    const g = equationGeometry(asset, box, options.align || 'center');
+    this.image(asset.svg, g);
+    return g;
   }
   background(color) { this.bg = color; }
   ellipse(o) {
@@ -436,4 +457,4 @@ function drawSlide(canvas, tokens, spec) {
   fn.call(preset, canvas, tokens, spec);
 }
 
-module.exports = {loadTokens, parseRuns, PptxCanvas, SvgCanvas, drawSlide, PRESETS};
+module.exports = {loadTokens, parseRuns, scriptRuns, PptxCanvas, SvgCanvas, drawSlide, PRESETS};

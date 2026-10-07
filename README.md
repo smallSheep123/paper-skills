@@ -73,6 +73,7 @@ AI 只提炼视觉语言，并针对当前论文重新设计；不会抽取固�
 - [学术 PPT 设计规范](paper-ppt/references/style-guide.md)
 - [讲述结构](paper-ppt/references/talk-structure.md)
 - [视觉 AI 审阅协议](paper-ppt/references/visual-review.md)
+- [Academic Evidence 风格案例](paper-ppt/styles/academic-evidence/STYLE.md)：本次论文 PPT 的设计说明与中英文示例，按需选择
 - [学术演讲参考原则](paper-ppt/references/academic-slide-distillation.md)
 - [风格预设](paper-ppt/styles/README.md)：9 套可调用预设——International / Domestic，以及 Keynote Minimal、Systems Talk、Theory Beamer、Dark Tech、Editorial、Defense CN、JP Gothic（字体、字号、配色、网格、页面原型、示例页与参考图）
 - [风格图谱](paper-ppt/references/slide-style-atlas.md)：105 套公开学术 deck（系统顶会、ML 教程、名校课程、国内报告与答辩、日韩技术发表、设计派）的字体实测、文字密度、版式聚类与 P12–P22 手法
@@ -177,6 +178,7 @@ paper-skills/
 - `bridge.py`：PPTX/PDF 渲染、总览图和文件指纹；
 - `check_review.py`：检查审阅记录与当前渲染版本是否一致；
 - `ppt-helpers.js`：可选的低层绘制辅助，不负责自动设计；
+- `math_assets.py` / `equations.js`：LaTeX 公式渲染、实际尺寸排布、SVG/透明 PNG 后备与简单原生 OMML 导出；见 [公式说明](paper-ppt/references/math-equations.md)；
 - `fix_pPr.py`：必要时处理特定 OOXML 段落属性问题；
 - `example-build.js`：历史手工绘制案例，只作为代码参考，不是模板。
 

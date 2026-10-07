@@ -1,0 +1,4 @@
+# Optional formula pipeline; pdflatex and the listed TeX packages are required.
+PyMuPDF>=1.26,<2
+latex2mathml==3.81.1
+mathml2omml==0.0.2

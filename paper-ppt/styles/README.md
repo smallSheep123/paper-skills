@@ -2,6 +2,8 @@
 
 九套可直接调用的风格预设，与 `references/` 中的设计原则配合使用。
 
+另有 [Academic Evidence](academic-evidence/STYLE.md) 可选风格说明与中英文论文案例。它记录本次设计判断，不注册固定模板，也不修改以下九套预设的审美规则。公共图片、公式、导出和校验工具可以被所有风格复用。
+
 | 预设 | 一句话 | 示例 |
 |---|---|---|
 | [International](international/STYLE.md) | 海外组会 / 会议：白底、标题即结论、增量构建、唯一强调色 | ![](international/samples/overview.png) |
@@ -30,14 +32,15 @@
 
 - `assets/style-presets.js`：`loadTokens()`、`drawSlide()`、International / Domestic 原型；`assets/style-presets-extra.js`：其余 7 套原型；
 - 行内标记：`[[x]]` 强调色、`**x**` 加粗、`{{n:x}}` 第 n 个概念色（`tokens.color.sym`）；同一套绘制调用可输出 PPTX（`PptxCanvas`）或 SVG 预览（`SvgCanvas`）；
-- `assets/build-style-samples.js`：生成两套示例 deck 与 SVG 预览（`npm run samples`）；
+- `assets/build-style-samples.js`：生成九套示例 deck 与 SVG 预览（`npm run samples`，无需 TeX）；
+- `assets/build-math-samples.js`：可选的 Academic Evidence 中英文公式示例（`npm run math-samples`，需要公式依赖）；
 - `scripts/svg_preview.py`：SVG → PNG + 总览图，用于没有 LibreOffice 时快速看图。
 
 **SVG 预览只是近似（换行按字符宽度估算），最终视觉验收仍以 PPTX 的真实渲染为准**（`scripts/bridge.py`）。
 
 ## 与 paper-ppt 工作流的关系
 
-1. Design 阶段按语言 / 场景选择预设，写入 `design-brief.md`；
+1. Design 阶段按用户参考、场景和内容密度选择预设，写入 `design-brief.md`；语言决定字体与文字处理，不直接锁定审美；
 2. storyboard 中每页标注计划使用的原型（如 `method`、`result`），没有合适原型的页面由 AI 自由绘制，但仍遵守该预设的 token 与硬性约束；
 3. 样页阶段用预设出方法页和结果页，渲染后看图修改；
 4. 预设是起点，不是锁定的模板：可以改坐标、换原型、拆页。
