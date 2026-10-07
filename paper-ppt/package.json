@@ -3,7 +3,14 @@
   "version": "0.2.0",
   "private": true,
   "description": "Optional drawing tools for an AI-led visual paper presentation skill; not a template compiler",
-  "engines": {"node": ">=20"},
-  "dependencies": {"pptxgenjs": "4.0.0"},
-  "scripts": {"smoke": "node assets/smoke-build.js"}
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "pptxgenjs": "4.0.0"
+  },
+  "scripts": {
+    "smoke": "node assets/smoke-build.js",
+    "samples": "node assets/build-style-samples.js style-samples && python scripts/svg_preview.py style-samples"
+  }
 }
