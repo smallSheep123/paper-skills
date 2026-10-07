@@ -23,6 +23,6 @@ function equationContent(c, t, s) {
     x: 1.05, y: 5.55, w: t.slide.w - 2.10, h: 1.0,
     size: t.size.body, color: t.color.body, paraSpaceBefore: 8});
 }
-
+
 
 module.exports = {equationContent};
