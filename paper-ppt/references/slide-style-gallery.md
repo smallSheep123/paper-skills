@@ -3,7 +3,8 @@
 > 来源：实际下载并渲染了下列公开 deck，逐页看图后提炼。  
 > 用途：给视觉 AI 一份**可执行的版式手法清单**，而不是可套用的模板。  
 > 与 [academic-slide-distillation.md](academic-slide-distillation.md) 的分工：那份讲“为什么清楚”，这份讲“具体怎么做”。  
-> 可直接调用的实现见 [../styles/](../styles/README.md)（token、页面原型、示例页、参考截图）。
+> 可直接调用的实现见 [../styles/](../styles/README.md)（token、页面原型、示例页、参考截图）。  
+> 扩展到 105 套样本后的统计、聚类与 P12–P22 见 [slide-style-atlas.md](slide-style-atlas.md)。
 
 ## 0. 观察样本
 

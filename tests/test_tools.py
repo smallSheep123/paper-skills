@@ -341,6 +341,23 @@ class JavaScriptTests(unittest.TestCase):
                 self.assertIn(b'<p:pic>', xml)
                 self.assertTrue(any(n.startswith('ppt/notesSlides/notesSlide') for n in z.namelist()))
 
+    def test_all_style_presets_build(self):
+        with tempfile.TemporaryDirectory() as td:
+            result = subprocess.run([self.node, str(ROOT / 'paper-ppt/assets/build-style-samples.js'), td], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            names = sorted(p.name.replace('-sample.pptx', '') for p in Path(td).glob('*-sample.pptx'))
+            styles = sorted(p.parent.name for p in (ROOT / 'paper-ppt/styles').glob('*/tokens.json'))
+            self.assertEqual(names, styles)
+            for name in names:
+                self.assertTrue((ROOT / f'paper-ppt/styles/{name}/STYLE.md').exists(), name)
+                with zipfile.ZipFile(Path(td) / f'{name}-sample.pptx') as z:
+                    self.assertTrue(any(n.startswith('ppt/slides/slide') for n in z.namelist()))
+
+    def test_concept_colour_markup(self):
+        code = "const {parseRuns}=require(process.argv[1]);const r=parseRuns('a {{2:S}} [[b]] **c**');if(r[1].sym!==2||r[1].text!=='S'||!r[3].accent||!r[5].bold)throw Error(JSON.stringify(r))"
+        result = subprocess.run([self.node, '-e', code, str(ROOT / 'paper-ppt/assets/style-presets.js')], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
 
 if __name__ == '__main__':
     unittest.main()

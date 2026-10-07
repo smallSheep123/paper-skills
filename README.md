@@ -74,7 +74,8 @@ AI 只提炼视觉语言，并针对当前论文重新设计；不会抽取固�
 - [讲述结构](paper-ppt/references/talk-structure.md)
 - [视觉 AI 审阅协议](paper-ppt/references/visual-review.md)
 - [学术演讲参考原则](paper-ppt/references/academic-slide-distillation.md)
-- [风格预设](paper-ppt/styles/README.md)：International / Domestic 两套可调用预设（字体、字号、配色、网格、页面原型、示例页与参考图）
+- [风格预设](paper-ppt/styles/README.md)：9 套可调用预设——International / Domestic，以及 Keynote Minimal、Systems Talk、Theory Beamer、Dark Tech、Editorial、Defense CN、JP Gothic（字体、字号、配色、网格、页面原型、示例页与参考图）
+- [风格图谱](paper-ppt/references/slide-style-atlas.md)：105 套公开学术 deck（系统顶会、ML 教程、名校课程、国内报告与答辩、日韩技术发表、设计派）的字体实测、文字密度、版式聚类与 P12–P22 手法
 - [风格蒸馏库](paper-ppt/references/slide-style-gallery.md)：从 Kaiming He、Chris Ré、Song Han、CS231n、Jure Leskovec、VALSE、李宏毅等真实 deck 蒸馏的版式手法，含**海外组会 / 国内组会**两种风格方言
 
 ## 快速开始

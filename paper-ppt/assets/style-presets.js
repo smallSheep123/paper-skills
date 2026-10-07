@@ -24,19 +24,28 @@ function loadTokens(name) {
 // ---------- inline markup ----------
 function parseRuns(text, base = {}) {
   const runs = [];
-  const re = /(\[\[[^\]]+\]\]|\*\*[^*]+\*\*)/g;
+  const re = /(\[\[[^\]]+\]\]|\*\*[^*]+\*\*|\{\{[1-6]:[^}]+\}\})/g;
   let last = 0;
   let m;
   while ((m = re.exec(text))) {
     if (m.index > last) runs.push({text: text.slice(last, m.index), ...base});
     const tok = m[0];
     if (tok.startsWith('[[')) runs.push({text: tok.slice(2, -2), ...base, accent: true});
+    else if (tok.startsWith('{{')) runs.push({text: tok.slice(4, -2), ...base, sym: Number(tok[2])});
     else runs.push({text: tok.slice(2, -2), ...base, bold: true});
     last = m.index + tok.length;
   }
   if (last < text.length) runs.push({text: text.slice(last), ...base});
   return runs;
 }
+
+// [[x]] = accent, **x** = bold, {{n:x}} = concept colour n (tokens.color.sym[n-1]): one colour per symbol/concept, same in text and diagrams.
+function runColor(t, r, o, src) {
+  if (r.sym && t.color.sym) return t.color.sym[(r.sym - 1) % t.color.sym.length];
+  if (r.accent) return o.accentColor || t.color.accent;
+  return src.color || o.color;
+}
+const fontFor = (t, o) => o.mono ? t.fonts.mono[0] : (o.font || (o.heading && t.fonts.heading) || t.fonts.body || t.fonts.cjk[0]);
 
 // ---------- backends ----------
 class PptxCanvas {
@@ -50,8 +59,9 @@ class PptxCanvas {
       const prs = parseRuns(src.text);
       prs.forEach((r, j) => {
         const opt = {
-          color: r.accent ? (o.accentColor || t.color.accent) : (src.color || o.color),
+          color: runColor(t, r, o, src),
           bold: !!(r.bold || o.bold || src.bold),
+          italic: !!(o.italic || src.italic),
           fontSize: src.size || o.size,
         };
         if (j === prs.length - 1 && i < paras.length - 1) opt.breakLine = true;
@@ -63,7 +73,8 @@ class PptxCanvas {
     });
     this.slide.addText(runs, {
       x: o.x, y: o.y, w: o.w, h: o.h,
-      fontFace: o.mono ? t.fonts.mono[0] : t.fonts.cjk[0],
+      fontFace: fontFor(t, o),
+      charSpacing: o.charSpacing,
       fontSize: o.size, color: o.color, bold: !!o.bold,
       align: o.align || 'left', valign: o.valign || 'top',
       margin: 0, lineSpacingMultiple: o.lineSpacing || 1.15,
@@ -86,6 +97,15 @@ class PptxCanvas {
   image(file, o) {
     this.slide.addImage({path: file, x: o.x, y: o.y, w: o.w, h: o.h, sizing: {type: 'contain', w: o.w, h: o.h}, altText: o.alt || ''});
   }
+  background(color) { this.slide.background = {color}; }
+  ellipse(o) {
+    this.slide.addShape('ellipse', {x: o.x, y: o.y, w: o.w, h: o.h, fill: o.fill ? {color: o.fill} : {type: 'none'},
+      line: o.line ? {color: o.line, width: o.lineW || 1} : {type: 'none'}});
+  }
+  chevron(o) {
+    this.slide.addShape(o.first ? 'homePlate' : 'chevron', {x: o.x, y: o.y, w: o.w, h: o.h, fill: {color: o.fill},
+      line: {type: 'none'}, adjustPoint: 0.3});
+  }
   notes(text) { if (text) this.slide.addNotes(text); }
 }
 
@@ -103,7 +123,11 @@ class SvgCanvas {
   text(content, o) {
     const t = this.t;
     const paras = Array.isArray(content) ? content : [content];
-    const font = o.mono ? t.fonts.mono.join(',') : [...t.fonts.cjk.slice(-1), ...t.fonts.latin, 'sans-serif'].join(',');
+    const fam = (f) => f;
+    // cairosvg resolves only the first family through fontconfig: CJK lines use the last (open) CJK font,
+    // Latin lines use fonts.preview (metric look-alikes such as Nimbus Sans / P052 / LM Sans), else the CJK font.
+    const hasCJK = paras.some((p) => [...(typeof p === 'string' ? p : p.text)].some(isCJK));
+    const font = (o.mono ? t.fonts.mono : [...(hasCJK ? t.fonts.cjk.slice(-1) : []), ...(t.fonts.preview || t.fonts.cjk.slice(-1)), fontFor(t, o), ...t.fonts.latin, 'sans-serif']).map(fam).join(',');
     const lineSp = o.lineSpacing || 1.15;
     let y = o.y * PX;
     const lines = [];
@@ -143,13 +167,14 @@ class SvgCanvas {
       if (l.bullet) this.parts.push(`<circle cx="${o.x * PX + l.sizePx * 0.28}" cy="${baseline - l.sizePx * 0.33}" r="${l.sizePx * 0.12}" fill="#${l.src.color || o.color}"/>`);
       const merged = [];
       for (const ch of l.chunks) {
-        const col = ch.accent ? (o.accentColor || t.color.accent) : (l.src.color || o.color);
+        const col = runColor(t, ch, o, l.src);
         const b = !!(ch.bold || o.bold || l.src.bold);
         const prev = merged[merged.length - 1];
         if (prev && prev.col === col && prev.b === b) prev.text += ch.text; else merged.push({text: ch.text, col, b});
       }
-      const spans = merged.map((m) => `<tspan fill="#${m.col}" font-weight="${m.b ? 'bold' : 'normal'}">${esc(m.text)}</tspan>`).join('');
-      this.parts.push(`<text x="${x}" y="${baseline}" font-family="${font}" font-size="${l.sizePx}" xml:space="preserve">${spans}</text>`);
+      const spans = merged.map((m) => `<tspan fill="#${m.col}" font-weight="${m.b ? 'bold' : (o.weight || 'normal')}">${esc(m.text)}</tspan>`).join('');
+      const extra = `${o.italic ? ' font-style="italic"' : ''}${o.charSpacing ? ` letter-spacing="${o.charSpacing}"` : ''}`;
+      this.parts.push(`<text x="${x}" y="${baseline}" font-family="${font.replace(/"/g, '')}" font-size="${l.sizePx}"${extra} xml:space="preserve">${spans}</text>`);
       y += h;
     }
   }
@@ -167,10 +192,20 @@ class SvgCanvas {
     const data = fs.readFileSync(file).toString('base64');
     this.parts.push(`<image x="${o.x * PX}" y="${o.y * PX}" width="${o.w * PX}" height="${o.h * PX}" preserveAspectRatio="xMidYMid meet" href="data:image/${ext};base64,${data}"/>`);
   }
+  background(color) { this.bg = color; }
+  ellipse(o) {
+    this.parts.push(`<ellipse cx="${(o.x + o.w / 2) * PX}" cy="${(o.y + o.h / 2) * PX}" rx="${o.w / 2 * PX}" ry="${o.h / 2 * PX}" fill="${o.fill ? '#' + o.fill : 'none'}" stroke="${o.line ? '#' + o.line : 'none'}" stroke-width="${(o.lineW || 1) * 1.333}"/>`);
+  }
+  chevron(o) {
+    const x = o.x * PX; const y = o.y * PX; const w = o.w * PX; const h = o.h * PX; const k = h * 0.3;
+    const pts = o.first ? [[x, y], [x + w - k, y], [x + w, y + h / 2], [x + w - k, y + h], [x, y + h]]
+      : [[x, y], [x + w - k, y], [x + w, y + h / 2], [x + w - k, y + h], [x, y + h], [x + k, y + h / 2]];
+    this.parts.push(`<polygon points="${pts.map((p) => p.join(',')).join(' ')}" fill="#${o.fill}"/>`);
+  }
   notes(text) { this.notesText = text || ''; }
   toSVG() {
     const W = this.t.slide.w * PX; const H = this.t.slide.h * PX;
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="#${this.t.color.bg}"/>${this.parts.join('')}</svg>`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="#${this.bg || this.t.color.bg}"/>${this.parts.join('')}</svg>`;
   }
 }
 
@@ -391,11 +426,12 @@ const domestic = {
   },
 };
 
-const PRESETS = {international, domestic};
+const PRESETS = {international, domestic, ...require('./style-presets-extra')({sourceLine, pageNo})};
 
 function drawSlide(canvas, tokens, spec) {
   const preset = PRESETS[tokens.name];
   const fn = preset[spec.type];
+  if (tokens.color.bg && tokens.color.bg !== 'FFFFFF' && canvas.background) canvas.background(tokens.color.bg);
   if (typeof fn !== 'function') throw new Error(`Unknown archetype "${spec.type}" for ${tokens.name}`);
   fn.call(preset, canvas, tokens, spec);
 }

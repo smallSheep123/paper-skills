@@ -123,9 +123,21 @@ description: AI 主导的论文汇报 PPT 工作流：理解论文与原图、�
 - 中文组会 / 国内学术报告 → **Domestic**：提纲页、“一、二、三”标题前缀、标题关键词强调、出处标签、结尾讨论问题；
 - 用户未说明时，按汇报语言选择：中文 → Domestic，英文 → International。
 
-选定方言写入 `design-brief.md`。
+场景更具体时，从另外 7 套预设中选（依据：105 套真实 deck 的蒸馏，见 [slide-style-atlas.md](references/slide-style-atlas.md) §4 速查表）：
 
-两种方言都有可直接调用的**风格预设**（[styles/](styles/README.md)）：`tokens.json` 定义字体、字号、配色语义和网格，`assets/style-presets.js` 提供封面、提纲/问题导航、章节、方法、增量构建、公式讲解、结果、总结等页面原型。使用预设时：
+| 预设 | 场景 |
+|---|---|
+| `keynote-minimal` | 白底极简发布会式：英文 talk、job talk、导师偏好简洁 |
+| `systems-talk` | 系统 / 网络 / 存储 / 数据库论文：贡献追踪条、Insight 卡、比值结果 |
+| `theory-beamer` | 理论 / 算法 / 数学：Metropolis 式、定理色块、一个符号一种颜色 |
+| `dark-tech` | 工业分享、技术沙龙：深色底、focus-dim |
+| `editorial` | HCI / 可视化 / 图形学 / 科普：衬线、插画为主 |
+| `defense-cn` | 国内答辩、开题、中期、基金汇报：校色标题带、章节导航、创新点卡片 |
+| `jp-gothic` | 日文 / 韩文报告，或日系高密度论文分享 |
+
+只选一套；不确定就用方言默认的 Domestic / International。选定方言/预设写入 `design-brief.md`。
+
+所有方言和预设都可直接调用（[styles/](styles/README.md)）：`tokens.json` 定义字体、字号、配色语义和网格，`assets/style-presets.js` 提供封面、提纲/问题导航、章节、方法、增量构建、公式讲解、结果、总结等页面原型。使用预设时：
 
 - storyboard 中为每页标注原型名；没有合适原型的页面自由绘制，但仍遵守该预设的 token 与硬性约束（见对应 `STYLE.md` §5）；
 - 先看 `styles/<name>/refs/` 中的真实参考页和 `samples/` 中的示例页，再动手；
