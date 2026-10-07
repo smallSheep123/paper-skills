@@ -79,6 +79,14 @@ python scripts/bridge.py render smoke.pptx --out smoke-render-r01
 
 ## 4. 审阅记录检查
 
+在渲染前先检查导出的结构：
+
+```bash
+python scripts/check_deck.py deck.pptx --out deck-audit.json
+```
+
+它检查图片比例、页面边界、备注覆盖及图表缓存与内嵌工作簿的一致性，不判断文字换行、事实解释和美观。无文字、无图片的装饰形状允许有意出血，其越界会报 warning，仍需逐页视觉确认并记录判断。若 PptxGenJS 将图表零值导出为空值，先核对数据源，再运行 `python scripts/restore_chart_zeros.py input.pptx --out new-version.pptx` 另存修复；它只恢复缓存已为零的空数字单元格，其他差异应修复生成源。
+
 真实完成视觉审阅后，可运行：
 
 ```bash
@@ -137,6 +145,8 @@ python ../paper-extract/scripts/mineru_extract.py /path/to/paper.pdf
 没有视觉能力时，可以生成内容草案或结构方案，但不能声称“视觉验收通过”。
 
 ## 8. 技术参考
+
+含数学公式时先安装可选依赖 `python -m pip install -r requirements-math.txt`，并准备 `pdflatex` 及相关 TeX 包。运行 `npm run math-samples` 生成 Academic Evidence 风格的中英文公式样例。完整操作见 [math-equations.md](references/math-equations.md)。`npm run samples` 继续生成原有九套预设，不依赖 TeX；其中普通文本符号示例不代表 LaTeX 转换。
 
 - PptxGenJS 图片 API：<https://gitbrent.github.io/PptxGenJS/docs/api-images/>
 - PptxGenJS speaker notes：<https://gitbrent.github.io/PptxGenJS/docs/speaker-notes/>

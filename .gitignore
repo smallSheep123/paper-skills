@@ -11,6 +11,7 @@ smoke.pptx
 smoke-render*/
 *.fixed.pptx
 *.pptx
+!paper-ppt/styles/academic-evidence/examples/*.pptx
 *.pdf
 slide-*.png
 style-samples/
