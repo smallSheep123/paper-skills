@@ -65,3 +65,18 @@
 | `refs/jasonwei-p12.jpg` | Scaling paradigms for large language models — Jason Wei (OpenAI)（invited guest lecture (llm-class, 2024 H2)） | dark Google Sans explainer | [PDF](https://llm-class.github.io/slides/Jason_Wei.pdf) |
 | `refs/bachkey-p1.jpg` | Dealing with Data (keynote) — Benjamin Bach, University of Edinburgh（Dealing with Data 2019, Edinburgh (Jan 2020)） | thin-type black/white alternating keynote | [PDF](https://vishub.net/pdfs/dealing_vis_data_keynote.pdf) |
 | `refs/klimovic-p28.jpg` | Data Management for Cost-Efficient ML — Ana Klimovic / ETH Zürich (EASL, Systems Group)（EuroSys 2024 CHEOPS workshop keynote） | Avenir light minimal + dark code-walkthrough slides | [PDF](https://cheops-workshop.github.io/talks2024/EuroSys24_CHEOPSkeynote_klimovic_CostEffectiveML.pdf) |
+
+## 字体与基础模板
+
+| 角色 | 首选 → 回退 | 开源替代 |
+|---|---|---|
+| 西文 | Inter → Segoe UI → Arial | （开源） |
+| 中日文 | PingFang SC → Microsoft YaHei → Noto Sans SC | 思源黑体 / Noto Sans SC |
+| 等宽 | JetBrains Mono → Consolas → DejaVu Sans Mono | （开源） |
+
+- 检查本机字体：`python scripts/check_fonts.py dark-tech`；来源、授权与安全字体组见 [fonts.md](../../references/fonts.md)。
+- 基础模板：[template.pptx](template.pptx)（每页是带占位说明的原型，演讲备注写明这页该放什么），预览：
+
+![dark-tech template](template-preview/overview.png)
+
+- 每页放什么内容：[page-content-guide.md](../../references/page-content-guide.md)。

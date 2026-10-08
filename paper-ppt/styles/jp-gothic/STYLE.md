@@ -62,3 +62,18 @@
 | `refs/yokoi_ja-p38.jpg` | 言語モデルの内部機序：解析と解釈 (NLP2025 tutorial) — Heinzerling, 横井祥, 小林悟郎 (RIKEN/東北大/国語研)（言語処理学会 NLP2025） | speakerdeck JP heavy-gothic tutorial | [PDF](https://files.speakerdeck.com/presentations/34463d58208d4999832c40cca50e5ea1/NLP_2025_interpretability_tutorial__%E6%8F%90%E5%87%BA%E7%89%88_-.pdf) |
 | `refs/utokyo_suzuki-p45.jpg` | 深層学習の数理 — 鈴木大慈 / 東京大学 (intensive lecture at Tohoku Univ.)（東北大学集中講義 2023） | Japanese navy title bar dense theory | [PDF](https://ibis.t.u-tokyo.ac.jp/suzuki/lecture/2023/TohokuUniv/%E6%9D%B1%E5%8C%97%E5%A4%A7%E5%AD%A62023.pdf) |
 | `refs/okada-p4.jpg` | 2層k-平面性と外k-平面性判定のパラメータ化計算量 — Kobayashi, Okada, Wolff (Hokkaido/Nagoya/Würzburg)（RAOTA 若手研究者の集い 2025） | Japanese theory talk, single orange accent | [PDF](https://yutookada.com/slides/raota-tsukuba2025.pdf) |
+
+## 字体与基础模板
+
+| 角色 | 首选 → 回退 | 开源替代 |
+|---|---|---|
+| 西文 | Noto Sans JP → Hiragino Sans → Meiryo | （开源） |
+| 中日文 | Noto Sans JP → Hiragino Sans → Yu Gothic → Noto Sans SC | （开源） |
+| 等宽 | Consolas → DejaVu Sans Mono | JetBrains Mono / DejaVu Sans Mono |
+
+- 检查本机字体：`python scripts/check_fonts.py jp-gothic`；来源、授权与安全字体组见 [fonts.md](../../references/fonts.md)。
+- 基础模板：[template.pptx](template.pptx)（每页是带占位说明的原型，演讲备注写明这页该放什么），预览：
+
+![jp-gothic template](template-preview/overview.png)
+
+- 每页放什么内容：[page-content-guide.md](../../references/page-content-guide.md)。

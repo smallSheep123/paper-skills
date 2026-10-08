@@ -12,6 +12,7 @@
   "scripts": {
     "smoke": "node assets/smoke-build.js",
     "math-samples": "node assets/build-math-samples.js math-samples",
-    "samples": "node assets/build-style-samples.js style-samples && python scripts/svg_preview.py style-samples"
+    "samples": "node assets/build-style-samples.js style-samples && python scripts/svg_preview.py style-samples",
+    "templates": "node assets/build-templates.js"
   }
 }

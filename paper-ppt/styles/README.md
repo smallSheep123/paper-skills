@@ -18,6 +18,22 @@
 
 后 7 套的来源与选择依据见 [slide-style-atlas.md](../references/slide-style-atlas.md)（105 套真实 deck 的字体、版式、内容分布与画风统计）。
 
+## 字体与基础模板
+
+| 预设 | 西文首选 | 中日文首选 | 基础模板 |
+|---|---|---|---|
+| `international` | Arial | Microsoft YaHei | [template.pptx](international/template.pptx) |
+| `domestic` | Arial | Microsoft YaHei | [template.pptx](domestic/template.pptx) |
+| `keynote-minimal` | Helvetica Neue | PingFang SC | [template.pptx](keynote-minimal/template.pptx) |
+| `systems-talk` | Arial | Microsoft YaHei | [template.pptx](systems-talk/template.pptx) |
+| `theory-beamer` | Fira Sans | Source Han Sans SC | [template.pptx](theory-beamer/template.pptx) |
+| `dark-tech` | Inter | PingFang SC | [template.pptx](dark-tech/template.pptx) |
+| `editorial` | Palatino Linotype | Source Han Serif SC | [template.pptx](editorial/template.pptx) |
+| `defense-cn` | Arial | Microsoft YaHei | [template.pptx](defense-cn/template.pptx) |
+| `jp-gothic` | Noto Sans JP | Noto Sans JP | [template.pptx](jp-gothic/template.pptx) |
+
+完整字体清单、开源替代和放映环境策略见 [fonts.md](../references/fonts.md)；`python scripts/check_fonts.py` 检查本机缺哪些字体；`node assets/build-templates.js` 重新生成全部模板。
+
 每个预设目录包含：
 
 ```text
@@ -25,7 +41,9 @@
 ├── STYLE.md      字体、字号、配色语义、网格、页面原型、推荐页序、硬性约束
 ├── tokens.json   机器可读的设计 token（style-presets.js 读取）
 ├── refs/         蒸馏来源的真实 slides 截图（低分辨率，注明出处）
-└── samples/      用预设生成的示例页（虚构占位论文）
+├── samples/      用预设生成的示例页（虚构占位论文）
+├── template.pptx 基础模板：带占位说明的原型页，演讲备注写明每页该放什么
+└── template-preview/overview.png  模板预览
 ```
 
 代码：

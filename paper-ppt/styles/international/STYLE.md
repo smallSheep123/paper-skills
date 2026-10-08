@@ -132,3 +132,18 @@ await deck.writeFile({fileName: 'deck.pptx'});
 - Jure Leskovec, Thesis Defense — <https://cs.stanford.edu/people/jure/pubs/thesis/jure-defense_pdf.pdf>
 
 `samples/` 为本预设生成的示例页，内容是虚构的占位论文，图是占位图。
+
+## 字体与基础模板
+
+| 角色 | 首选 → 回退 | 开源替代 |
+|---|---|---|
+| 西文 | Arial → Helvetica → Calibri | Liberation Sans |
+| 中日文 | Microsoft YaHei → PingFang SC → Source Han Sans SC → Noto Sans SC | 思源黑体 / Noto Sans SC |
+| 等宽 | Consolas → Menlo → DejaVu Sans Mono | JetBrains Mono / DejaVu Sans Mono |
+
+- 检查本机字体：`python scripts/check_fonts.py international`；来源、授权与安全字体组见 [fonts.md](../../references/fonts.md)。
+- 基础模板：[template.pptx](template.pptx)（每页是带占位说明的原型，演讲备注写明这页该放什么），预览：
+
+![international template](template-preview/overview.png)
+
+- 每页放什么内容：[page-content-guide.md](../../references/page-content-guide.md)。

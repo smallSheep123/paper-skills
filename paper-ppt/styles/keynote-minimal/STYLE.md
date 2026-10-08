@@ -67,3 +67,18 @@
 | `refs/eden-p13.jpg` | Eden: Developer-friendly Application-integrated Far Memory — Anil Yelam, Alex C. Snoeren et al. / UC San Diego, VMware (Broadcom)（NSDI 2025） | Google Slides minimal white | [PDF](https://www.usenix.org/system/files/nsdi25_slides-yelam.pdf) |
 | `refs/chajed-p34.jpg` | Verifying a concurrent, crash-safe file system with sequential reasoning — Tej Chajed, MIT PDOS (systems verification)（MIT PhD defense, 2021-10-21） | minimal Open Sans + teal systems diagrams | [PDF](https://www.chajed.io/papers/tchajed-thesis-slides.pdf) |
 | `refs/pku_wangdi-p26.jpg` | 保证引导程序组合正确性的可编程 MCMC — 王迪 北京大学（2024 (OOPSLA'24 work, Chinese talk)） | Keynote grey gradient minimal builds | [PDF](https://stonebuddha.github.io/talks/pmscgp.pdf) |
+
+## 字体与基础模板
+
+| 角色 | 首选 → 回退 | 开源替代 |
+|---|---|---|
+| 西文 | Helvetica Neue → Arial | Inter / Nimbus Sans |
+| 中日文 | PingFang SC → Microsoft YaHei → Noto Sans SC | 思源黑体 / Noto Sans SC |
+| 等宽 | Menlo → Consolas → DejaVu Sans Mono | DejaVu Sans Mono |
+
+- 检查本机字体：`python scripts/check_fonts.py keynote-minimal`；来源、授权与安全字体组见 [fonts.md](../../references/fonts.md)。
+- 基础模板：[template.pptx](template.pptx)（每页是带占位说明的原型，演讲备注写明这页该放什么），预览：
+
+![keynote-minimal template](template-preview/overview.png)
+
+- 每页放什么内容：[page-content-guide.md](../../references/page-content-guide.md)。

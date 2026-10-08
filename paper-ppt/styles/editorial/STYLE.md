@@ -61,3 +61,18 @@
 | `refs/shakir-p13.jpg` | Elevating our Evaluations: Technical and Sociotechnical Standards of Assessment in ML — Shakir Mohamed (DeepMind)（AISTATS 2023） | botanical illustrated Canva keynote | [PDF](https://shakirm.com/slides/AISTATS2023-Evaluation.pdf) |
 | `refs/rushdeepseek-p23.jpg` | How DeepSeek changes the LLM story — Sasha Rush (Cornell)（Simons Institute LLM workshop, Feb 2025） | Google Slides plain + serif quote cards | [PDF](https://simons.berkeley.edu/sites/default/files/2025-02/Sasha%20Rush%20LLM25-1%20Slides.pdf) |
 | `refs/hearst-p23.jpg` | Show It or Tell It? (IEEE VIS'22 Keynote) — Marti Hearst, UC Berkeley（IEEE VIS 2022） | AI-painted cover + paper-clipping collage | [PDF](https://people.ischool.berkeley.edu/~hearst/talks/hearst_vis2022_keynote_slides.pdf) |
+
+## 字体与基础模板
+
+| 角色 | 首选 → 回退 | 开源替代 |
+|---|---|---|
+| 西文 | Palatino Linotype → Book Antiqua → Georgia | TeX Gyre Pagella / P052 |
+| 中日文 | Source Han Serif SC → SimSun → Noto Serif SC | （开源） |
+| 等宽 | Menlo → Consolas → DejaVu Sans Mono | DejaVu Sans Mono |
+
+- 检查本机字体：`python scripts/check_fonts.py editorial`；来源、授权与安全字体组见 [fonts.md](../../references/fonts.md)。
+- 基础模板：[template.pptx](template.pptx)（每页是带占位说明的原型，演讲备注写明这页该放什么），预览：
+
+![editorial template](template-preview/overview.png)
+
+- 每页放什么内容：[page-content-guide.md](../../references/page-content-guide.md)。

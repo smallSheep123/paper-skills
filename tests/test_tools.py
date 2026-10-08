@@ -590,3 +590,31 @@ h.addNotes(s,'Synthetic mathematical fixture');d.writeFile({fileName:process.arg
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TemplatesAndFontsTest(unittest.TestCase):
+    PRESETS = ['international', 'domestic', 'keynote-minimal', 'systems-talk', 'theory-beamer',
+               'dark-tech', 'editorial', 'defense-cn', 'jp-gothic']
+
+    def test_every_preset_has_template_and_font_section(self):
+        root = Path(__file__).resolve().parent.parent / 'paper-ppt' / 'styles'
+        for p in self.PRESETS:
+            self.assertTrue((root / p / 'template.pptx').stat().st_size > 10000, p)
+            self.assertTrue((root / p / 'template-preview' / 'overview.png').exists(), p)
+            self.assertIn('## 字体与基础模板', (root / p / 'STYLE.md').read_text(encoding='utf-8'), p)
+
+    def test_check_fonts_json(self):
+        import json as _json
+        import subprocess as _sp
+        import sys as _sys
+        script = Path(__file__).resolve().parent.parent / 'paper-ppt' / 'scripts' / 'check_fonts.py'
+        out = _sp.run([_sys.executable, str(script), '--json', 'domestic'], capture_output=True, text=True).stdout
+        rep = _json.loads(out)[0]
+        self.assertEqual(rep['preset'], 'domestic')
+        self.assertIn('cjk', rep['roles'])
+        self.assertEqual(rep['roles']['cjk']['wanted'], 'Microsoft YaHei')
+
+    def test_skill_requires_intake_before_slides(self):
+        skill = (Path(__file__).resolve().parent.parent / 'paper-ppt' / 'SKILL.md').read_text(encoding='utf-8')
+        for key in ('开工前访谈', 'G1', 'G2', 'G3', 'intake.md', 'page-content-guide.md', 'fonts.md'):
+            self.assertIn(key, skill)

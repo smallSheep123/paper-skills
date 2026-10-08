@@ -63,3 +63,18 @@
 | `refs/def_thu_lyu-p15.jpg` | 面向市场化互动的工业负荷建模与优化决策方法（博士学位论文答辩） — 吕睿可 清华大学（2026-05-24） | Tsinghua purple photo-divider defense | [PDF](https://rick10119.github.io/files/Slides_phd_disseration_defense_Ruike_Lyu.pdf) |
 | `refs/fudan_zhangqi-p11.jpg` | 当LLM成为Agent的“决策大脑”：能力边界与安全挑战 — 张奇 复旦大学/上海人工智能实验室（CCF Talk 2026） | CCF gradient-bar official template | [PDF](http://qizhang.info/slides/CCFTALK2026.pdf) |
 | `refs/def_fudan_wang-p12.jpg` | 细粒度医疗行为识别与技能评估技术研究（博士学位论文答辩） — 王顺利 复旦大学（2024-05-25） | Fudan defense navy tab header | [PDF](https://shunli-wang.github.io/publications/pdf/slwang_PhD-Dissertation_Slides.pdf) |
+
+## 字体与基础模板
+
+| 角色 | 首选 → 回退 | 开源替代 |
+|---|---|---|
+| 西文 | Arial | Liberation Sans |
+| 中日文 | Microsoft YaHei → PingFang SC → Noto Sans SC | 思源黑体 / Noto Sans SC |
+| 等宽 | Consolas → DejaVu Sans Mono | JetBrains Mono / DejaVu Sans Mono |
+
+- 检查本机字体：`python scripts/check_fonts.py defense-cn`；来源、授权与安全字体组见 [fonts.md](../../references/fonts.md)。
+- 基础模板：[template.pptx](template.pptx)（每页是带占位说明的原型，演讲备注写明这页该放什么），预览：
+
+![defense-cn template](template-preview/overview.png)
+
+- 每页放什么内容：[page-content-guide.md](../../references/page-content-guide.md)。

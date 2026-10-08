@@ -66,3 +66,18 @@
 | `refs/bolt-p11.jpg` | BOLT: Sub-RTT Congestion Control for Ultra-Low Latency — Serhat Arslan, Yuliang Li, Gautam Kumar, Nandita Dukkipati / Stanford, Google（NSDI 2023） | Google-color tracker bar footer | [PDF](https://www.usenix.org/system/files/nsdi23_slides_arslan.pdf) |
 | `refs/klimovic-p28.jpg` | Data Management for Cost-Efficient ML — Ana Klimovic / ETH Zürich (EASL, Systems Group)（EuroSys 2024 CHEOPS workshop keynote） | Avenir light minimal + dark code-walkthrough slides | [PDF](https://cheops-workshop.github.io/talks2024/EuroSys24_CHEOPSkeynote_klimovic_CostEffectiveML.pdf) |
 | `refs/graviton-p20.jpg` | Graviton: Trusted Execution Environments on GPUs — Stavros Volos, Kapil Vaswani, Rodrigo Bruno / Microsoft Research, Univ. of Lisbon（OSDI 2018） | Segoe light corporate + takeaway banner | [PDF](https://www.usenix.org/sites/default/files/conference/protected-files/osdi18_slides_volos.pdf) |
+
+## 字体与基础模板
+
+| 角色 | 首选 → 回退 | 开源替代 |
+|---|---|---|
+| 西文 | Arial → Helvetica | Liberation Sans |
+| 中日文 | Microsoft YaHei → PingFang SC → Noto Sans SC | 思源黑体 / Noto Sans SC |
+| 等宽 | Consolas → Menlo → DejaVu Sans Mono | JetBrains Mono / DejaVu Sans Mono |
+
+- 检查本机字体：`python scripts/check_fonts.py systems-talk`；来源、授权与安全字体组见 [fonts.md](../../references/fonts.md)。
+- 基础模板：[template.pptx](template.pptx)（每页是带占位说明的原型，演讲备注写明这页该放什么），预览：
+
+![systems-talk template](template-preview/overview.png)
+
+- 每页放什么内容：[page-content-guide.md](../../references/page-content-guide.md)。

@@ -65,3 +65,19 @@
 | `refs/furnsinn-p12.jpg` | Arithmetic and Effective Aspects of Linear Differential Equations — Florian Fürnsinn, University of Vienna (mathematics)（Univ. of Vienna PhD defense, 2026-07-02） | Beamer navy miniframes (Frankfurt-style) + colored theorem blocks | [PDF](https://homepage.univie.ac.at/florian.fuernsinn/wp-content/uploads/2026/07/slides.pdf) |
 | `refs/yasuda-p16.jpg` | Algorithms for Matrix Approximation: Sketching, Sampling, and Sparse Optimization — Taisuke (Tai) Yasuda, CMU Computer Science（CMU PhD thesis defense, ~2024） | Keynote theory talk, rounded-box theorems + matrix blocks | [PDF](https://taisukeyasuda.github.io/docs/phd-thesis/slides.pdf) |
 | `refs/redleaf-p20.jpg` | RedLeaf: Isolation and Communication in a Safe Operating System — Vikram Narayanan, Anton Burtsev et al. / UC Irvine, VMware Research（OSDI 2020） | Beamer Metropolis code-diagram | [PDF](https://www.usenix.org/sites/default/files/conference/protected-files/osdi20_slides_narayanan_vikram.pdf) |
+
+## 字体与基础模板
+
+| 角色 | 首选 → 回退 | 开源替代 |
+|---|---|---|
+| 西文 | Fira Sans → Calibri | （开源） |
+| 中日文 | Source Han Sans SC → Microsoft YaHei → Noto Sans SC | （开源） |
+| 等宽 | Fira Mono → Consolas → DejaVu Sans Mono | （开源） |
+| 公式 | Cambria Math | STIX Two Math |
+
+- 检查本机字体：`python scripts/check_fonts.py theory-beamer`；来源、授权与安全字体组见 [fonts.md](../../references/fonts.md)。
+- 基础模板：[template.pptx](template.pptx)（每页是带占位说明的原型，演讲备注写明这页该放什么），预览：
+
+![theory-beamer template](template-preview/overview.png)
+
+- 每页放什么内容：[page-content-guide.md](../../references/page-content-guide.md)。
