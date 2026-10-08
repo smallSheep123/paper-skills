@@ -36,7 +36,7 @@ const explainer = (() => {
       c.rect({x: 0.6, y: 3.65, w: 7.4, h: 0.75, fill: 'FFF6D6', line: S.ink, lw: 1.25, r: 0.14});
       c.text('第 t+1 轮提示词：Given the last round’s utterance: {Answer 3, Conclusion} …', {x: 0.8, y: 3.65, w: 7.1, h: 0.75, size: 13, color: S.ink, font: SANS, valign: 'middle'});
       c.text('↑ Answer 1、2 被剪掉，不再进入下一轮', {x: 0.6, y: 2.85, w: 3.6, h: 0.35, size: 12.5, color: S.red, font: SANS, bold: true});
-      c.text(['为什么省得多：', '历史会在每一轮被写进提示词；图 4 的算式里，对话间一项按 ×4 累计，是一轮 token 的大头（5,036 / 7,295）。'], {x: 0.6, y: 4.8, w: 7.4, h: 1.8, size: 14, color: S.ink, font: SANS, lh: 1.45});
+      c.text(['为什么省得多：', '图 4 算式里，对话间一项带 ×4，占剪枝前总量的 69%（5,036 / 7,295），所以剪它收益最大。'], {x: 0.6, y: 4.8, w: 7.4, h: 1.8, size: 14, color: S.ink, font: SANS, lh: 1.45});
       K.ledger(c, {x: 8.6, y: 1.75, w: 4.2, h: 2.6}, B.ledger.map(r => ({...r})), {font: SANS, numFont: INTER, text: S.ink, muted: S.muted, accent: S.blueLine, rule: S.ink, size: 14, lastSize: 17, headSize: 11});
       K.callout(c, {x: 11.2, y: 3.42}, {x: 9.0, y: 4.85, w: 3.8, h: 0.75}, '跨轮开销降得最多：\n5,036 → 1,944'.split('\n'), bub);
       c.text('重绘自 ' + SRC.f4 + '；token 由图中算式求和', {x: 0.6, y: 7.08, w: 9, h: 0.25, size: 9.5, color: S.muted, font: INTER});
@@ -86,7 +86,7 @@ const lecture = (() => {
       K.callout(c, K.at(g, B.pruned[0]), {x: 6.4, y: 4.25, w: 1.4, h: 0.32}, '剪掉', cs);
       K.callout(c, K.at(g, B.pruned[1]), {x: 8.9, y: 4.25, w: 1.4, h: 0.32}, '剪掉', cs);
       K.ledger(c, {x: 0.6, y: 4.75, w: 6.6, h: 2.15}, B.ledger, {font: SANS, numFont: FIRA, text: S.ink, muted: S.muted, accent: S.red, rule: S.ink});
-      c.text(['Question:', '为什么跨轮开销降得最多？', '历史会被写进下一轮的提示词，图 4 算式中这一项按 ×4 累计，是一轮 token 的大头。'], {x: 7.8, y: 4.8, w: 5.0, h: 2.0, size: 14, color: S.ink, font: SANS, lh: 1.35});
+      c.text(['Question:', '为什么跨轮开销降得最多？', '图 4 算式中对话间一项带 ×4，占剪枝前总量的 69%（5,036 / 7,295）。'], {x: 7.8, y: 4.8, w: 5.0, h: 2.0, size: 14, color: S.ink, font: SANS, lh: 1.35});
       c.text(SRC.f4 + '；token 由图中算式求和', {x: 0.55, y: 7.12, w: 7, h: 0.25, size: 9.5, color: S.muted, font: FIRA});
     },
     (c) => {
@@ -184,7 +184,7 @@ const softBento = (() => {
       c.text(SRC.f4, {x: 0.55, y: 7.15, w: 6, h: 0.25, size: 9, color: S.muted, font: INTER});
     },
     (c) => {
-      title(c, '时间剪枝：历史只带 2 条，一轮 token 降 53%');
+      title(c, '时间剪枝：历史只带 2 条，示例 token 降 53%');
       card(c, 0.55, 1.1, 12.28, 2.75, '图 4 局部：发言历史', S.sky, S.skyT);
       const g = K.figure(c, B.temporal, {x: 0.75, y: 1.65, w: 11.9, h: 2.05});
       K.badge(c, K.at(g, B.pruned[0]), '×', {fill: S.peachT, color: 'FFFFFF', font: SANS, size: 11, r: 0.16});
@@ -195,7 +195,7 @@ const softBento = (() => {
         card(c, x, 4.0, 3.98, 3.05, r.k, tints[i][0], tints[i][1]);
         c.text(r.d, {x: x + 0.25, y: 4.7, w: 3.5, h: 0.9, size: 40, color: tints[i][1], font: INTER, bold: true});
         c.text(r.a + ' → ' + r.b + ' tokens', {x: x + 0.25, y: 5.7, w: 3.5, h: 0.4, size: 15, color: S.text, font: INTER});
-        c.text(['只在原系统的对话内边上剪', '历史在每轮被反复写入（×4）', '图 4 底部算式求和'][i], {x: x + 0.25, y: 6.2, w: 3.5, h: 0.6, size: 12, color: S.muted, font: SANS});
+        c.text(['只在原系统的对话内边上剪', '算式中对话间一项带 ×4', '图 4 底部算式求和'][i], {x: x + 0.25, y: 6.2, w: 3.5, h: 0.6, size: 12, color: S.muted, font: SANS});
       });
       c.text(SRC.f4, {x: 0.55, y: 7.15, w: 6, h: 0.25, size: 9, color: S.muted, font: INTER});
     },
@@ -243,7 +243,7 @@ const swiss = (() => {
     (c) => {
       frame(c, '03 — 方法 / 时间剪枝', 9);
       c.text('−53%', {x: 0.45, y: 1.0, w: 6, h: 2.0, size: 120, color: S.red, font: INTER, bold: true});
-      c.text('每轮 token：7,295 → 3,425。上一轮 4 条发言只带 2 条进下一轮。', {x: 0.5, y: 3.25, w: 5.6, h: 1.1, size: 20, color: S.ink, font: SANS, bold: true, lh: 1.3});
+      c.text('图 4 示例 token：7,295 → 3,425。上一轮 4 条发言只带 2 条进下一轮。', {x: 0.5, y: 3.25, w: 5.6, h: 1.1, size: 20, color: S.ink, font: SANS, bold: true, lh: 1.3});
       K.ledger(c, {x: 6.6, y: 1.05, w: 6.23, h: 2.6}, B.ledger, {font: SANS, numFont: INTER, text: S.ink, muted: S.muted, accent: S.red, rule: S.ink, size: 16, lastSize: 20});
       const g = K.figure(c, B.temporal, {x: 0.5, y: 4.75, w: 12.33, h: 1.8}, 'top');
       K.badge(c, K.at(g, B.pruned[0]), '×', {fill: S.red, color: 'FFFFFF', font: INTER, size: 12, r: 0.15});

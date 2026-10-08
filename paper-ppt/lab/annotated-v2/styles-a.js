@@ -50,11 +50,11 @@ const domestic = (() => {
       K.ring(c, K.at(gl, A.cross), 0.25, S.red);
       c.text('图 4（局部）  左：原拓扑，答 8（错）；右：剪枝后，答 12（对）。①② 为被剪掉的两条边', {x: 0.5, y: 5.82, w: 8.0, h: 0.3, size: 11, color: S.muted, font: SANS});
       pts(c, 8.85, 1.42, 4.0, [A.points[0], A.points[1], A.points[2], '① T1 → T2、② T1 → 总结者被剪；Thinker 2 不再沿用“n 不能超过 24”'], '要点');
-      concl(c, '剪掉的是[[冗余甚至带偏的消息]]，不是有用信息');
+      concl(c, '附录 I.4：被剪掉的多是[[误导 / 恶意]]或[[冗余]]的消息');
       c.notes('来源：' + SRC.f4);
     },
     (c) => {
-      frame(c, '三、方法 · 3.2 时间剪枝', '上一轮 4 条发言只带 2 条进下一轮，一轮 token 从 [[7,295]] 降到 [[3,425]]', 9);
+      frame(c, '三、方法 · 3.2 时间剪枝', '上一轮 4 条发言只带 2 条进下一轮，图 4 示例 token 从 [[7,295]] 降到 [[3,425]]', 9);
       const g = K.figure(c, B.temporal, {x: 0.5, y: 1.45, w: 12.33, h: 1.78}, 'top', {line: S.rule, lw: 1});
       K.callout(c, K.at(g, B.pruned[0]), {x: 5.6, y: 3.45, w: 1.7, h: 0.36}, '剪掉', cs);
       K.callout(c, K.at(g, B.pruned[1]), {x: 9.05, y: 3.45, w: 1.7, h: 0.36}, '剪掉', cs);
@@ -69,8 +69,8 @@ const domestic = (() => {
       frame(c, '四、实验 · 4.3 即插即用', '接入 GPTSwarm 后，GSM8K 成本 $234.76 → [[$57.17]]，精度还高了 0.84', 18);
       c.rect({x: 0.75, y: 1.5, w: 0.25, h: 0.16, fill: 'B8C4D6'}); c.text('接入前', {x: 1.05, y: 1.43, w: 1, h: 0.3, size: 11, color: S.muted, font: SANS});
       c.rect({x: 1.85, y: 1.5, w: 0.25, h: 0.16, fill: S.red}); c.text('接入 AgentPrune 后', {x: 2.15, y: 1.43, w: 2, h: 0.3, size: 11, color: S.muted, font: SANS});
-      K.hbars(c, {x: 0.5, y: 1.85, w: 7.9, h: 4.1}, COST.rows, {font: SANS, numFont: INTER, text: S.text, muted: S.muted, before: 'B8C4D6', after: S.red, fmt: K.money, labelW: 2.35, boldFirst: true});
-      c.text('图：据表 3 重绘，API 成本（美元），5 个 gpt-4 agent', {x: 0.5, y: 5.95, w: 7.5, h: 0.3, size: 10.5, color: S.muted, font: SANS});
+      K.hbars(c, {x: 0.5, y: 1.85, w: 7.9, h: 4.1}, COST.rows, {font: SANS, numFont: INTER, text: S.text, muted: S.muted, before: 'B8C4D6', after: S.red, fmt: K.money, labelW: 2.35, boldFirst: true, noNote: true});
+      c.text('图：据表 3 重绘，API 成本（美元），5 个 gpt-4 agent；条长以接入前为 100%', {x: 0.5, y: 5.95, w: 7.5, h: 0.3, size: 10.5, color: S.muted, font: SANS});
       pts(c, 8.85, 1.42, 4.0, COST.points, '要点');
       concl(c, '数据集越大省得越多，而精度基本不掉');
       c.notes('来源：' + SRC.t3 + '；$177.58、28.1%–72.8% 见 §4.3 与摘要');
@@ -111,7 +111,7 @@ const international = (() => {
       src(c, SRC.f4);
     },
     (c) => {
-      frame(c, '上一轮 4 条发言只带 2 条进下一轮，一轮 token 从 7,295 降到 [[3,425]]', '[Fig. 4]');
+      frame(c, '上一轮 4 条发言只带 2 条进下一轮，图 4 示例 token 从 7,295 降到 [[3,425]]', '[Fig. 4]');
       const g = K.figure(c, B.temporal, {x: 0.6, y: 1.65, w: 12.1, h: 1.8}, 'top');
       K.callout(c, K.at(g, B.pruned[0]), {x: 6.2, y: 3.7, w: 1.6, h: 0.34}, '剪掉', cs);
       K.callout(c, K.at(g, B.pruned[1]), {x: 8.7, y: 3.7, w: 1.6, h: 0.34}, '剪掉', cs);
@@ -148,7 +148,7 @@ const keynote = (() => {
     },
     (c) => {
       c.bg('FFFFFF');
-      c.text('一轮 token', {x: 0.8, y: 0.9, w: 6, h: 0.5, size: 20, color: S.muted, font: SANS});
+      c.text('图 4 示例 · token', {x: 0.8, y: 0.9, w: 6, h: 0.5, size: 20, color: S.muted, font: SANS});
       c.text('7,295 → [[3,425]]', {x: 0.8, y: 1.4, w: 11.8, h: 2.0, size: 96, color: S.text, font: INTER, bold: true, acc: S.acc});
       c.text('只把上一轮 4 条发言中的 2 条带进下一轮', {x: 0.8, y: 3.45, w: 11, h: 0.5, size: 20, color: S.text, font: SANS});
       const g = K.figure(c, B.temporal, {x: 0.8, y: 4.45, w: 11.7, h: 1.8}, 'left');
@@ -186,19 +186,19 @@ const systems = (() => {
   const cs = {stroke: S.ours, fill: S.tint, line: S.ours, color: S.ours, font: SANS, size: 12, ring: 0.2, r: 0.05};
   return {name: 'systems-talk', label: '系统顶会报告', pages: [
     (c) => {
-      frame(c, 1, '剪掉 2 条对话内消息，答案从 8 变成 [[12]]：冗余通信在帮倒忙');
+      frame(c, 1, '剪掉 2 条对话内消息，答案从 8 变成 [[12]]（Fig. 4 示例）');
       chip(c, 0.6, 1.55, 'Baseline · 6 条边', false); chip(c, 6.9, 1.55, 'AgentPrune · 4 条边', true);
       const gl = K.figure(c, A.left, {x: 0.6, y: 2.0, w: 4.2, h: 4.3}, 'top-left');
       const gr = K.figure(c, A.right, {x: 6.9, y: 2.0, w: 4.2, h: 4.3}, 'top-left');
       c.text('→', {x: 5.0, y: 3.6, w: 1.6, h: 0.9, size: 48, color: S.ours, font: INTER, bold: true, align: 'center'});
       K.callout(c, K.at(gr, A.cut1), {x: 11.1, y: 2.2, w: 1.95, h: 0.55}, '① 剪掉\nT1 → T2'.split('\n'), cs);
       K.callout(c, K.at(gr, A.cut2), {x: 11.1, y: 4.1, w: 1.95, h: 0.55}, '② 剪掉\nT1 → 总结者'.split('\n'), cs);
-      c.text('答 8（错）', {x: gl.x + gl.w - 1.5, y: gl.y + gl.h - 0.32, w: 1.5, h: 0.3, size: 12, color: S.muted, font: SANS, bold: true, align: 'right'});
-      c.text('答 12（对）', {x: gr.x + gr.w - 1.5, y: gr.y + gr.h - 0.32, w: 1.5, h: 0.3, size: 12, color: S.ours, font: SANS, bold: true, align: 'right'});
-      insight(c, ['每条边一个可学习分数 S^{S}，与系统效用一起优化', '训练 K′ 轮后按 TopK 一次性剪 p%，之后拓扑固定', '被剪的 T1→T2 曾把“n 小于 24”传给 Thinker 2']);
+      c.text('答 8（错）', {x: gl.x + gl.w - 1.5, y: gl.y - 0.42, w: 1.5, h: 0.3, size: 12, color: S.muted, font: SANS, bold: true, align: 'right'});
+      c.text('答 12（对）', {x: gr.x + gr.w - 1.5, y: gr.y - 0.42, w: 1.5, h: 0.3, size: 12, color: S.ours, font: SANS, bold: true, align: 'right'});
+      insight(c, ['每条边一个可学习分数 S^{S}，与系统效用一起优化', '训练 K′ 轮后按 TopK 一次性剪 p%，之后拓扑固定', '据图推断：被剪的 T1→T2 带着“n < 24”的限制']);
     },
     (c) => {
-      frame(c, 1, '跨轮历史只留 2 条，一轮 token 降 [[53%]]');
+      frame(c, 1, '跨轮历史只留 2 条，示例 token 降 [[53%]]');
       const g = K.figure(c, B.temporal, {x: 0.6, y: 1.5, w: 12.1, h: 1.8}, 'top');
       K.callout(c, K.at(g, B.pruned[0]), {x: 6.4, y: 3.5, w: 1.5, h: 0.34}, '剪掉', cs);
       K.callout(c, K.at(g, B.pruned[1]), {x: 8.8, y: 3.5, w: 1.5, h: 0.34}, '剪掉', cs);
@@ -206,7 +206,7 @@ const systems = (() => {
       K.ledger(c, {x: 0.6, y: 4.0, w: 7.6, h: 2.25}, B.ledger, {font: SANS, numFont: INTER, text: S.text, muted: S.muted, accent: S.ours, rule: S.rule, size: 16, lastSize: 20});
       c.rect({x: 8.9, y: 4.05, w: 3.8, h: 2.15, fill: S.tint, r: 0.08});
       c.text('2.1×', {x: 8.9, y: 4.15, w: 3.8, h: 1.1, size: 60, color: S.ours, font: INTER, bold: true, align: 'center'});
-      c.text('每轮 token 少 2.1 倍（7,295 / 3,425）', {x: 9.05, y: 5.35, w: 3.5, h: 0.7, size: 13, color: S.text, font: SANS, align: 'center'});
+      c.text('token 降到 1/2.1（7,295 → 3,425）', {x: 9.05, y: 5.35, w: 3.5, h: 0.7, size: 13, color: S.text, font: SANS, align: 'center'});
       insight(c, ['跨轮开销最大：5,036 → 1,944（−61.4%）', '时间边由 S^{T} 打分，与空间边一起剪', '空间、时间两类边共用“掩码 + TopK”同一套流程']);
     },
     (c) => {
@@ -274,7 +274,7 @@ const metropolis = (() => {
       c.rect({x: 1.3, y: 1.4, w: 0.22, h: 0.14, fill: 'C9D1D3'}); c.text('攻击前', {x: 1.58, y: 1.33, w: 1, h: 0.28, size: 11, color: S.muted, font: SANS});
       c.rect({x: 2.5, y: 1.4, w: 0.22, h: 0.14, fill: '7A8B8F'}); c.text('攻击后（橙色 = 用了 AgentPrune）', {x: 2.78, y: 1.33, w: 4, h: 0.28, size: 11, color: S.muted, font: SANS});
       block(c, 9.0, 1.4, 3.75, 2.6, 'Observation', ['受提示攻击时，AutoGen 掉 [[5.9]] 分，接入后只掉 [[0.2]]'], true);
-      block(c, 9.0, 4.2, 3.75, 2.5, '为什么', ['被剪掉的边往往正是传递错误或恶意内容的边（附录图 38 案例）'], false);
+      block(c, 9.0, 4.2, 3.75, 2.5, '为什么', ['附录 I.4：剪掉的主要是误导 / 恶意消息（图 38）与冗余消息（图 39）'], false);
       c.text(SRC.f6, {x: 1.2, y: 7.05, w: 8, h: 0.3, size: 10, color: S.muted, font: SANS});
     },
   ]};
@@ -301,7 +301,7 @@ const dark = (() => {
       c.text(SRC.f4, {x: 0.6, y: 7.18, w: 6, h: 0.25, size: 9, color: S.muted, font: MONO});
     },
     (c) => {
-      frame(c, '// METHOD · TEMPORAL PRUNING', '一轮 token：7,295 → [[3,425]]');
+      frame(c, '// METHOD · TEMPORAL PRUNING', '图 4 示例 token：7,295 → [[3,425]]');
       const g = K.figure(c, B.temporal, {x: 0.6, y: 1.65, w: 12.1, h: 1.8}, 'top', {fill: 'FFFFFF', pad: 0.06, r: 0.04});
       K.spotlight(c, g, [0.5, 0, 1, 1], S.bg, 0.65);
       K.callout(c, K.at(g, B.pruned[0]), {x: 6.6, y: 3.7, w: 1.4, h: 0.36}, '剪掉', {...cs, stroke: S.pink, line: S.pink, color: S.pink});
@@ -350,7 +350,7 @@ const editorial = (() => {
       note(c, 0.7, 2.1, 3.3, 1, '剪掉 Thinker 1 发给 Thinker 2 的回答');
       note(c, 0.7, 3.05, 3.3, 2, '剪掉 Thinker 1 发给总结者的回答');
       note(c, 0.7, 4.0, 3.3, 3, 'Thinker 2 不再沿用“n 不能超过 24”');
-      note(c, 0.7, 4.95, 3.3, 4, '原拓扑总结者答 8，剪枝后答 12（正确）');
+      note(c, 0.7, 4.95, 3.3, 4, '原拓扑总结者答 8，剪枝后答 12（图中标为正确）');
       c.line({x1: 0.7, y1: 6.05, x2: 4.0, y2: 6.05, color: S.rule, lw: 1});
       c.text('每条边一个可学习分数，训练 K′ 轮后一次性剪掉 p%。', {x: 0.7, y: 6.15, w: 3.3, h: 0.8, size: 12, color: S.muted, font: SERIF, italic: true, lh: 1.3});
       c.text('Fig. 4（局部）· Zhang et al., ICLR 2025', {x: 4.3, y: 7.08, w: 6, h: 0.25, size: 9.5, color: S.muted, font: SERIF});
@@ -422,8 +422,8 @@ const defense = (() => {
       K.callout(c, K.at(g, B.pruned[0]), {x: 6.5, y: 3.6, w: 1.5, h: 0.34}, '剪掉', cs);
       K.callout(c, K.at(g, B.pruned[1]), {x: 9.0, y: 3.6, w: 1.5, h: 0.34}, '剪掉', cs);
       K.ledger(c, {x: 0.6, y: 4.1, w: 7.4, h: 2.15}, B.ledger, {font: SANS, numFont: INTER, text: S.text, muted: S.muted, accent: S.red, rule: S.rule});
-      side(c, 8.4, 4.05, 4.43, 2.25, '计算依据', ['由图 4 底部算式求和', '对话间按图中“×4”累计']);
-      concl(c, '每轮 token 由 7,295 降至 3,425（−53.0%）');
+      side(c, 8.4, 4.05, 4.43, 2.25, '计算依据', ['由图 4 底部算式求和', '对话间一项在算式中带 ×4']);
+      concl(c, '图 4 示例：token 由 7,295 降至 3,425（−53.0%）');
     },
     (c) => {
       frame(c, 3, '4.4 鲁棒性：受攻击时性能基本保持', 19);
@@ -467,7 +467,7 @@ const jp = (() => {
       [[A.cut1, 1], [A.cut2, 2]].forEach(([f, n]) => { const p = K.at(gr, f); K.ring(c, p, 0.19, 'D7263D', 2); K.badge(c, {x: p.x - 0.34, y: p.y - 0.28}, n, {fill: 'D7263D', color: 'FFFFFF', font: INTER, size: 10, r: 0.14}); });
       K.ring(c, K.at(gl, A.cross), 0.22, 'D7263D');
       c.text('左：原拓扑（答 8，错）  右：剪枝后（答 12，对）  ①② 被剪的边  Fig. 4', {x: 5.55, y: 6.17, w: 7.3, h: 0.28, size: 10.5, color: S.muted, font: SANS, align: 'center'});
-      concl(c, '去掉冗余通信后反而答对了（8 → 12）');
+      concl(c, '剪掉 2 条边后，示例答案由 8 变为 12（Fig. 4）');
     },
     (c) => {
       frame(c, '方法②：用[[时间剪枝]]精简上一轮的历史', 9);
@@ -476,7 +476,7 @@ const jp = (() => {
       K.callout(c, K.at(g, B.pruned[1]), {x: 9.1, y: 3.42, w: 1.3, h: 0.3}, '剪掉', cs);
       list(c, 0.5, 3.9, 5.6, [['对象：上一轮发言是否写进下一轮提示词', ['由掩码 S^{T} 打分，与空间剪枝同时完成']], ['示例：4 条发言只保留 2 条', ['Answer 3 与 Conclusion 进入下一轮']]]);
       K.ledger(c, {x: 6.5, y: 3.9, w: 6.3, h: 2.4}, B.ledger, {font: SANS, numFont: INTER, text: S.text, muted: S.muted, accent: S.teal, rule: S.rule});
-      concl(c, '每轮 token：7,295 → 3,425（−53.0%）');
+      concl(c, '图 4 示例 token：7,295 → 3,425（−53.0%）');
     },
     (c) => {
       frame(c, '实验：[[即插即用]]，直接降低现有框架的成本', 18);

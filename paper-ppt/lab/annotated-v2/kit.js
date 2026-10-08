@@ -51,7 +51,7 @@ function hbars(c, box, rows, st) {
   const max = st.max || Math.max(...rows.map(r => r.a));
   const labelW = st.labelW || 2.6, valW = st.valW || 1.0;
   const x0 = box.x + labelW, bw = box.w - labelW - valW - (st.extraW || 0);
-  if (!st.absolute) { c.text('条长：相对接入前成本（接入前 = 100%）', {x: x0, y: box.y + box.h - 0.02, w: Math.min(5, bw), h: 0.25, size: 9.5, color: st.muted, font: st.font}); box = {...box, h: box.h - 0.25}; }
+  if (!st.absolute && !st.noNote) { c.text('条长：相对接入前成本（接入前 = 100%）', {x: x0, y: box.y + box.h - 0.02, w: Math.min(5, bw), h: 0.25, size: 9.5, color: st.muted, font: st.font}); box = {...box, h: box.h - 0.25}; }
   const rowH = box.h / rows.length; const bh = Math.min(0.24, rowH * 0.3);
   rows.forEach((r, i) => {
     const y = box.y + i * rowH + (rowH - 2 * bh - 0.06) / 2;
