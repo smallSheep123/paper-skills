@@ -32,3 +32,10 @@ c(p8, (600, 133, 818, 305), 'f5_gsm8k'); c(p8, (175, 133, 390, 305), 'f5_mmlu')
 t = Image.open(out / 'f4_temporal.png'); w, h = t.size
 t.crop((0, 0, w // 2, h)).save(out / 'f4_temporal_L.png'); t.crop((w // 2, 0, w, h)).save(out / 'f4_temporal_R.png')
 print('crops ->', out)
+
+# v3: zoom crops of single agent cells (Thinker 1 / 2 / 3), used on the example page
+def agent_cells(crops):
+    from PIL import Image
+    a = Image.open(crops / 'f4_sp_left.png'); b = Image.open(crops / 'f4_sp_right.png')
+    a.crop((368, 78, 660, 390)).save(crops / 't2_before.png'); b.crop((370, 78, 662, 390)).save(crops / 't2_after.png')
+    a.crop((50, 78, 338, 390)).save(crops / 't1_before.png'); b.crop((52, 440, 340, 730)).save(crops / 't3_after.png')

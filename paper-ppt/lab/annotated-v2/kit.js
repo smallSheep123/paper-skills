@@ -147,6 +147,95 @@ function history(c, box, H, st) {
   return {h};
 }
 
+
+// rough text width (inches) for a single line, used for strike-through lines
+const tw = (s, size) => [...s].reduce((a, ch) => a + (/[\u2E80-\uFFEF]/.test(ch) ? 1 : ch === ' ' ? 0.27 : /[A-Z0-9]/.test(ch) ? 0.63 : /[.,:;il'’]/.test(ch) ? 0.28 : 0.52), 0) * size / 72;
+
+// agent quote: who label, English text (optional strike part), Chinese gloss. Returns bottom y.
+function quote(c, box, q, st) {
+  const sz = st.size || 18; const lh = 1.3; const line = sz / 72 * lh;
+  let y = box.y;
+  if (st.who !== false) { c.text(q.who, {x: box.x, y, w: box.w, h: 0.3, size: st.whoSize || 12, color: st.whoColor || st.muted, font: st.labelFont || st.font, bold: true}); y += 0.36; }
+  const body = (t, color, extra = {}) => {
+    const n = Math.max(1, Math.ceil(tw(t, sz) * 1.12 / box.w));
+    c.text(t, {x: box.x, y, w: box.w, h: n * line + 0.04, size: sz, color, font: st.enFont || 'Inter', lh, italic: !!st.italic, ...extra});
+    const yy = y; y += n * line; return {n, yy};
+  };
+  if (q.en) body('“' + q.en + '”', st.text);
+  else {
+    body(q.pre, st.text);
+    const r = body(q.strike, st.strikeColor || st.muted);
+    if (st.strike) {
+      // split the struck sentence into lines the same greedy way as the renderer (by words) and strike each
+      const words = q.strike.split(' '); const ls = ['']; words.forEach(wd => { const t = ls[ls.length - 1] ? ls[ls.length - 1] + ' ' + wd : wd; if (tw(t + ' ', sz) > box.w + 0.01 && ls[ls.length - 1]) ls.push(wd); else ls[ls.length - 1] = t; });
+      ls.forEach((t, i) => { const yy = r.yy + i * line + line * 0.5; c.line({x1: box.x, y1: yy, x2: box.x + Math.min(box.w, tw(t, sz) * (st.strikeScale || 1)), y2: yy, color: st.strike, lw: 2.5}); });
+    }
+    body(q.post, st.answer || st.text, {bold: true});
+  }
+  if (q.zh && st.zh !== false) { y += 0.1; c.text(q.zh, {x: box.x, y, w: box.w, h: 0.4, size: st.zhSize || 14, color: st.zhColor || st.accent || st.text, font: st.font, bold: true}); y += 0.42; }
+  return y;
+}
+
+// generic table. cols: [{h, w (fraction), align, key|fn, bold, color(row)}]
+function table(c, box, cols, rows, st) {
+  const rh = box.h / (rows.length + 1); let x = box.x;
+  const xs = cols.map(cl => { const v = x; x += cl.w * box.w; return v; });
+  if (st.headFill) c.rect({x: box.x, y: box.y, w: box.w, h: rh, fill: st.headFill});
+  cols.forEach((cl, i) => c.text(cl.h, {x: xs[i] + 0.08, y: box.y, w: cl.w * box.w - 0.16, h: rh, size: st.headSize || 12, color: st.headColor || st.muted, font: st.font, bold: true, valign: 'middle', align: cl.align || 'left'}));
+  if (st.top) c.line({x1: box.x, y1: box.y, x2: box.x + box.w, y2: box.y, color: st.rule, lw: st.top});
+  c.line({x1: box.x, y1: box.y + rh, x2: box.x + box.w, y2: box.y + rh, color: st.rule, lw: st.mid || 0.75});
+  rows.forEach((r, j) => {
+    const y = box.y + (j + 1) * rh;
+    if (st.zebra && j % 2 === 1) c.rect({x: box.x, y, w: box.w, h: rh, fill: st.zebra});
+    if (st.hl && st.hl(r, j)) c.rect({x: box.x, y, w: box.w, h: rh, fill: st.hlFill});
+    cols.forEach((cl, i) => {
+      const v = cl.fn ? cl.fn(r, j) : r[cl.key];
+      c.text(String(v), {x: xs[i] + 0.08, y, w: cl.w * box.w - 0.16, h: rh, size: st.size || 13, color: cl.color ? cl.color(r, j) : st.text, font: cl.num ? (st.numFont || st.font) : st.font, bold: cl.bold ? cl.bold(r, j) : false, valign: 'middle', align: cl.align || 'left'});
+    });
+    if (st.rowRule) c.line({x1: box.x, y1: y + rh, x2: box.x + box.w, y2: y + rh, color: st.rowRule, lw: 0.5});
+  });
+  if (st.bottom) c.line({x1: box.x, y1: box.y + box.h, x2: box.x + box.w, y2: box.y + box.h, color: st.rule, lw: st.bottom});
+}
+
+// two stacked horizontal bars: before vs after, split into intra / inter
+function stack(c, box, L, st) {
+  const max = L[2].fa; const bh = st.bh || 0.7; const lw = st.labelW || 1.5; const bw = box.w - lw - 1.3;
+  [['剪枝前', 'fa', 'a'], ['剪枝后', 'fb', 'b']].forEach(([lab, f, s], i) => {
+    const y = box.y + i * (bh + (st.gap || 0.75));
+    c.text(lab, {x: box.x, y, w: lw - 0.15, h: bh, size: st.labelSize || 15, color: st.text, font: st.font, bold: true, valign: 'middle', align: 'right'});
+    const w0 = bw * L[0][f] / max, w1 = bw * L[1][f] / max; const x0 = box.x + lw;
+    c.rect({x: x0, y, w: w0, h: bh, fill: i ? st.intraAfter : st.intra, line: st.barLine, lw: st.barLw, r: st.r});
+    c.rect({x: x0 + w0, y, w: w1, h: bh, fill: i ? st.interAfter : st.inter, line: st.barLine, lw: st.barLw, r: st.r});
+    if (w0 > 0.8) c.text(L[0][s], {x: x0, y, w: w0, h: bh, size: st.inSize || 13, color: st.inText(i, 0), font: st.numFont || st.font, bold: true, align: 'center', valign: 'middle'});
+    if (w1 > 0.8) c.text(L[1][s], {x: x0 + w0, y, w: w1, h: bh, size: st.inSize || 13, color: st.inText(i, 1), font: st.numFont || st.font, bold: true, align: 'center', valign: 'middle'});
+    c.text(L[2][s], {x: x0 + w0 + w1 + 0.12, y, w: 1.3, h: bh, size: st.totSize || 20, color: i ? st.accent : st.text, font: st.numFont || st.font, bold: true, valign: 'middle'});
+  });
+  const ly = box.y + 2 * bh + (st.gap || 0.75) + 0.2;
+  [[st.inter, '对话间（跨轮历史）'], [st.intra, '对话内（同一轮）']].forEach(([col, t], i) => {
+    c.rect({x: box.x + lw + i * 2.6, y: ly + 0.05, w: 0.25, h: 0.18, fill: col, line: st.barLine, lw: st.barLw});
+    c.text(t, {x: box.x + lw + 0.33 + i * 2.6, y: ly, w: 2.3, h: 0.28, size: 11, color: st.muted, font: st.font});
+  });
+}
+
+// dumbbell: each row a line from 100% (before) to after% ; labels on both ends
+function dumbbell(c, box, rows, st) {
+  const lw = st.labelW || 2.6; const x0 = box.x + lw; const w = box.w - lw - (st.rightW || 1.2); const rh = box.h / (rows.length + 0.6);
+  const X = (p) => x0 + w * p / 100;
+  [0, 25, 50, 75, 100].forEach(p => { c.line({x1: X(p), y1: box.y, x2: X(p), y2: box.y + rh * rows.length, color: st.grid, lw: 0.5, dash: p !== 100}); c.text(p + '%', {x: X(p) - 0.4, y: box.y + rh * rows.length + 0.05, w: 0.8, h: 0.25, size: 10, color: st.muted, font: st.numFont || st.font, align: 'center'}); });
+  rows.forEach((r, i) => {
+    const y = box.y + i * rh + rh / 2; const p = 100 * r.b / r.a;
+    const kk = r.k.split(' · ');
+    c.text(kk[0] + ' · ' + kk[1], {x: box.x, y: y - 0.16, w: lw - 0.2, h: 0.32, size: st.labelSize || 13, color: st.text, font: st.font, bold: true, align: 'right', valign: 'middle'});
+    c.line({x1: X(p), y1: y, x2: X(100), y2: y, color: st.line, lw: 3});
+    c.ellipse({x: X(100) - 0.1, y: y - 0.1, w: 0.2, h: 0.2, fill: st.before});
+    c.ellipse({x: X(p) - 0.12, y: y - 0.12, w: 0.24, h: 0.24, fill: st.after});
+    c.text(Math.round(p) + '%', {x: X(p) - 0.9, y: y - 0.15, w: 0.75, h: 0.3, size: 12, color: st.after, font: st.numFont || st.font, bold: true, align: 'right', valign: 'middle'});
+    if (st.right) st.right(r, {x: box.x + box.w - (st.rightW || 1.2), y: y - 0.16, w: st.rightW || 1.2, h: 0.32});
+  });
+}
+
+const pct = (r) => '−' + Math.round(100 - 100 * r.b / r.a) + '%';
+
 const money = (v) => '$' + (v < 10 ? v.toFixed(3).replace(/0$/, '') : v.toFixed(2));
 
-module.exports = {at, figure, ring, spotlight, callout, badge, hbars, vbars, graph, ledger, history, money};
+module.exports = {tw, quote, table, stack, dumbbell, pct, at, figure, ring, spotlight, callout, badge, hbars, vbars, graph, ledger, history, money};

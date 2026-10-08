@@ -13,7 +13,7 @@ const PAPER = 'Cut the Crap: An Economical Communication Pipeline for LLM-based 
 const VENUE = 'Zhang et al. · ICLR 2025';
 
 const A = {
-  title: '剪掉 2 条对话内消息，总结者的答案从错误的 8 变成正确的 12',
+  title: '剪掉 2 条对话内消息，总结者的答案由 8 变为 12（图中标为正确）',
   short: '剪掉两条消息，答案反而对了',
   kicker: '空间剪枝 · 对话内',
   points: [
@@ -26,10 +26,29 @@ const A = {
   // annotation anchors, fractions of the crop
   cut1: [0.88, 0.22], cut2: [0.74, 0.69], strike: [0.80, 0.43], check: [0.92, 0.89], cross: [0.89, 0.91],
   c1: '① 剪掉 Thinker 1 → Thinker 2', c2: '② 剪掉 Thinker 1 → Summarizer',
-  c3: '不再沿用“n 不能超过 24”', cL: '原拓扑：答 8（错）', cR: '剪枝后：答 12（对）',
+  c3: '不再沿用“n 不能超过 24”', cL: '原拓扑：答 8', cR: '剪枝后：答 12（图中标为正确）',
   // redrawn graph (from Figure 4): nodes and edges of the spatial topology
   nodes: {T1: 'Thinker 1', T2: 'Thinker 2', T3: 'Thinker 3', S: 'Summarizer'},
   edges: [['T1', 'T2', 1], ['T1', 'T3', 0], ['T1', 'S', 2], ['T2', 'T3', 0], ['T2', 'S', 0], ['T3', 'S', 0]], // n>0 = pruned (callout id)
+};
+
+// The worked example behind Figure 4 (question and agent text copied from the figure).
+const EX = {
+  qEn: 'How many arithmetic sequences of consecutive odd integers sum to 240?',
+  q: '和为 240 的连续奇数数列一共有几个？',
+  roles: [
+    {k: 'Thinker 1–3', d: '3 个解题 agent，各自作答，并可读到别人的回答'},
+    {k: 'Summarizer', d: '总结者：汇总 3 个回答，给出最终答案'},
+  ],
+  t1: {who: 'Thinker 1', en: 'Thus, the values of n that work are n = 6,8,10,12,20, because n should be smaller than 24.', zh: '给出“n 应小于 24”的限制'},
+  t2b: {who: 'Thinker 2 · 原拓扑', pre: '...we argue that the valid sequences occur for n=1,2,4,...,20,', strike: 'because n should not be greater than 24.', post: 'The answer is 8.', zh: '沿用了这条限制，答 8'},
+  t2a: {who: 'Thinker 2 · 剪枝后', pre: '...we argue that the valid sequences occur for n=1,2,4,...,40,', strike: 'because n should not be greater than 24.', post: 'The answer is 12.', zh: '收不到 Thinker 1 的回答，限制被删去，答 12'},
+  t3a: {who: 'Thinker 3 · 剪枝后', en: 'Answer 1 set n<24, which is not reasonable.', zh: '直接指出 Answer 1 的限制不合理'},
+  answers: '总结者：原拓扑答 8，剪枝后答 12（图中标为正确）',
+  caveat: '“12”要允许数列含负奇数；只取正奇数时是 6。论文图中把 12 标为正确，讲之前先说明这个约定。',
+  math: ['k 个连续奇数 a, a+2, …, a+2(k−1) 之和 = k(a+k−1) = 240', 'k 与 240/k 都须为偶数 → k ∈ {2,4,6,8,10,12,20,24,30,40,60,120}', '共 12 个；若要求 a > 0，只剩 k ≤ 12 的 6 个'],
+  src: 'Figure 4 · Zhang et al., ICLR 2025（agent 原文摘自图中）',
+  t2Before: C('t2_before'), t2After: C('t2_after'), t1Before: C('t1_before'), t3After: C('t3_after'),
 };
 
 const B = {
@@ -54,18 +73,18 @@ const B = {
 };
 
 const COST = {
-  title: '接入 GPTSwarm 后，GSM8K 的 API 成本从 $234.76 降到 $57.17，精度还高了 0.84',
+  title: '接入 GPTSwarm 后，GSM8K 的 API 成本从 $234.76 降到 $57.17，准确率还高了 0.84',
   short: '$234.76 → $57.17',
   rows: [
-    {k: 'GSM8K · GPTSwarm', a: 234.76, b: 57.17, pa: '89.74', pb: '90.58', dp: '+0.84'},
-    {k: 'HumanEval · GPTSwarm', a: 57.49, b: 29.80, pa: '88.49', pb: '88.96', dp: '+0.47'},
-    {k: 'MMLU · GPTSwarm', a: 47.60, b: 23.05, pa: '83.98', pb: '83.05', dp: '−0.93'},
-    {k: 'GSM8K · AutoGen', a: 73.21, b: 59.60, pa: '90.06', pb: '92.85', dp: '+2.79'},
-    {k: 'HumanEval · AutoGen', a: 8.828, b: 7.342, pa: '85.41', pb: '86.65', dp: '+1.24'},
-    {k: 'MMLU · AutoGen', a: 7.537, b: 6.093, pa: '82.13', pb: '82.78', dp: '+0.65'},
+    {k: 'GSM8K · GPTSwarm', m: '准确率', a: 234.76, b: 57.17, pa: '89.74', pb: '90.58', dp: '+0.84'},
+    {k: 'HumanEval · GPTSwarm', m: 'pass@1', a: 57.49, b: 29.80, pa: '88.49', pb: '88.96', dp: '+0.47'},
+    {k: 'MMLU · GPTSwarm', m: '准确率', a: 47.60, b: 23.05, pa: '83.98', pb: '83.05', dp: '−0.93'},
+    {k: 'GSM8K · AutoGen', m: '准确率', a: 73.21, b: 59.60, pa: '90.06', pb: '92.85', dp: '+2.79'},
+    {k: 'HumanEval · AutoGen', m: 'pass@1', a: 8.828, b: 7.342, pa: '85.41', pb: '86.65', dp: '+1.24'},
+    {k: 'MMLU · AutoGen', m: '准确率', a: 7.537, b: 6.093, pa: '82.13', pb: '82.78', dp: '+0.65'},
   ],
   points: [
-    '6 组实验中 5 组精度上升，唯一下降的是 MMLU · GPTSwarm（−0.93）',
+    '6 组中 5 组效果上升（准确率；HumanEval 为 pass@1），唯一下降的是 MMLU · GPTSwarm（−0.93）',
     'prompt token 降 28.1%–72.8%；GSM8K · GPTSwarm 一组省下 $177.58',
     '数据集越大越省：GSM8K 约 8.5K 条，单次评测成本最高',
   ],
@@ -95,4 +114,4 @@ const BENTO = [
   {big: '−0.2', unit: 'vs −5.9', label: '受攻击时 AutoGen 接入后只掉 0.2 分', src: 'Figure 6'},
 ];
 
-module.exports = {SRC, PAPER, VENUE, A, B, COST, ATK, BENTO};
+module.exports = {SRC, PAPER, VENUE, A, B, COST, ATK, BENTO, EX};

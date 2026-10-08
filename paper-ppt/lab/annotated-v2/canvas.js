@@ -1,7 +1,7 @@
 // Dual-backend canvas (PPTX via pptxgenjs + SVG preview). Inches, 13.333 x 7.5.
 const fs = require('node:fs');
 const path = require('node:path');
-module.paths.unshift(path.join(__dirname, '..', '..', 'node_modules'));
+module.paths.unshift(path.join(__dirname, '..', '..', 'repo', 'paper-ppt', 'node_modules'));
 const PX = 96;
 const W = 13.333, H = 7.5;
 const isCJK = (ch) => /[\u2018-\u201D\u2026\u25A0-\u25FF\u2E80-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF\u3000-\u303F\u2460-\u24FF\u2190-\u21FF\u2600-\u27BF]/.test(ch);
