@@ -78,6 +78,7 @@ function vbars(c, box, rows, st) {
   c.text(String(lo), {x: box.x - 0.45, y: base - 0.12, w: 0.4, h: 0.25, size: 10, color: st.muted, font: st.numFont || st.font, align: 'right'});
   c.text(String(hi), {x: box.x - 0.45, y: Y(hi) - 0.12, w: 0.4, h: 0.25, size: 10, color: st.muted, font: st.numFont || st.font, align: 'right'});
   c.line({x1: box.x, y1: Y(hi), x2: box.x + box.w, y2: Y(hi), color: st.grid || st.axis, lw: 0.5, dash: true});
+  if (lo > 0) c.text(`纵轴从 ${lo} 起`, {x: box.x + box.w - 1.6, y: Y(hi) - 0.3, w: 1.6, h: 0.22, size: 9, color: st.muted, font: st.font, align: 'right'});
   rows.forEach((r, i) => {
     const cx = box.x + i * gw + gw / 2;
     const fa = r.ours ? st.oursBefore : st.before, fb = r.ours ? st.oursAfter : st.after;

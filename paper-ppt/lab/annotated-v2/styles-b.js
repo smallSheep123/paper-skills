@@ -119,7 +119,7 @@ const bentoDark = (() => {
       K.ring(c, K.at(gr, A.cut1), 0.22, S.pink, 3); K.ring(c, K.at(gr, A.cut2), 0.22, S.pink, 3);
       tile(c, 5.05, 0.95, 3.9, 2.9);
       c.text('6 → 4', {x: 5.35, y: 1.15, w: 3.4, h: 1.1, size: 54, color: S.blue, font: INTER, bold: true});
-      c.text('条对话内边，剪掉的是左图红圈处两条', {x: 5.35, y: 2.6, w: 3.4, h: 1.0, size: 12.5, color: S.muted, font: SANS, lh: 1.3});
+      c.text('对话内边数：左图红圈处两条被剪掉', {x: 5.35, y: 2.6, w: 3.4, h: 1.0, size: 12.5, color: S.muted, font: SANS, lh: 1.3});
       tile(c, 9.1, 0.95, 3.73, 2.9);
       c.text('8 → 12', {x: 9.4, y: 1.15, w: 3.3, h: 1.1, size: 54, color: S.green, font: INTER, bold: true});
       c.text('总结者的答案由错变对', {x: 9.4, y: 2.6, w: 3.2, h: 1.0, size: 12.5, color: S.muted, font: SANS, lh: 1.3});
@@ -231,7 +231,7 @@ const swiss = (() => {
     (c) => {
       frame(c, '03 — 方法 / 空间剪枝', 8);
       c.text('6→4', {x: 0.45, y: 1.0, w: 6, h: 2.0, size: 120, color: S.ink, font: INTER, bold: true});
-      c.text('条对话内边。剪掉 2 条后，总结者的答案从 8 变成 12。', {x: 0.5, y: 3.25, w: 5.6, h: 1.0, size: 22, color: S.ink, font: SANS, bold: true, lh: 1.3});
+      c.text('对话内边数：原 6 条，剪掉 2 条后，总结者的答案从 8 变成 12。', {x: 0.5, y: 3.25, w: 5.6, h: 1.0, size: 22, color: S.ink, font: SANS, bold: true, lh: 1.3});
       c.line({x1: 0.5, y1: 4.5, x2: 6.1, y2: 4.5, color: S.ink, lw: 1});
       c.text(['可学习分数 S^{S} × 系统效用', '训练 K′ 轮 → TopK 剪 p%', '之后拓扑固定'], {x: 0.5, y: 4.65, w: 2.7, h: 1.5, size: 13, color: S.ink, font: SANS, lh: 1.5});
       c.text(['① T1 → T2', '② T1 → 总结者'], {x: 3.4, y: 4.65, w: 2.7, h: 1.0, size: 13, color: S.red, font: SANS, bold: true, lh: 1.5});
