@@ -69,3 +69,8 @@
 2. 在 `style-presets-extra.js` 返回的对象中注册同名原型集合（可复用已有原型）；
 3. 在 `build-style-samples.js` 中加示例，运行 `npm run samples` 并检查 `samples/`；
 4. `refs/` 只放低分辨率截图并注明来源。
+
+
+## 试验区
+
+`lab/annotated-v2/` 是新一轮试稿：修复后的 9 套 + 新增 7 套（标注讲解、现代讲课、Bento 暗色、浅色卡片、瑞士风、Slidev Seriph、新野兽派），每套 3 页同内容样稿，并带图表加工层。选定后再并入本目录的正式 preset。
