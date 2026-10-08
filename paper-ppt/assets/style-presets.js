@@ -18,9 +18,21 @@ const {addEquation, equationGeometry} = require('./equations');
 
 const STYLE_DIR = path.join(__dirname, '..', 'styles');
 
-function loadTokens(name) {
+// opts.fontTrack (or env PAPER_PPT_FONTS): 'default' uses the preset's designed fonts;
+// 'open' swaps in the bundled open-licensed fonts (fonts/, scripts/get_fonts.py) so the deck
+// renders the same on every machine and the fonts may be embedded and redistributed.
+function loadTokens(name, opts = {}) {
   const file = path.join(STYLE_DIR, name, 'tokens.json');
-  return JSON.parse(fs.readFileSync(file, 'utf8'));
+  const t = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const track = opts.fontTrack || process.env.PAPER_PPT_FONTS || 'default';
+  if (track === 'open' && t.fonts.open) {
+    const o = t.fonts.open;
+    t.fonts = {...t.fonts, latin: [...o.latin, ...t.fonts.latin], cjk: [...o.cjk, ...t.fonts.cjk],
+      mono: [...o.mono, ...t.fonts.mono], heading: o.latin[0], body: o.latin[0], preview: [o.latin[0]],
+      ...(o.math ? {math: o.math} : {})};
+    t.fontTrack = 'open';
+  }
+  return t;
 }
 
 // ---------- inline markup ----------

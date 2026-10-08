@@ -71,9 +71,16 @@ def is_installed(font: str, have: set[str]) -> bool:
     return False
 
 
-def check(preset: str, have: set[str]) -> dict:
+def check(preset: str, have: set[str], track: str = "default") -> dict:
     tokens = json.loads((STYLES / preset / "tokens.json").read_text(encoding="utf-8"))
-    fonts = tokens.get("fonts", {})
+    fonts = dict(tokens.get("fonts", {}))
+    if track == "open" and "open" in fonts:
+        o = fonts["open"]
+        for role in ROLES:
+            if role in o:
+                base = fonts.get(role) or []
+                base = [base] if isinstance(base, str) else base
+                fonts[role] = ([o[role]] if isinstance(o[role], str) else o[role]) + base
     report = {"preset": preset, "roles": {}}
     for role in ROLES:
         lst = fonts.get(role)
@@ -91,10 +98,12 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("presets", nargs="*")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--track", choices=["default", "open"], default="default",
+                    help="open = bundled open-licensed fonts (scripts/get_fonts.py)")
     a = ap.parse_args()
     presets = a.presets or sorted(p.name for p in STYLES.iterdir() if (p / "tokens.json").exists())
     have = installed_families()
-    reports = [check(p, have) for p in presets]
+    reports = [check(p, have, a.track) for p in presets]
     if a.json:
         print(json.dumps(reports, ensure_ascii=False, indent=2))
         return 0
@@ -111,7 +120,7 @@ def main() -> int:
                 mark, note = "MISS", f"none of {', '.join(x['missing'])} installed"
                 worst = 2
             print(f"  [{mark}] {role:<5} {note}")
-    print("\nSources and safe substitutes: references/fonts.md")
+    print("\nSources and safe substitutes: references/fonts.md; open fonts: python scripts/get_fonts.py --install")
     return worst
 
 

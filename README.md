@@ -2,6 +2,8 @@
   <img src="docs/images/hero.png" alt="paper-skills：把论文变成好看、好讲、可编辑的学术汇报" width="100%">
 </p>
 
+<p align="center"><b>中文</b> · <a href="README.en.md">English</a></p>
+
 <p align="center">
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-2E86DE"></a>
   <img alt="Skills" src="https://img.shields.io/badge/skills-paper--extract%20%7C%20paper--ppt-8E44AD">
@@ -234,6 +236,7 @@ Assertion titles, one idea per slide, speaker notes in English.
 
 - **模板**：每页是该风格的真实版式，文字换成“【结论式标题 + 关键词】”这样的占位说明，演讲备注写着这页该放什么内容；
 - **字体**：[fonts.md](paper-ppt/references/fonts.md) 列出每个字体的来源、授权、开源替代，以及去会场电脑放映时用的“安全字体组”；`python paper-ppt/scripts/check_fonts.py domestic` 检查本机缺哪些。
+- **开源字体**：仓库在 `paper-ppt/fonts/` 自带开源授权的西文字体；中日文字体（Noto Sans SC / Noto Serif SC / Noto Sans JP）用 `python paper-ppt/scripts/get_fonts.py --install` 下载安装。生成时设 `PAPER_PPT_FONTS=open`，任何预设都会切到开源字体轨，每台电脑渲染结果一致（详见 [fonts.md](paper-ppt/references/fonts.md) §0）。
 
 想知道这些风格从哪来：[风格图谱](paper-ppt/references/slide-style-atlas.md) 记录了 105 套真实 deck 的字体实测、文字密度和版式聚类（例如：评分最高的 deck 中位每页 38 词，评分较低的是 51 词）。
 
@@ -338,6 +341,8 @@ Skill 要求每个数字都能追溯到论文的页码、图或表；论文没�
 <summary><b>字体显示不对？</b></summary>
 
 AI 访谈时会问放映环境。去会场电脑放映时用 [fonts.md](paper-ppt/references/fonts.md) 的安全字体组，或在 PowerPoint 里嵌入字体；`check_fonts.py` 能列出本机缺的字体和实际会用的替代字体。
+
+想彻底避免字体差异：西文开源字体已随仓库放在 `paper-ppt/fonts/`，中日文字体（Noto Sans SC / Noto Serif SC / Noto Sans JP）用 `python paper-ppt/scripts/get_fonts.py --install` 获取；生成时设 `PAPER_PPT_FONTS=open`，任何预设都会换成开源字体轨，每台电脑渲染都一样（详见 [fonts.md](paper-ppt/references/fonts.md) §0）。
 </details>
 
 ---
@@ -376,7 +381,7 @@ python -m unittest discover -s tests -v
 
 测试检查工具连接、版本记录、预设构建和低层脚本行为，**不能替代论文事实审查、视觉模型看图或真实 PowerPoint 兼容性测试**。
 
-项目不包含论文库、模型密钥、个人配置或字体文件；`refs/` 中的真实 slides 截图为低分辨率引用并注明出处，仅用于说明设计手法。
+项目不包含论文库、模型密钥或个人配置；`paper-ppt/fonts/` 只收录可再分发的开源字体（各自附授权文件），商业字体不随项目分发；`refs/` 中的真实 slides 截图为低分辨率引用并注明出处，仅用于说明设计手法。
 
 ## License
 

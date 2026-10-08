@@ -4,6 +4,39 @@
 > 本页说明**每个字体从哪来、能不能免费用、没有时用什么替换**。
 > 检查本机缺哪些：`python scripts/check_fonts.py <preset>`（不带参数检查全部）。
 
+## 0. 仓库自带的字体与“开源字体轨”
+
+**西文开源字体已放在 `fonts/`**（约 8 MB，每个目录带授权文件）；**中日文字体**每个 10–25 MB，用脚本从 google/fonts 固定版本下载并校验 SHA-256：
+
+```bash
+python scripts/get_fonts.py --install    # 下载中日文 + 安装全部开源字体到当前用户
+python scripts/get_fonts.py --list       # 看自带了哪些、哪些待下载
+python scripts/check_fonts.py --track open
+```
+
+| 目录 | 字体 | 替代谁 | 授权 |
+|---|---|---|---|
+| `fonts/arimo` | Arimo | Arial（**等宽度**，换行不变） | OFL 1.1 |
+| `fonts/carlito` | Carlito | Calibri（等宽度） | OFL 1.1 |
+| `fonts/inter` | Inter | Helvetica Neue / Segoe UI | OFL 1.1 |
+| `fonts/jetbrains-mono` | JetBrains Mono | Consolas / Menlo | OFL 1.1 |
+| `fonts/fira-sans`、`fonts/fira-mono` | Fira Sans / Fira Mono | （theory-beamer 原本就用） | OFL 1.1 |
+| `fonts/stix-two-math` | STIX Two Math | Cambria Math | OFL 1.1 |
+| `fonts/tex-gyre-pagella` | TeX Gyre Pagella | Palatino Linotype | GUST Font License |
+| `fonts/cjk/`（下载） | Noto Sans SC / Noto Serif SC / Noto Sans JP | 微软雅黑·苹方 / 宋体·思源宋体 / ヒラギノ | OFL 1.1 |
+
+**开源字体轨**：每套预设的 `tokens.json` 里有 `fonts.open`，生成时设 `PAPER_PPT_FONTS=open`（或 `loadTokens(name, {fontTrack: 'open'})`）就全部换成上表字体。好处是**任何电脑渲染都一样**，且字体可以随 PPTX 一起发给别人。
+
+| 预设 | 开源字体轨（西文 / 中日文 / 等宽） |
+|---|---|
+| domestic、international、systems-talk、defense-cn | Arimo / Noto Sans SC / JetBrains Mono |
+| keynote-minimal、dark-tech | Inter / Noto Sans SC / JetBrains Mono |
+| theory-beamer | Fira Sans / Noto Sans SC / Fira Mono，公式 STIX Two Math |
+| editorial | TeX Gyre Pagella / Noto Serif SC / JetBrains Mono |
+| jp-gothic | Noto Sans JP / Noto Sans JP / JetBrains Mono |
+
+注意：Google Fonts 提供的部分字体是可变字体（文件名带 `[wght]`），PowerPoint 能显示，但嵌入时只保证常规和粗体；要嵌入请在目标机器上测试一次。TeX Gyre Pagella 是 OTF（CFF 轮廓），PowerPoint 不能嵌入，放映机需安装。
+
 ## 1. 先决定：在哪台电脑上放映？
 
 开工前访谈会问这一条（见 SKILL.md §0）。答案决定字体策略：
@@ -11,7 +44,7 @@
 | 放映环境 | 策略 |
 |---|---|
 | 自己的电脑，且已装好字体 | 按预设首选字体 |
-| 会场 / 教室 / 别人的 Windows 电脑 | 用**安全字体组**（§3），或嵌入字体后在目标机打开检查 |
+| 会场 / 教室 / 别人的 Windows 电脑 | 用**安全字体组**（§3）；或用开源字体轨（§0）并嵌入字体，在目标机打开检查 |
 | Mac 上做、Windows 上放（或反过来） | 选两边都有的字体，或嵌入字体；PingFang / Helvetica Neue 在 Windows 上没有 |
 | 只交 PDF | 任意字体，导出 PDF 时字体自动嵌入 |
 
@@ -67,6 +100,7 @@ Inter → Arial、Helvetica Neue → Arial、Fira Sans → Calibri、Palatino �
 ## 5. AI 的字体规则
 
 - 访谈时问清放映环境；答不上来就默认“会场 Windows 电脑”，使用安全字体组或嵌入字体。
+- 需要跨机器一致、或交付给多人修改时，优先开源字体轨，并在交付说明里附 `get_fonts.py --install`。
 - 运行 `check_fonts.py`，缺少首选字体时在 `design-brief.md` 写明实际使用的字体，渲染预览也用同一字体。
 - `qa-summary.md` 写明：使用的字体、是否嵌入、是否在目标环境打开验证。没验证就写“未验证”。
 - 不要把商业字体文件放进交付物或仓库。
