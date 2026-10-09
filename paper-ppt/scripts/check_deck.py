@@ -209,7 +209,7 @@ def audit(file: Path) -> dict:
                                 blank_zero = any(str(cached.get(i, '')).strip() in ('0', '0.0') and (v is None or str(v).strip() == '')
                                                  for i, v in enumerate(values))
                                 hint = (' (cached 0 but blank workbook cell: PptxGenJS drops zeros; if the 0 is the source value run'
-                                        ' scripts/restore_chart_zeros.py deck.pptx --out deck.fixed.pptx)') if blank_zero else ''
+                                        ' scripts/restore_chart_zeros.py <this file> --out <new file>, then check the new file)') if blank_zero else ''
                                 errors.append(f'{label}: chart cache/workbook mismatch: {formula}{hint}')
                             report['checked_chart_references'] += 1
                     except (OSError, ValueError, KeyError, zipfile.BadZipFile) as exc:

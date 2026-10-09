@@ -120,16 +120,22 @@ module.exports = function makePresets({sourceLine, pageNo}) {
     insights(c, t, s) {
       this.head(c, t, s);
       const label = (i) => (s.insightLabel ? `${s.insightLabel} ${i + 1}` : `Insight #${i + 1}`);
+      // card colour = the tracker stage it belongs to (ins.stage, default the slide's stage), so it never
+      // borrows another stage's colour; current: 'all' highlights every card
+      const cardCol = (ins, i) => t.color.sym[(ins.stage != null ? ins.stage : (s.stage != null ? s.stage : i)) % t.color.sym.length];
+      const tintOf = (ins, i) => t.color.tint[(ins.stage != null ? ins.stage : (s.stage != null ? s.stage : i)) % t.color.tint.length];
       const ar = aspect(s.figure);
       if (ar && ar > 1.8) {
-        const m = t.grid.marginX; const fw = W(t) - 2 * m; const fh = Math.min(fw / ar, 3.3);
+        const m = t.grid.marginX; const fw = W(t) - 2 * m;
+        const bottomY = s.tracker ? t.slide.h - 0.42 - 0.45 : t.grid.footerY - 0.1;
+        const fh = Math.min(fw / ar, bottomY - 1.3 - 0.3 - 1.15);   // leave >= 1.15 in for the cards
         c.image(s.figure, {x: m, y: 1.3, w: fw, h: fh, alt: s.figureAlt});
         const n = s.insights.length; const gap = 0.25; const cw = (fw - gap * (n - 1)) / n; const cy = 1.3 + fh + 0.3;
-        const ch = Math.min(1.5, (s.tracker ? t.slide.h - 0.42 - 0.45 : t.grid.footerY - 0.1) - cy);
+        const ch = Math.min(1.5, bottomY - cy);
         s.insights.forEach((ins, i) => {
-          if (i > s.current) return;
-          const on = i === s.current; const col = t.color.sym[i % t.color.sym.length]; const x = m + i * (cw + gap);
-          c.rect({x, y: cy, w: cw, h: ch, radius: 0.1, fill: on ? t.color.tint[i % t.color.tint.length] : t.color.frame, line: on ? col : null, lineW: 1.5});
+          if (s.current !== 'all' && i > s.current) return;
+          const on = s.current === 'all' || i === s.current; const col = cardCol(ins, i); const x = m + i * (cw + gap);
+          c.rect({x, y: cy, w: cw, h: ch, radius: 0.1, fill: on ? tintOf(ins, i) : t.color.frame, line: on ? col : null, lineW: 1.5});
           c.text([{text: `${label(i)}  ${ins.head}`, bold: true, color: on ? col : t.color.muted}, {text: ins.body, size: 14, color: on ? t.color.body : t.color.muted}],
             {x: x + 0.15, y: cy + 0.1, w: cw - 0.3, h: ch - 0.2, size: 16, valign: 'middle'});
         });
@@ -138,9 +144,9 @@ module.exports = function makePresets({sourceLine, pageNo}) {
       c.image(s.figure, {x: t.grid.marginX, y: 1.4, w: 6.2, h: 4.9, alt: s.figureAlt});
       const x = 7.3; const w = W(t) - t.grid.marginX - x; const h = 1.0;
       s.insights.forEach((ins, i) => {
-        if (i > s.current) return;
-        const on = i === s.current; const y = 1.45 + i * (h + 0.18); const col = t.color.sym[i % t.color.sym.length];
-        c.rect({x, y, w, h, radius: 0.1, fill: on ? t.color.tint[i % t.color.tint.length] : t.color.frame, line: on ? col : null, lineW: 1.5});
+        if (s.current !== 'all' && i > s.current) return;
+        const on = s.current === 'all' || i === s.current; const y = 1.45 + i * (h + 0.18); const col = cardCol(ins, i);
+        c.rect({x, y, w, h, radius: 0.1, fill: on ? tintOf(ins, i) : t.color.frame, line: on ? col : null, lineW: 1.5});
         // label is localisable: insightLabel: '洞察' gives "洞察 1"; previous cards stay readable (muted, not faint)
         c.text([{text: `${label(i)}  ${ins.head}`, bold: true, color: on ? col : t.color.muted}, {text: ins.body, size: 15, color: on ? t.color.body : t.color.muted}],
           {x: x + 0.2, y, w: w - 0.4, h, size: 17, valign: 'middle', align: 'left'});
@@ -156,10 +162,11 @@ module.exports = function makePresets({sourceLine, pageNo}) {
         const fw = W(t) - 2 * m; const fh = Math.min(fw / ar, bottom - 1.35 - 1.3);
         c.image(s.figure, {x: m, y: 1.3, w: fw, h: fh, alt: s.figureAlt});
         const y = 1.3 + fh + 0.25;
-        c.text(s.ratio, {x: m, y, w: 3.4, h: 1.1, size: 48, bold: true, color: t.color.ours, heading: true, valign: 'middle'});
-        c.text(s.ratioLabel, {x: m + 3.5, y, w: 4.6, h: 1.1, size: t.size.small, color: t.color.body, valign: 'middle'});
+        const rh = Math.max(1.1, bottom - y);
+        c.text(s.ratio, {x: m, y, w: 3.2, h: 1.1, size: 48, bold: true, color: t.color.ours, heading: true, valign: 'middle'});
+        c.text(s.ratioLabel, {x: m + 3.3, y, w: 3.9, h: 1.1, size: t.size.small, color: t.color.body, valign: 'middle'});
         const cond = [s.better && {text: s.better, bold: true, color: t.color.muted}, s.condition && {text: s.condition, color: t.color.muted}].filter(Boolean);
-        if (cond.length) c.text(cond, {x: m + 8.3, y, w: W(t) - m - (m + 8.3), h: 1.1, size: 13, valign: 'middle'});
+        if (cond.length) c.text(cond, {x: m + 7.4, y, w: W(t) - m - (m + 7.4), h: Math.min(rh, 1.6), size: 13, valign: 'top'});
         return;
       }
       c.image(s.figure, {x: m, y: 1.35, w: 8.3, h: bottom - 1.35, alt: s.figureAlt});
@@ -221,10 +228,13 @@ module.exports = function makePresets({sourceLine, pageNo}) {
       this.head(c, t, s);
       let y = 1.35;
       // block height follows its text (rough width estimate) unless b.h is given; refuses to run past the footer
+      // text may be a string or a paragraph array (strings / {text} / {runs}); every paragraph and every \n line
+      // wraps on its own, so count lines per line and add paragraph spacing
       const estH = (text, size) => {
-        const ems = [...String(text)].reduce((a, ch) => a + (/[\u2E80-\u9FFF\uFF00-\uFFEF]/.test(ch) ? 1 : 0.55), 0);
-        const lines = String(text).split('\n').length - 1 + Math.max(1, Math.ceil(ems * size / 72 / 11.2));
-        return 0.42 + 0.22 + lines * size * 1.3 / 72;
+        const paras = (Array.isArray(text) ? text : [text]).map((p) => (typeof p === 'string' ? p : (p.runs ? p.runs.map((r) => r.text).join('') : p.text || '')));
+        const lines = paras.reduce((n, para) => n + String(para).split('\n')
+          .reduce((m, line) => m + Math.max(1, Math.ceil(ems(line) * size / 72 / 11.0)), 0), 0);
+        return 0.42 + 0.25 + lines * size * 1.25 / 72 + (paras.length - 1) * 0.06;
       };
       s.blocks.forEach((b) => {
         const col = t.color.block[b.kind] || t.color.dark; const h = b.h || estH(b.text, t.size.body);
@@ -248,7 +258,7 @@ module.exports = function makePresets({sourceLine, pageNo}) {
         const H = Math.max(...pieces.map((a) => a.heightIn + 2 * pad(a))) + 0.02;
         const total = pieces.reduce((sum, a) => sum + a.widthIn + 2 * pad(a), 0);
         if (total > W0) throw new Error(`symbols: equation needs ${total.toFixed(2)} in, slide has ${W0.toFixed(2)}; split it over two rows or slides`);
-        let x = m + (W0 - total) / 2;
+        let x = m + (W0 - total) / 2; const placed = [];
         pieces.forEach((a, i) => {
           const w = a.widthIn + 2 * pad(a);
           c.equation(a, {x, y, w, h: H});
@@ -256,11 +266,17 @@ module.exports = function makePresets({sourceLine, pageNo}) {
           if (lb && lb.text) {
             const col = lb.sym ? t.color.sym[lb.sym - 1] : t.color.muted;
             c.rect({x: x + 0.05, y: y + H + 0.04, w: w - 0.1, h: 0.04, fill: col});
-            c.text(lb.text, {x: x - 0.4, y: y + H + 0.1, w: w + 0.8, h: 0.4, size: 14, bold: true, color: col, align: 'center'});
+            // label width from its text; a label that would touch the previous one drops to a second row
+            const lw = Math.max(w, ems(lb.text) * 14 / 72 + 0.2); const lx = x + w / 2 - lw / 2;
+            const row = placed.some((q) => q.row === 0 && lx < q.x + q.w + 0.1 && q.x < lx + lw + 0.1) ? 1 : 0;
+            if (row && placed.some((q) => q.row === 1 && lx < q.x + q.w + 0.1 && q.x < lx + lw + 0.1)) throw new Error(`symbols: label "${lb.text}" overlaps its neighbours on both rows; shorten it`);
+            placed.push({x: lx, w: lw, row});
+            if (row) c.line({x1: x + w / 2, y1: y + H + 0.1, x2: x + w / 2, y2: y + H + 0.5, color: col, w: 1});
+            c.text(lb.text, {x: lx, y: y + H + 0.1 + row * 0.42, w: lw, h: 0.4, size: 14, bold: true, color: col, align: 'center'});
           }
           x += w;
         });
-        y += H + (s.labels ? 0.6 : 0.3);
+        y += H + (s.labels ? (placed.some((q) => q.row) ? 1.0 : 0.6) : 0.3);
       } else {
         if (/[_^]|\\frac|\\sum|\\int/.test(s.equation)) throw new Error('symbols: pass equationAsset from math_assets.py; text formulas are not allowed (math-equations.md)');
         c.text(s.equation, {x: m, y: 1.6, w: W0, h: 1.2, size: 34, color: t.color.text, align: 'center', valign: 'middle', font: t.fonts.math});

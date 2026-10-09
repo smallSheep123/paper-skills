@@ -46,7 +46,7 @@ function parseRuns(text, base = {}) {
     const tok = m[0];
     if (tok.startsWith('[[')) runs.push({text: tok.slice(2, -2), ...base, accent: true});
     else if (tok.startsWith('{{')) runs.push({text: tok.slice(4, -2), ...base, sym: Number(tok[2])});
-    else runs.push({text: tok.slice(2, -2), ...base, bold: true});
+    else runs.push({text: tok.slice(2, -2), ...base, bold: true});  // ** always bold
     last = m.index + tok.length;
   }
   if (last < text.length) runs.push({text: text.slice(last), ...base});
@@ -55,27 +55,34 @@ function parseRuns(text, base = {}) {
 
 // Paragraph model for canvas.text(content):
 // - a string, or an array whose items are paragraphs (strings or {text, bold, color, size, bullet, ...});
-// - "\n" inside a paragraph starts a new paragraph with the same options (PptxGenJS would otherwise
-//   turn every following run into its own paragraph, see skilltest SAM r03);
-// - {runs: [{text, bold, color, size}, ...]} is ONE paragraph with differently styled pieces on the same line.
+// - "\n" inside a paragraph is a LINE BREAK inside that paragraph (PowerPoint soft break, Shift+Enter):
+//   no new bullet, no paraSpaceBefore. Use separate array items for separate paragraphs.
+// - {runs: [{text, bold, color, size, italic}, ...]} is ONE paragraph with differently styled pieces on one line;
+//   bold: false in a run overrides a bold box.
 // Markup cannot be nested: **{{1:x}}** is not supported; use runs: [{text: '{{1:x}}', bold: true}].
 function splitParas(content) {
   const list = Array.isArray(content) ? content : [content];
-  return list.flatMap((p) => {
-    const src = typeof p === 'string' ? {text: p} : p;
-    if (src.runs || typeof src.text !== 'string' || !src.text.includes('\n')) return [src];
-    return src.text.split('\n').map((text) => ({...src, text}));
-  });
+  return list.map((p) => (typeof p === 'string' ? {text: p} : p));
 }
 function paraRuns(src) {
-  if (!src.runs) return parseRuns(src.text || '');
-  return src.runs.flatMap((r) => {
+  const pieces = src.runs || [{text: src.text || ''}];
+  const out = [];
+  pieces.forEach((r) => {
     const base = {};
-    if (r.bold) base.bold = true;
+    if (r.bold !== undefined) base.bold = r.bold;
+    if (r.italic !== undefined) base.italic = r.italic;
     if (r.color) base.color = r.color;
     if (r.size) base.size = r.size;
-    return parseRuns(r.text || '', base);
+    String(r.text || '').split('\n').forEach((seg, k) => {
+      const runs = parseRuns(seg, base);
+      if (k > 0) {
+        if (runs.length) runs[0] = {...runs[0], br: true};
+        else runs.push({text: '', ...base, br: true});
+      }
+      out.push(...runs);
+    });
   });
+  return out;
 }
 const textOf = (p) => (typeof p === 'string' ? p : (p.runs ? p.runs.map((r) => r.text || '').join('') : (p.text || '')));
 
@@ -106,14 +113,24 @@ function fontFor(t, o, src = {}, cjk = false) {
 function tableCells(t, rows, o) {
   const hl = new Set(o.highlight || []); const hasHead = o.header !== false;
   const norm = rows.map((row) => row.map((cell) => (typeof cell === 'string' || typeof cell === 'number' ? {text: String(cell)} : {...cell})));
+  // logical column of every cell, skipping slots covered by rowspan/colspan from earlier rows
+  const taken = new Set();
+  norm.forEach((row, ri) => { let col = 0; row.forEach((c) => {
+    while (taken.has(`${ri},${col}`)) col++;
+    c.col = col;
+    for (let dr = 0; dr < (c.rowspan || 1); dr++) for (let dc = 0; dc < (c.colspan || 1); dc++) taken.add(`${ri + dr},${col + dc}`);
+    col += c.colspan || 1;
+  }); });
   const isNum = (x) => /^[\s≤≥<>~±+\-−.\d%×]*\d[\s\d.%×]*$/.test(x || '');
-  // a column is numeric when all its body cells are numbers; its header follows the same alignment
-  const numCol = (ci) => norm.slice(hasHead ? 1 : 0).every((r) => !r[ci] || isNum(r[ci].text) || !r[ci].text);
-  const hlFill = o.highlightFill || (t.color.tint ? t.color.tint[0] : 'FFF4E5');
-  return norm.map((row, ri) => row.map((c, ci) => {
+  const body = norm.slice(hasHead ? 1 : 0).flat();
+  const numCol = (col) => { const cs = body.filter((c) => c.col === col && c.text); return cs.length > 0 && cs.every((c) => isNum(c.text)); };
+  const hlFill = o.highlightFill || (t.color.tint ? t.color.tint[0] : (t.color.blockBody || 'FFF4E5'));
+  const hlCols = new Set(o.highlightCols || []);
+  return norm.map((row, ri) => row.map((c) => {
     const head = hasHead && ri === 0;
-    return {...c, head, bold: c.bold || head, fill: c.fill || (head ? t.color.frame : (hl.has(ri) ? hlFill : null)),
-      align: c.align || (ci > 0 && numCol(ci) ? (o.numAlign || 'right') : 'left'), cjk: [...(c.text || '')].some(isCJK)};
+    return {...c, head, bold: c.bold !== undefined ? c.bold : head,
+      fill: c.fill || (head ? t.color.frame : ((hl.has(ri) || hlCols.has(c.col)) ? hlFill : null)),
+      align: c.align || (c.col > 0 && numCol(c.col) ? (o.numAlign || 'right') : 'left')};
   }));
 }
 
@@ -126,16 +143,18 @@ class PptxCanvas {
     const runs = [];
     paras.forEach((p, i) => {
       const src = typeof p === 'string' ? {text: p} : p;
-      const prs = paraRuns(src).flatMap(r => scriptRuns(r.text).map(part => ({...r, ...part})));
+      const prs = paraRuns(src).flatMap(r => (r.text === '' ? [{...r, cjk: false}] :
+        scriptRuns(r.text).map((part, k) => ({...r, ...part, br: k === 0 && r.br}))));
       prs.forEach((r, j) => {
         const opt = {
           color: runColor(t, r, o, src),
-          bold: !!(r.bold || o.bold || src.bold),
-          italic: !!(o.italic || src.italic),
+          bold: r.bold !== undefined ? !!r.bold : !!(o.bold || src.bold),
+          italic: r.italic !== undefined ? !!r.italic : !!(o.italic || src.italic),
           fontSize: r.size || src.size || o.size,
           fontFace: fontFor(t, o, src, r.cjk),
         };
         if (j === prs.length - 1 && i < paras.length - 1) opt.breakLine = true;
+        if (r.br) opt.softBreakBefore = true;
         // PptxGenJS emits pPr per run; keep paragraph properties identical.
         if (src.bullet || o.bullet) opt.bullet = {indent: 18};
         if (src.indent) opt.indentLevel = src.indent;
@@ -147,7 +166,7 @@ class PptxCanvas {
       x: o.x, y: o.y, w: o.w, h: o.h,
       fontFace: fontFor(t, o),
       charSpacing: o.charSpacing,
-      fontSize: o.size, color: o.color, bold: !!o.bold,
+      fontSize: o.size, color: o.color,  // bold is set per run (a run may say bold: false)
       align: o.align || 'left', valign: o.valign || 'top',
       margin: 0, lineSpacingMultiple: o.lineSpacing || 1.15,
       fit: 'none', autoFit: false,
@@ -155,11 +174,14 @@ class PptxCanvas {
   }
   table(rows, o) {
     const t = this.t; const cells = tableCells(t, rows, o);
-    const data = cells.map((row) => row.map((c) => ({text: c.text, options: {
-      bold: !!c.bold, color: c.color || t.color.text, fill: c.fill ? {color: c.fill} : undefined, align: c.align,
-      fontFace: fontFor(t, o, {}, c.cjk), colspan: c.colspan, rowspan: c.rowspan, valign: 'middle'}})));
+    // each cell is split into Latin / CJK runs so "页 page" uses both preset fonts, like c.text
+    const data = cells.map((row) => row.map((c) => ({
+      text: scriptRuns(c.text || ' ').map((r) => ({text: r.text, options: {fontFace: fontFor(t, o, {}, r.cjk), bold: !!c.bold,
+        color: c.color || t.color.text}})),
+      options: {bold: !!c.bold, color: c.color || t.color.text, fill: c.fill ? {color: c.fill} : undefined, align: c.align,
+        fontFace: fontFor(t, o), colspan: c.colspan, rowspan: c.rowspan, valign: 'middle'}})));
     this.slide.addTable(data, {x: o.x, y: o.y, w: o.w, h: o.h, colW: o.colW, rowH: o.rowH, fontSize: o.size,
-      border: {type: 'solid', pt: 0.75, color: t.color.rule || t.color.ghost || 'D9D9D9'}, margin: 0.05, autoPage: false});
+      border: {type: 'solid', pt: 0.75, color: t.color.rule || t.color.ghost || 'D9D9D9'}, margin: o.margin || [0.04, 0.1, 0.04, 0.1], autoPage: false});
   }
   rect(o) {
     const opt = {x: o.x, y: o.y, w: o.w, h: o.h,
@@ -223,16 +245,22 @@ class SvgCanvas {
         const parts = r.text.match(/[\u2E80-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF\u3000-\u303F]|[^\s\u2E80-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF\u3000-\u303F]+\s*|\s+/g) || [];
         for (const c of parts) chunks.push({...r, text: c});
       }
+      const sb = (src.paraSpaceBefore || o.paraSpaceBefore || 0);
+      if (pi > 0 && sb) lines.push({spacer: sb * PX / 72});
       let cur = []; let curW = 0;
-      const flush = () => { lines.push({chunks: cur, sizePx, indent, bullet: bullet && !lines.some((l) => l.para === pi), para: pi, src}); cur = []; curW = 0; };
-      for (const c of chunks) {
-        const cw = this.measure(c.text, sizePx, c.bold || o.bold || src.bold);
+      const flush = () => {
+        const lineSize = Math.max(sizePx, ...cur.map((c) => c.sizePx || 0));
+        lines.push({chunks: cur, sizePx: lineSize, indent, bullet: bullet && !lines.some((l) => l.para === pi), para: pi, src}); cur = []; curW = 0;
+      };
+      for (const c0 of chunks) {
+        const c = {...c0, sizePx: c0.size ? c0.size * PX / 72 : sizePx};
+        if (c.br) flush();
+        const bold = c.bold !== undefined ? c.bold : (o.bold || src.bold);
+        const cw = this.measure(c.text, c.sizePx, bold);
         if (curW + cw > maxW && cur.length) flush();
         cur.push(c); curW += cw;
       }
       flush();
-      const sb = (src.paraSpaceBefore || o.paraSpaceBefore || 0);
-      if (pi < paras.length - 1 && sb) lines.push({spacer: sb * PX / 72});
     });
     const total = lines.reduce((a, l) => a + (l.spacer || l.sizePx * lineSp), 0);
     if (o.valign === 'middle') y += (o.h * PX - total) / 2;
@@ -242,18 +270,19 @@ class SvgCanvas {
       const h = l.sizePx * lineSp;
       const baseline = y + l.sizePx * 0.95;
       let x = o.x * PX + l.indent;
-      const lineW = l.chunks.reduce((a, c) => a + this.measure(c.text, l.sizePx, c.bold || o.bold), 0);
+      const lineW = l.chunks.reduce((a, c) => a + this.measure(c.text, c.sizePx || l.sizePx, c.bold !== undefined ? c.bold : o.bold), 0);
       if (o.align === 'center') x = o.x * PX + (o.w * PX - lineW) / 2;
       if (o.align === 'right') x = (o.x + o.w) * PX - lineW;
       if (l.bullet) this.parts.push(`<circle cx="${o.x * PX + l.sizePx * 0.28}" cy="${baseline - l.sizePx * 0.33}" r="${l.sizePx * 0.12}" fill="#${l.src.color || o.color}"/>`);
       const merged = [];
       for (const ch of l.chunks) {
         const col = runColor(t, ch, o, l.src);
-        const b = !!(ch.bold || o.bold || l.src.bold);
+        const b = ch.bold !== undefined ? !!ch.bold : !!(o.bold || l.src.bold);
+        const sz = ch.sizePx || l.sizePx;
         const prev = merged[merged.length - 1];
-        if (prev && prev.col === col && prev.b === b) prev.text += ch.text; else merged.push({text: ch.text, col, b});
+        if (prev && prev.col === col && prev.b === b && prev.sz === sz) prev.text += ch.text; else merged.push({text: ch.text, col, b, sz});
       }
-      const spans = merged.map((m) => `<tspan fill="#${m.col}" font-weight="${m.b ? 'bold' : (o.weight || 'normal')}">${esc(m.text)}</tspan>`).join('');
+      const spans = merged.map((m) => `<tspan fill="#${m.col}" font-size="${m.sz}" font-weight="${m.b ? 'bold' : (o.weight || 'normal')}">${esc(m.text)}</tspan>`).join('');
       const extra = `${o.italic ? ' font-style="italic"' : ''}${o.charSpacing ? ` letter-spacing="${o.charSpacing}"` : ''}`;
       this.parts.push(`<text x="${x}" y="${baseline}" font-family="${font.replace(/"/g, '')}" font-size="${l.sizePx}"${extra} xml:space="preserve">${spans}</text>`);
       y += h;
@@ -263,11 +292,12 @@ class SvgCanvas {
     const t = this.t; const cells = tableCells(t, rows, o);
     const n = Math.max(...cells.map((r) => r.length)); const colW = o.colW || Array(n).fill(o.w / n);
     const rowH = o.rowH || (o.h ? o.h / cells.length : o.size / 72 * 1.9);
-    cells.forEach((row, ri) => { let x = o.x; row.forEach((c, ci) => {
+    cells.forEach((row, ri) => { row.forEach((c) => {
+      const ci = c.col; const x = o.x + colW.slice(0, ci).reduce((a, b) => a + b, 0);
       const w = colW.slice(ci, ci + (c.colspan || 1)).reduce((a, b) => a + b, 0); const y = o.y + ri * rowH;
       this.rect({x, y, w, h: rowH * (c.rowspan || 1), fill: c.fill, line: t.color.rule || 'D9D9D9', lineW: 0.75});
       this.text(c.text, {x: x + 0.05, y, w: w - 0.1, h: rowH, size: o.size, bold: c.bold, color: c.color || t.color.text, align: c.align, valign: 'middle'});
-      x += w; }); });
+      }); });
   }
   rect(o) {
     const r = o.radius ? o.radius * PX : 0;

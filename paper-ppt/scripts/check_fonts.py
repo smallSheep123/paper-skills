@@ -99,7 +99,9 @@ def check(preset: str, have: set[str], track: str = "default") -> dict:
         lst = [lst] if isinstance(lst, str) else lst
         status = [(f, is_installed(f, have)) for f in lst]
         used = next((f for f, ok in status if ok), None)
-        report["roles"][role] = {"wanted": lst[0], "uses": used, "preferred_ok": status[0][1],
+        op = o.get(role) or []
+        op = [op] if isinstance(op, str) else op
+        report["roles"][role] = {"wanted": lst[0], "uses": used, "preferred_ok": status[0][1], "open": op[0] if op else None,
                                  "missing": [f for f, ok in status if not ok]}
     return report
 
@@ -117,7 +119,7 @@ def check_deck(deck: Path, have: set[str]) -> int:
     names: dict[str, int] = {}
     with zipfile.ZipFile(deck) as z:
         for n in z.namelist():
-            if re.match(r"ppt/slides/[^/]+\.xml$", n):
+            if re.match(r"ppt/(slides|charts)/[^/]+\.xml$", n):
                 for face in re.findall(r'<a:(?:latin|ea|cs|sym) typeface="([^"+][^"]*)"', z.read(n).decode("utf-8", "ignore")):
                     names[face] = names.get(face, 0) + 1
         theme = sorted({f for n in z.namelist() if re.match(r"ppt/theme/[^/]+\.xml$", n)
@@ -159,8 +161,8 @@ def main() -> int:
             if x["preferred_ok"]:
                 mark, note = "OK  ", x["wanted"]
             elif x["uses"]:
-                mark, note = "SUB ", (f"{x['wanted']} missing; {x['uses']} is installed, but only a deck built with"
-                                      f" PAPER_PPT_FONTS=open names it (check with --deck)") if a.track == "default" else \
+                mark, note = "SUB ", (f"{x['wanted']} missing; the deck will name {x['wanted']} unless built with"
+                                      f" PAPER_PPT_FONTS=open (then it names {x['open'] or x['uses']}); check with --deck") if a.track == "default" else \
                     (f"{x['wanted']} missing -> uses {x['uses']}")
                 worst = max(worst, 1)
             else:

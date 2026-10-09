@@ -59,7 +59,7 @@ description: AI 主导的论文汇报 PPT 工作流：开工前先访谈用户�
 
 > 这篇要讲多细？**简略版**约 8–12 页、8–10 分钟，只讲主线和关键结果；**详细版**约 16–22 页、15–20 分钟，含方法分解和主要实验。不说的话我按详细版做。
 
-已给时长或页数 → 直接推断，不再问。档位与页数**以 [source-sufficiency.md](references/source-sufficiency.md) §1 为唯一标准**，其他文件里的页数只是场景参考。
+已给时长或页数 → 直接推断，不再问；用户给的页数优先于档位页数。档位与页数**以 [source-sufficiency.md](references/source-sufficiency.md) §1 为唯一标准**，其他文件里的页数只是场景参考。
 
 ### 0.4 怎么问才不烦人
 
@@ -309,18 +309,25 @@ AI 自主构图，可以使用宿主演示工具，也可以编写当次 PptxGen
 本地工具链的一轮：
 
 ```bash
-python scripts/check_fonts.py <preset> --track open   # 每批都跑；MISS 先 get_fonts.py --install
-PAPER_PPT_FONTS=open node build.js                    # 本机审阅用开源字体轨；生成脚本用 writeDeck() 保存到 build/deck.raw.pptx
-# 有公式：python scripts/math_assets.py finalize build/deck.raw.pptx --manifest build/math.json --out build/deck.math.pptx
-# 有含 0 的原生图表且 check_deck 提示 blank zero：python scripts/restore_chart_zeros.py <上一步文件> --out deck.pptx
-python scripts/check_deck.py deck.pptx                # 结构检查
-python scripts/check_fonts.py --deck deck.pptx        # PPTX 实际写入的字体本机都有，否则渲染无效
-python scripts/bridge.py render deck.pptx --out renders/rNN   # 每轮新目录
-# 用视觉模型逐页查看 renders/rNN/slide-*.png 和 contact-sheet.png，并追加记录到 review-log.json
-python scripts/check_review.py renders/rNN/render.json review-log.json
+set -euo pipefail                  # 任何一步失败就停，避免后面的检查和渲染在旧文件上照常 pass
+R=r05                              # 每轮换一个编号；中间文件都带轮次，后处理脚本不覆盖已有文件
+python scripts/check_fonts.py <preset> --track open      # MISS 先 get_fonts.py --install
+PAPER_PPT_FONTS=open node build.js build/deck.$R.raw.pptx  # 生成脚本用 writeDeck() 保存到这个路径
+IN=build/deck.$R.raw.pptx
+# 有公式：
+#   python scripts/math_assets.py finalize $IN --manifest build/math.json --out build/deck.$R.math.pptx; IN=build/deck.$R.math.pptx
+python scripts/check_deck.py $IN || true                 # 只看是否提示 blank zero
+# 提示 blank zero 且 0 是论文原值：
+#   python scripts/restore_chart_zeros.py $IN --out build/deck.$R.zeros.pptx; IN=build/deck.$R.zeros.pptx
+cp $IN deck.$R.pptx                                     # 本轮最终文件
+python scripts/check_deck.py deck.$R.pptx               # 结构检查，必须 pass
+python scripts/check_fonts.py --deck deck.$R.pptx       # PPTX 实际写入的字体本机都有，否则渲染无效
+python scripts/bridge.py render deck.$R.pptx --out renders/$R
+# 用视觉模型逐页看 renders/$R/slide-*.png 和 contact-sheet.png，在 review-log.json 末尾追加记录
+python scripts/check_review.py renders/$R/render.json review-log.json
 ```
 
-不需要的步骤跳过，但顺序不变：后处理脚本都另存新文件，最终交给 check / render 的是最后一个文件。
+不需要的步骤跳过，但顺序不变。交付时把最后一轮的 `deck.rNN.pptx` 复制为 `deck.pptx`。审阅记录引用的参考图（例如风格样例图）要先复制到工作目录再引用，不要直接引用仓库里会被重新生成的文件。
 
 `check_review.py` 要求五个阶段（source / design / pilot / slides / deck）都有通过记录，并且每条记录的 `inputs` 都带当前 sha256：
 

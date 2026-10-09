@@ -50,6 +50,11 @@ def check(manifest_file: Path, log_file: Path) -> list[str]:
     except (OSError, ValueError, KeyError, TypeError) as exc:
         return [str(exc)]
 
+    # Earlier reviews may point at files that were later regenerated (design refs, old renders). Only the
+    # LAST review of each stage must still match its inputs; older mismatches are warnings and their files
+    # simply stop counting. The log stays append-only.
+    last_of_stage = {r.get('stage'): i for i, r in enumerate(reviews, 1) if isinstance(r, dict)}
+    warnings: list[str] = []
     latest_stage: dict[str, str] = {}
     latest_image: dict[tuple[str, tuple[str, str]], str] = {}
     for i, review in enumerate(reviews, 1):
@@ -71,8 +76,15 @@ def check(manifest_file: Path, log_file: Path) -> list[str]:
             inputs = review.get('inputs')
             if not isinstance(inputs, list) or not inputs:
                 raise ValueError('Review needs actual input files')
-            keys = [entry_key(log_file.parent, item) for item in inputs]
             stage = review['stage']
+            try:
+                keys = [entry_key(log_file.parent, item) for item in inputs]
+            except ValueError as exc:
+                if last_of_stage.get(stage) != i:
+                    warnings.append(f'Review {i} (superseded {stage} review): {exc}')
+                    latest_stage[stage] = decision
+                    continue
+                raise
             latest_stage[stage] = decision
             for key in keys:
                 latest_image[(stage, key)] = decision
@@ -86,6 +98,7 @@ def check(manifest_file: Path, log_file: Path) -> list[str]:
             errors.append(f'Current page not reviewed/passed: {key[0]}')
     if latest_image.get(('deck', overview)) != 'pass':
         errors.append('Final overview not reviewed/passed')
+    check.warnings = warnings
     return errors
 
 
@@ -97,6 +110,7 @@ def main() -> int:
     errors = check(args.manifest, args.log)
     print(json.dumps({'record_consistency': 'fail' if errors else 'pass',
                       'errors': errors,
+                      'warnings': getattr(check, 'warnings', []),
                       'notice': 'Checks records only; cannot authenticate model calls or judge visual/factual quality.'},
                      ensure_ascii=False, indent=2))
     return 1 if errors else 0
