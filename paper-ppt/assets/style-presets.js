@@ -53,11 +53,37 @@ function parseRuns(text, base = {}) {
   return runs;
 }
 
+// Paragraph model for canvas.text(content):
+// - a string, or an array whose items are paragraphs (strings or {text, bold, color, size, bullet, ...});
+// - "\n" inside a paragraph starts a new paragraph with the same options (PptxGenJS would otherwise
+//   turn every following run into its own paragraph, see skilltest SAM r03);
+// - {runs: [{text, bold, color, size}, ...]} is ONE paragraph with differently styled pieces on the same line.
+// Markup cannot be nested: **{{1:x}}** is not supported; use runs: [{text: '{{1:x}}', bold: true}].
+function splitParas(content) {
+  const list = Array.isArray(content) ? content : [content];
+  return list.flatMap((p) => {
+    const src = typeof p === 'string' ? {text: p} : p;
+    if (src.runs || typeof src.text !== 'string' || !src.text.includes('\n')) return [src];
+    return src.text.split('\n').map((text) => ({...src, text}));
+  });
+}
+function paraRuns(src) {
+  if (!src.runs) return parseRuns(src.text || '');
+  return src.runs.flatMap((r) => {
+    const base = {};
+    if (r.bold) base.bold = true;
+    if (r.color) base.color = r.color;
+    if (r.size) base.size = r.size;
+    return parseRuns(r.text || '', base);
+  });
+}
+const textOf = (p) => (typeof p === 'string' ? p : (p.runs ? p.runs.map((r) => r.text || '').join('') : (p.text || '')));
+
 // [[x]] = accent, **x** = bold, {{n:x}} = concept colour n (tokens.color.sym[n-1]): one colour per symbol/concept, same in text and diagrams.
 function runColor(t, r, o, src) {
   if (r.sym && t.color.sym) return t.color.sym[(r.sym - 1) % t.color.sym.length];
   if (r.accent) return o.accentColor || t.color.accent;
-  return src.color || o.color;
+  return r.color || src.color || o.color;
 }
 function scriptRuns(text) {
   return text.split(/([\u2E80-\u9FFF\uF900-\uFAFF\u3000-\u303F\uFF00-\uFFEF\uAC00-\uD7AF]+)/g)
@@ -72,22 +98,41 @@ function fontFor(t, o, src = {}, cjk = false) {
   return (o.heading && t.fonts.heading) || t.fonts.body || t.fonts.latin[0];
 }
 
+
+// ---------- tables (page-content-guide: 结果表格页) ----------
+// rows: arrays of cells; a cell is a string or {text, bold, color, fill, align, colspan, rowspan}.
+// o: {x, y, w, h?, colW?: [in], rowH?: in, size, header?: true (row 0 is header), highlight?: [row indexes],
+//     numAlign?: 'right'}. Latin and CJK cells get the preset's latin/cjk font automatically.
+function tableCells(t, rows, o) {
+  const hl = new Set(o.highlight || []); const hasHead = o.header !== false;
+  const norm = rows.map((row) => row.map((cell) => (typeof cell === 'string' || typeof cell === 'number' ? {text: String(cell)} : {...cell})));
+  const isNum = (x) => /^[\s≤≥<>~±+\-−.\d%×]*\d[\s\d.%×]*$/.test(x || '');
+  // a column is numeric when all its body cells are numbers; its header follows the same alignment
+  const numCol = (ci) => norm.slice(hasHead ? 1 : 0).every((r) => !r[ci] || isNum(r[ci].text) || !r[ci].text);
+  const hlFill = o.highlightFill || (t.color.tint ? t.color.tint[0] : 'FFF4E5');
+  return norm.map((row, ri) => row.map((c, ci) => {
+    const head = hasHead && ri === 0;
+    return {...c, head, bold: c.bold || head, fill: c.fill || (head ? t.color.frame : (hl.has(ri) ? hlFill : null)),
+      align: c.align || (ci > 0 && numCol(ci) ? (o.numAlign || 'right') : 'left'), cjk: [...(c.text || '')].some(isCJK)};
+  }));
+}
+
 // ---------- backends ----------
 class PptxCanvas {
   constructor(slide, tokens) { this.slide = slide; this.t = tokens; }
   text(content, o) {
     const t = this.t;
-    const paras = Array.isArray(content) ? content : [content];
+    const paras = splitParas(content);
     const runs = [];
     paras.forEach((p, i) => {
       const src = typeof p === 'string' ? {text: p} : p;
-      const prs = parseRuns(src.text).flatMap(r => scriptRuns(r.text).map(part => ({...r, ...part})));
+      const prs = paraRuns(src).flatMap(r => scriptRuns(r.text).map(part => ({...r, ...part})));
       prs.forEach((r, j) => {
         const opt = {
           color: runColor(t, r, o, src),
           bold: !!(r.bold || o.bold || src.bold),
           italic: !!(o.italic || src.italic),
-          fontSize: src.size || o.size,
+          fontSize: r.size || src.size || o.size,
           fontFace: fontFor(t, o, src, r.cjk),
         };
         if (j === prs.length - 1 && i < paras.length - 1) opt.breakLine = true;
@@ -107,6 +152,14 @@ class PptxCanvas {
       margin: 0, lineSpacingMultiple: o.lineSpacing || 1.15,
       fit: 'none', autoFit: false,
     });
+  }
+  table(rows, o) {
+    const t = this.t; const cells = tableCells(t, rows, o);
+    const data = cells.map((row) => row.map((c) => ({text: c.text, options: {
+      bold: !!c.bold, color: c.color || t.color.text, fill: c.fill ? {color: c.fill} : undefined, align: c.align,
+      fontFace: fontFor(t, o, {}, c.cjk), colspan: c.colspan, rowspan: c.rowspan, valign: 'middle'}})));
+    this.slide.addTable(data, {x: o.x, y: o.y, w: o.w, h: o.h, colW: o.colW, rowH: o.rowH, fontSize: o.size,
+      border: {type: 'solid', pt: 0.75, color: t.color.rule || t.color.ghost || 'D9D9D9'}, margin: 0.05, autoPage: false});
   }
   rect(o) {
     const opt = {x: o.x, y: o.y, w: o.w, h: o.h,
@@ -150,11 +203,11 @@ class SvgCanvas {
   }
   text(content, o) {
     const t = this.t;
-    const paras = Array.isArray(content) ? content : [content];
+    const paras = splitParas(content);
     const fam = (f) => f;
     // cairosvg resolves only the first family through fontconfig: CJK lines use the last (open) CJK font,
     // Latin lines use fonts.preview (metric look-alikes such as Nimbus Sans / P052 / LM Sans), else the CJK font.
-    const hasCJK = paras.some((p) => [...(typeof p === 'string' ? p : p.text)].some(isCJK));
+    const hasCJK = paras.some((p) => [...textOf(p)].some(isCJK));
     const font = o.fontFace || o.font || (o.mono ? t.fonts.mono : [...(hasCJK ? t.fonts.cjk.slice(-1) : []), ...(t.fonts.preview || t.fonts.cjk.slice(-1)), fontFor(t, o), ...t.fonts.latin, 'sans-serif']).map(fam).join(',');
     const lineSp = o.lineSpacing || 1.15;
     let y = o.y * PX;
@@ -166,7 +219,7 @@ class SvgCanvas {
       const indent = (bullet ? sizePx * 0.9 : 0) + (src.indent ? (src.indent - 1) * sizePx * 1.2 : 0);
       const maxW = o.w * PX - indent;
       const chunks = [];
-      for (const r of parseRuns(src.text)) {
+      for (const r of paraRuns(src)) {
         const parts = r.text.match(/[\u2E80-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF\u3000-\u303F]|[^\s\u2E80-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF\u3000-\u303F]+\s*|\s+/g) || [];
         for (const c of parts) chunks.push({...r, text: c});
       }
@@ -205,6 +258,16 @@ class SvgCanvas {
       this.parts.push(`<text x="${x}" y="${baseline}" font-family="${font.replace(/"/g, '')}" font-size="${l.sizePx}"${extra} xml:space="preserve">${spans}</text>`);
       y += h;
     }
+  }
+  table(rows, o) {
+    const t = this.t; const cells = tableCells(t, rows, o);
+    const n = Math.max(...cells.map((r) => r.length)); const colW = o.colW || Array(n).fill(o.w / n);
+    const rowH = o.rowH || (o.h ? o.h / cells.length : o.size / 72 * 1.9);
+    cells.forEach((row, ri) => { let x = o.x; row.forEach((c, ci) => {
+      const w = colW.slice(ci, ci + (c.colspan || 1)).reduce((a, b) => a + b, 0); const y = o.y + ri * rowH;
+      this.rect({x, y, w, h: rowH * (c.rowspan || 1), fill: c.fill, line: t.color.rule || 'D9D9D9', lineW: 0.75});
+      this.text(c.text, {x: x + 0.05, y, w: w - 0.1, h: rowH, size: o.size, bold: c.bold, color: c.color || t.color.text, align: c.align, valign: 'middle'});
+      x += w; }); });
   }
   rect(o) {
     const r = o.radius ? o.radius * PX : 0;
@@ -245,7 +308,8 @@ class SvgCanvas {
 // ---------- shared pieces ----------
 function sourceLine(c, t, text) {
   if (!text) return;
-  c.text(text, {x: t.grid.marginX, y: t.grid.footerY, w: 9.5, h: 0.3, size: t.size.source, color: t.color.faint});
+  // muted, not faint: the source line must stay readable on a projector (faint is for page numbers only)
+  c.text(text, {x: t.grid.marginX, y: t.grid.footerY, w: t.slide.w - 2 * t.grid.marginX - 1.1, h: 0.3, size: t.size.source, color: t.color.muted || t.color.faint});
 }
 
 function pageNo(c, t, n) {
@@ -495,4 +559,4 @@ async function writeDeck(pptx, fileName) {
   return {fileName, paragraphsFixed: fixed};
 }
 
-module.exports = {writeDeck, loadTokens, parseRuns, scriptRuns, PptxCanvas, SvgCanvas, drawSlide, PRESETS};
+module.exports = {writeDeck, loadTokens, parseRuns, splitParas, paraRuns, scriptRuns, PptxCanvas, SvgCanvas, drawSlide, PRESETS};

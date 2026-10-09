@@ -132,13 +132,18 @@ def prepare(request, out):
         validate_latex(source)
         size, color = float(spec['fontSize']), spec.get('color', '111111')
         mode = spec.get('mode', 'auto')
+        # border in bp around the snippet; use 0 for the pieces of a split equation so they butt together
+        border = float(spec.get('border', 2))
+        if not math.isfinite(border) or border < 0 or border > 20:
+            raise ValueError('Math border must be between 0 and 20 bp')
         if not math.isfinite(size) or size <= 0 or not re.fullmatch(r'[A-Fa-f0-9]{6}', color) or mode not in {'auto', 'svg', 'native'}:
             raise ValueError('Math fontSize must be a positive finite point size; also check color and mode')
         with tempfile.TemporaryDirectory(prefix='paper-math-') as tmp:
             cwd = Path(tmp)
             tex = '\n'.join([
-                r'\documentclass[border=2bp]{standalone}',
-                r'\usepackage{amsmath,amssymb,bm,xcolor,lmodern}',
+                f'\\documentclass[border={border:g}bp]{{standalone}}',
+                # exscale: big operators and \Big delimiters scale with \fontsize (lmodern alone keeps them at 10 pt)
+                r'\usepackage{amsmath,amssymb,bm,xcolor,lmodern,exscale}',
                 r'\begin{document}',
                 f'\\fontsize{{{size}bp}}{{{size * 1.25}bp}}\\selectfont\\color[HTML]{{{color}}}',
                 r'$\displaystyle ' + source + '$', r'\end{document}',

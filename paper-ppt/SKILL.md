@@ -205,7 +205,16 @@ description: AI 主导的论文汇报 PPT 工作流：开工前先访谈用户�
 
 每次只选一套预设，选定理由和叠加的方言规则写进 `design-brief.md`。
 
-所有预设都可直接调用（[styles/](styles/README.md)）：`tokens.json` 定义字体、字号、配色语义和网格，`assets/style-presets.js` 与 `style-presets-extra.js` 提供页面原型。**各预设的原型数量不同**：international / domestic 较全；其余 7 套只有各自的招牌原型（例如 systems-talk 没有方法页和讨论页原型，editorial 没有结果页原型）。没有原型的页型照预设 token 自由绘制，可参考 `lab/annotated-v2/` 的构图。使用预设时：
+所有预设都可直接调用（[styles/](styles/README.md)）：`tokens.json` 定义字体、字号、配色语义和网格，`assets/style-presets.js` 与 `style-presets-extra.js` 提供页面原型。**各预设的原型数量不同**：international / domestic 较全；其余 7 套只有各自的招牌原型（例如 systems-talk 没有方法页和讨论页原型，editorial 没有结果页原型）。没有原型的页型照预设 token 自由绘制，可参考 `lab/annotated-v2/` 的构图。
+
+自由绘制时用画布接口，不要直接调 PptxGenJS：
+
+- `c.text(content, box)`：`content` 是字符串或数组，数组的**每一项是一个段落**；文本里的 `\n` 也会拆成新段落。同一行里要用不同样式，写成 `{runs: [{text: '结果：', bold: true, color}, {text: '…'}]}`。标记 `**粗**`、`[[强调]]`、`{{n:符号}}` 不能嵌套，要粗体又要着色时用 runs。
+- `c.table(rows, box)`：原生表格，按预设 token 自动选中英文字体、给表头上底色、数字列右对齐；用 `highlight: [行号]` 高亮本文行。
+- `c.equation(asset, box)`：公式资产，框放不下会直接报错，不会自动缩小。
+- `drawSlide(c, t, {type: 'head', ...})`（international / domestic 叫 `frame`）：只画该预设的页头、页脚和出处行，正文自由绘制。
+
+使用预设时：
 
 - storyboard 中为每页标注原型名；没有合适原型的页面自由绘制，但仍遵守该预设的 token 与硬性约束（见对应 `STYLE.md` §5）；
 - 先看 `styles/<name>/refs/` 中的真实参考页和 `samples/` 中的示例页，再动手；
@@ -300,13 +309,18 @@ AI 自主构图，可以使用宿主演示工具，也可以编写当次 PptxGen
 本地工具链的一轮：
 
 ```bash
-python scripts/check_fonts.py <preset>           # 每批都跑；MISS 先修字体
-node build.js                                     # 生成脚本里用 writeDeck(pptx, 'deck.pptx') 保存
-python scripts/check_deck.py deck.pptx            # 结构检查
+python scripts/check_fonts.py <preset> --track open   # 每批都跑；MISS 先 get_fonts.py --install
+PAPER_PPT_FONTS=open node build.js                    # 本机审阅用开源字体轨；生成脚本用 writeDeck() 保存到 build/deck.raw.pptx
+# 有公式：python scripts/math_assets.py finalize build/deck.raw.pptx --manifest build/math.json --out build/deck.math.pptx
+# 有含 0 的原生图表且 check_deck 提示 blank zero：python scripts/restore_chart_zeros.py <上一步文件> --out deck.pptx
+python scripts/check_deck.py deck.pptx                # 结构检查
+python scripts/check_fonts.py --deck deck.pptx        # PPTX 实际写入的字体本机都有，否则渲染无效
 python scripts/bridge.py render deck.pptx --out renders/rNN   # 每轮新目录
 # 用视觉模型逐页查看 renders/rNN/slide-*.png 和 contact-sheet.png，并追加记录到 review-log.json
 python scripts/check_review.py renders/rNN/render.json review-log.json
 ```
+
+不需要的步骤跳过，但顺序不变：后处理脚本都另存新文件，最终交给 check / render 的是最后一个文件。
 
 `check_review.py` 要求五个阶段（source / design / pilot / slides / deck）都有通过记录，并且每条记录的 `inputs` 都带当前 sha256：
 

@@ -4,6 +4,11 @@
     python scripts/check_fonts.py               # all presets
     python scripts/check_fonts.py domestic      # one preset
     python scripts/check_fonts.py --json dark-tech
+    python scripts/check_fonts.py --deck deck.pptx   # fonts the PPTX actually names
+
+A PPTX names exactly one typeface per run and has no fallback list. A SUB result for a
+preset only means a substitute exists on this machine; the deck still names the preferred
+font unless it was built with PAPER_PPT_FONTS=open. Use --deck before every render.
 
 For every role (latin / cjk / mono / math) it reports the first installed font in
 the preset's fallback list, so you know what PowerPoint or the renderer will
@@ -99,13 +104,48 @@ def check(preset: str, have: set[str], track: str = "default") -> dict:
     return report
 
 
+def fc_match(font: str) -> str | None:
+    if not shutil.which("fc-match"):
+        return None
+    out = subprocess.run(["fc-match", "-f", "%{family}", font], capture_output=True, text=True).stdout.strip()
+    return out.split(",")[0] or None
+
+
+def check_deck(deck: Path, have: set[str]) -> int:
+    import re
+    import zipfile
+    names: dict[str, int] = {}
+    with zipfile.ZipFile(deck) as z:
+        for n in z.namelist():
+            if re.match(r"ppt/slides/[^/]+\.xml$", n):
+                for face in re.findall(r'<a:(?:latin|ea|cs|sym) typeface="([^"+][^"]*)"', z.read(n).decode("utf-8", "ignore")):
+                    names[face] = names.get(face, 0) + 1
+        theme = sorted({f for n in z.namelist() if re.match(r"ppt/theme/[^/]+\.xml$", n)
+                        for f in re.findall(r'<a:latin typeface="([^"+][^"]*)"', z.read(n).decode("utf-8", "ignore"))})
+    worst = 0
+    print(f"\n{deck}")
+    if theme:
+        print(f"  [info] theme fonts {', '.join(theme)}: only used by text that names no font of its own")
+    for face, count in sorted(names.items(), key=lambda x: -x[1]):
+        if is_installed(face, have):
+            print(f"  [OK  ] {face} ({count} runs)")
+        else:
+            worst = 2
+            print(f"  [MISS] {face} ({count} runs) -> this machine renders it as {fc_match(face) or 'an unknown fallback'};"
+                  " visual review of this render is invalid. Rebuild with PAPER_PPT_FONTS=open or install the font")
+    return worst
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("presets", nargs="*")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--track", choices=["default", "open"], default="default",
                     help="open = bundled open-licensed fonts (scripts/get_fonts.py)")
+    ap.add_argument("--deck", type=Path, help="check the typefaces a built PPTX actually names")
     a = ap.parse_args()
+    if a.deck:
+        return check_deck(a.deck, installed_families())
     presets = a.presets or sorted(p.name for p in STYLES.iterdir() if (p / "tokens.json").exists())
     have = installed_families()
     reports = [check(p, have, a.track) for p in presets]
@@ -119,7 +159,9 @@ def main() -> int:
             if x["preferred_ok"]:
                 mark, note = "OK  ", x["wanted"]
             elif x["uses"]:
-                mark, note = "SUB ", f"{x['wanted']} missing -> uses {x['uses']}"
+                mark, note = "SUB ", (f"{x['wanted']} missing; {x['uses']} is installed, but only a deck built with"
+                                      f" PAPER_PPT_FONTS=open names it (check with --deck)") if a.track == "default" else \
+                    (f"{x['wanted']} missing -> uses {x['uses']}")
                 worst = max(worst, 1)
             else:
                 mark, note = "MISS", (f"none of {', '.join(x['missing'])} installed; renderers will silently fall back"

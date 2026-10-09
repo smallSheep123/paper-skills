@@ -57,7 +57,11 @@ python scripts/bridge.py render build/deck.math.pptx --out renders/math-r01
 - 给单个符号上色，在 LaTeX 源码里直接写 `\textcolor[HTML]{2E86DE}{s_\theta}`。色值用所选预设 `tokens.color.sym` 里的同一个十六进制值，正文和自绘图也用同一个颜色。
 - 校验器禁止 `\newcommand` 和 `\def`，同一个符号每次出现都要重复写颜色宏。可以在生成 `math-request.json` 的脚本里做字符串替换，不要在 LaTeX 里定义宏。
 - `math_assets.py` 只返回整条公式的外框，拿不到子项坐标。逐项讲解有三种做法，按优先级：
-  1. **拆式**：把公式拆成几段独立资产，左右并排放，每段各自有坐标，可以精确加框、加箭头；
+  1. **拆式**：把公式拆成几段独立资产，左右并排放，每段各自有坐标，可以精确加框、加箭头。拆式要注意三点：
+     - 每段都加同一个 `\vphantom{...}`（取全式最高的部分，如 `\vphantom{\Big(\frac{p(y)}{p(x)}\Big)}`），各段高度一致、基线才能对齐；
+     - 每段在请求里设 `"border": 0`，否则每段自带 2 bp 边距，拼接处会有缝；
+     - 成对括号被拆开时写成 `\left[ … \right.` 和 `\left. … \right]`，同时用同一个 `\vphantom` 保证两半一样高。
+     theory-beamer 的 `symbols` 原型接受分段数组 `equationAsset: [a, b, c]`，并用 `labels` 在每段下方标注；
   2. **颜色图例**：公式里的项着色，公式下方用正文字体画同色色块和说明；
   3. `\underbrace{...}_{\text{说明}}`：说明会用数学字体，和正文字体不一致，只适合短标签。
 - 不要凭估算的坐标在整式图片上画圈。

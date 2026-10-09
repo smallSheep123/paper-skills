@@ -7,6 +7,10 @@ const {imageDimensions} = require('./image-geometry');
 
 module.exports = function makePresets({sourceLine, pageNo}) {
   const W = (t) => t.slide.w;
+  const ems = (text) => [...String(text || '')].reduce((a, ch) => a + (/[\u2E80-\u9FFF\uFF00-\uFFEF\u3000-\u303F]/.test(ch) ? 1 : 0.55), 0);
+  // largest size <= max at which text fits on one line of width w (never below min)
+  const fitSize = (text, w, max, min = 10) => Math.max(min, Math.min(max, Math.floor(w * 72 / Math.max(1, ems(text)))));
+  const aspect = (file) => { try { const d = imageDimensions(file); return d.w / d.h; } catch (e) { return null; } };
   const bullets = (items) => items.map((p) => (typeof p === 'string' ? {text: p, bullet: true} : {bullet: true, ...p}));
 
   // generic diagram row: boxes with one active, the rest ghosted (focus-dim builds)
@@ -90,20 +94,47 @@ module.exports = function makePresets({sourceLine, pageNo}) {
       const x = t.grid.marginX;
       c.text(s.title, {x, y: t.grid.titleY, w: W(t) - 2 * x, h: 0.75, size: t.size.title, bold: true, color: t.color.text, heading: true, valign: 'middle'});
       // Source line: above the tracker when there is one, else on the footer line (visual-review §8 needs it on result pages).
-      if (s.source) c.text(s.source, {x, y: s.tracker ? t.slide.h - 0.42 - 0.34 : t.grid.footerY, w: 9.5, h: 0.3, size: t.size.source, color: t.color.muted});
+      if (s.source) {
+        const sw = W(t) - 2 * x - (s.tracker ? 0 : 1.1);
+        c.text(s.source, {x, y: s.tracker ? t.slide.h - 0.42 - 0.34 : t.grid.footerY, w: sw, h: 0.3, size: fitSize(s.source, sw, t.size.source), color: t.color.muted});
+      }
       this.tracker(c, t, s); if (!s.tracker) pageNo(c, t, s.page); c.notes(s.notes);
     },
+    // cover: kicker (e.g. "论文精读 · 一句话中文题"), title, authors (any length), venue, presenter line
     cover(c, t, s) {
       c.rect({x: 0, y: 0, w: 0.28, h: t.slide.h, fill: t.color.ours});
-      c.text(s.title, {x: 0.9, y: 1.6, w: 11.4, h: 1.9, size: t.size.cover, bold: true, color: t.color.text, heading: true, valign: 'bottom'});
-      c.text(s.authors, {x: 0.9, y: 3.75, w: 11.4, h: 0.5, size: t.size.subtitle, color: t.color.body});
-      c.text(s.venue, {x: 0.9, y: 4.3, w: 11.4, h: 0.4, size: t.size.small, bold: true, color: t.color.ours});
+      if (s.kicker) c.text(s.kicker, {x: 0.9, y: 0.75, w: 11.4, h: 0.5, size: t.size.subtitle, bold: true, color: t.color.primary});
+      const titleLines = Math.max(1, Math.ceil(ems(s.title) * t.size.cover / 72 / 11.4));
+      const titleSize = titleLines > 2 ? Math.round(t.size.cover * 0.8) : t.size.cover;
+      c.text(s.title, {x: 0.9, y: 1.3, w: 11.4, h: 2.3, size: titleSize, bold: true, color: t.color.text, heading: true, valign: 'bottom'});
+      const aSize = t.size.small; const aLines = Math.max(1, Math.ceil(ems(s.authors) * aSize / 72 / 11.4));
+      const aH = aLines * aSize * 1.35 / 72 + 0.1;
+      c.text(s.authors, {x: 0.9, y: 3.75, w: 11.4, h: aH, size: aSize, color: t.color.body});
+      c.text(s.venue, {x: 0.9, y: 3.85 + aH, w: 11.4, h: 0.4, size: t.size.small, bold: true, color: t.color.ours});
+      if (s.presenter) c.text(s.presenter, {x: 0.9, y: 6.45, w: 11.4, h: 0.4, size: t.size.small, color: t.color.muted});
       if (s.link) { c.rect({x: 0.9, y: 5.4, w: 3.6, h: 0.5, radius: 0.25, fill: t.color.frame}); c.text(s.link, {x: 0.9, y: 5.4, w: 3.6, h: 0.5, size: 14, color: t.color.body, align: 'center', valign: 'middle', mono: true}); }
       c.notes(s.notes);
     },
     // left: figure; right column: Insight #1..#k stacked, current one coloured, earlier ones kept in grey
+    // wide figures (aspect > 1.8) go full width on top with the insight cards in a row underneath
     insights(c, t, s) {
       this.head(c, t, s);
+      const label = (i) => (s.insightLabel ? `${s.insightLabel} ${i + 1}` : `Insight #${i + 1}`);
+      const ar = aspect(s.figure);
+      if (ar && ar > 1.8) {
+        const m = t.grid.marginX; const fw = W(t) - 2 * m; const fh = Math.min(fw / ar, 3.3);
+        c.image(s.figure, {x: m, y: 1.3, w: fw, h: fh, alt: s.figureAlt});
+        const n = s.insights.length; const gap = 0.25; const cw = (fw - gap * (n - 1)) / n; const cy = 1.3 + fh + 0.3;
+        const ch = Math.min(1.5, (s.tracker ? t.slide.h - 0.42 - 0.45 : t.grid.footerY - 0.1) - cy);
+        s.insights.forEach((ins, i) => {
+          if (i > s.current) return;
+          const on = i === s.current; const col = t.color.sym[i % t.color.sym.length]; const x = m + i * (cw + gap);
+          c.rect({x, y: cy, w: cw, h: ch, radius: 0.1, fill: on ? t.color.tint[i % t.color.tint.length] : t.color.frame, line: on ? col : null, lineW: 1.5});
+          c.text([{text: `${label(i)}  ${ins.head}`, bold: true, color: on ? col : t.color.muted}, {text: ins.body, size: 14, color: on ? t.color.body : t.color.muted}],
+            {x: x + 0.15, y: cy + 0.1, w: cw - 0.3, h: ch - 0.2, size: 16, valign: 'middle'});
+        });
+        return;
+      }
       c.image(s.figure, {x: t.grid.marginX, y: 1.4, w: 6.2, h: 4.9, alt: s.figureAlt});
       const x = 7.3; const w = W(t) - t.grid.marginX - x; const h = 1.0;
       s.insights.forEach((ins, i) => {
@@ -111,8 +142,7 @@ module.exports = function makePresets({sourceLine, pageNo}) {
         const on = i === s.current; const y = 1.45 + i * (h + 0.18); const col = t.color.sym[i % t.color.sym.length];
         c.rect({x, y, w, h, radius: 0.1, fill: on ? t.color.tint[i % t.color.tint.length] : t.color.frame, line: on ? col : null, lineW: 1.5});
         // label is localisable: insightLabel: '洞察' gives "洞察 1"; previous cards stay readable (muted, not faint)
-        const label = s.insightLabel ? `${s.insightLabel} ${i + 1}` : `Insight #${i + 1}`;
-        c.text([{text: `${label}  ${ins.head}`, bold: true, color: on ? col : t.color.muted}, {text: ins.body, size: 15, color: on ? t.color.body : t.color.muted}],
+        c.text([{text: `${label(i)}  ${ins.head}`, bold: true, color: on ? col : t.color.muted}, {text: ins.body, size: 15, color: on ? t.color.body : t.color.muted}],
           {x: x + 0.2, y, w: w - 0.4, h, size: 17, valign: 'middle', align: 'left'});
       });
     },
@@ -120,11 +150,10 @@ module.exports = function makePresets({sourceLine, pageNo}) {
     resultRatio(c, t, s) {
       this.head(c, t, s);
       const m = t.grid.marginX; const bottom = s.tracker ? t.slide.h - 0.42 - 0.42 : t.grid.footerY - 0.1;
-      let wide = false;
-      try { const d = imageDimensions(s.figure); wide = d.w / d.h > 2.2; } catch (e) { /* SVG preview fixtures */ }
-      if (wide) {
-        // Wide figure (e.g. one row of a multi-panel plot): full width on top, ratio panel underneath.
-        const fw = W(t) - 2 * m; const fh = Math.min(fw / 2.2, bottom - 1.35 - 1.7);
+      const ar = aspect(s.figure);
+      if (ar && ar > 2.2) {
+        // Wide figure (e.g. one row of a multi-panel plot): full width on top, ratio panel right under it.
+        const fw = W(t) - 2 * m; const fh = Math.min(fw / ar, bottom - 1.35 - 1.3);
         c.image(s.figure, {x: m, y: 1.3, w: fw, h: fh, alt: s.figureAlt});
         const y = 1.3 + fh + 0.25;
         c.text(s.ratio, {x: m, y, w: 3.4, h: 1.1, size: 48, bold: true, color: t.color.ours, heading: true, valign: 'middle'});
@@ -146,7 +175,9 @@ module.exports = function makePresets({sourceLine, pageNo}) {
       c.background(t.color.dark);
       c.text(s.title, {x: t.grid.marginX, y: 0.35, w: 12, h: 0.7, size: t.size.title - 4, bold: true, color: 'FFFFFF', heading: true});
       c.text(s.lines.map((l) => ({text: l})), {x: 0.9, y: 1.5, w: 8.6, h: 4.8, size: 16, color: 'D8DEE9', mono: true, lineSpacing: 1.35});
-      if (s.hl != null) c.rect({x: 0.75, y: 1.5 + s.hl * 0.3 - 0.03, w: 8.4, h: 0.32, line: t.color.callout, lineW: 1.5});
+      // line pitch = size × 1.2 (font line height) × lineSpacing, in inches
+      const pitch = 16 * 1.2 * 1.35 / 72;
+      if (s.hl != null) c.rect({x: 0.75, y: 1.5 + s.hl * pitch + 0.06, w: 8.4, h: pitch, line: t.color.callout, lineW: 1.5});
       c.rect({x: 9.4, y: 1.6, w: 3.3, h: 1.4, radius: 0.12, fill: t.color.callout});
       c.text(s.callout, {x: 9.55, y: 1.6, w: 3.0, h: 1.4, size: 15, bold: true, color: t.color.dark, valign: 'middle'});
       if (s.footer) c.text(s.footer, {x: 0.9, y: 6.5, w: 11, h: 0.4, size: 13, color: t.color.callout});
@@ -169,7 +200,8 @@ module.exports = function makePresets({sourceLine, pageNo}) {
       c.text(s.title, {x: 0.5, y: 0, w: W(t) - 1, h: 0.95, size: t.size.title, color: 'FFFFFF', heading: true, valign: 'middle'});
       const p = s.progress == null ? 0 : s.progress;
       c.rect({x: 0, y: 0.95, w: W(t), h: 0.05, fill: t.color.frame}); c.rect({x: 0, y: 0.95, w: W(t) * p, h: 0.05, fill: t.color.accent});
-      if (s.footer) c.text(s.footer, {x: 0.5, y: 7.05, w: 9, h: 0.3, size: 11, color: t.color.faint});
+      const foot = s.source || s.footer;   // same field name as the other presets; footer kept for old scripts
+      if (foot) c.text(foot, {x: 0.5, y: 7.05, w: 11.3, h: 0.3, size: 11, color: t.color.muted});
       pageNo(c, t, s.page); c.notes(s.notes);
     },
     cover(c, t, s) {
@@ -188,31 +220,61 @@ module.exports = function makePresets({sourceLine, pageNo}) {
     blocks(c, t, s) {
       this.head(c, t, s);
       let y = 1.35;
+      // block height follows its text (rough width estimate) unless b.h is given; refuses to run past the footer
+      const estH = (text, size) => {
+        const ems = [...String(text)].reduce((a, ch) => a + (/[\u2E80-\u9FFF\uFF00-\uFFEF]/.test(ch) ? 1 : 0.55), 0);
+        const lines = String(text).split('\n').length - 1 + Math.max(1, Math.ceil(ems * size / 72 / 11.2));
+        return 0.42 + 0.22 + lines * size * 1.3 / 72;
+      };
       s.blocks.forEach((b) => {
-        const col = t.color.block[b.kind] || t.color.dark; const h = b.h || 1.35;
+        const col = t.color.block[b.kind] || t.color.dark; const h = b.h || estH(b.text, t.size.body);
+        if (y + h > t.grid.footerY - 0.05) throw new Error(`blocks: "${b.kind}" block ends at ${(y + h).toFixed(2)} in, below the footer; shorten the text or split the slide`);
         c.rect({x: 0.8, y, w: 11.7, h: 0.42, fill: col});
         c.text(b.kind + (b.name ? ` (${b.name})` : ''), {x: 0.95, y, w: 11.4, h: 0.42, size: 16, bold: true, color: 'FFFFFF', valign: 'middle'});
         c.rect({x: 0.8, y: y + 0.42, w: 11.7, h: h - 0.42, fill: t.color.blockBody});
-        c.text(b.text, {x: 0.95, y: y + 0.47, w: 11.4, h: h - 0.52, size: t.size.body, color: t.color.text, valign: 'middle'});
+        c.text(b.text, {x: 0.95, y: y + 0.52, w: 11.4, h: h - 0.6, size: t.size.body, color: t.color.text, valign: 'top'});
         y += h + 0.25;
       });
     },
-    // equation with every symbol in its own colour + a legend of the same colours
+    // equation with every symbol in its own colour + a legend of the same colours.
+    // equationAsset: one asset, or an ARRAY of pieces of a split equation (math-equations.md 拆式) placed left to right;
+    // labels (optional, same length as the pieces): [{text, sym}] drawn under each piece in the body font.
     symbols(c, t, s) {
       this.head(c, t, s);
-      // Real formulas come from scripts/math_assets.py (colour terms with \\textcolor[HTML]{hex}{...}, hex = tokens.color.sym).
-      // A plain string is only allowed for flat symbol strings with no sub/superscripts, fractions or sums.
-      if (s.equationAsset) c.equation(s.equationAsset, {x: 0.8, y: 1.45, w: 11.7, h: 1.6});
-      else {
+      const m = 0.8; const W0 = W(t) - 2 * m; let y = 1.35;
+      if (s.equationAsset) {
+        const pieces = Array.isArray(s.equationAsset) ? s.equationAsset : [s.equationAsset];
+        const pad = (a) => (a.representation === 'native' ? 0.2 : 0);
+        const H = Math.max(...pieces.map((a) => a.heightIn + 2 * pad(a))) + 0.02;
+        const total = pieces.reduce((sum, a) => sum + a.widthIn + 2 * pad(a), 0);
+        if (total > W0) throw new Error(`symbols: equation needs ${total.toFixed(2)} in, slide has ${W0.toFixed(2)}; split it over two rows or slides`);
+        let x = m + (W0 - total) / 2;
+        pieces.forEach((a, i) => {
+          const w = a.widthIn + 2 * pad(a);
+          c.equation(a, {x, y, w, h: H});
+          const lb = s.labels && s.labels[i];
+          if (lb && lb.text) {
+            const col = lb.sym ? t.color.sym[lb.sym - 1] : t.color.muted;
+            c.rect({x: x + 0.05, y: y + H + 0.04, w: w - 0.1, h: 0.04, fill: col});
+            c.text(lb.text, {x: x - 0.4, y: y + H + 0.1, w: w + 0.8, h: 0.4, size: 14, bold: true, color: col, align: 'center'});
+          }
+          x += w;
+        });
+        y += H + (s.labels ? 0.6 : 0.3);
+      } else {
         if (/[_^]|\\frac|\\sum|\\int/.test(s.equation)) throw new Error('symbols: pass equationAsset from math_assets.py; text formulas are not allowed (math-equations.md)');
-        c.text(s.equation, {x: 0.8, y: 1.6, w: 11.7, h: 1.2, size: 34, color: t.color.text, align: 'center', valign: 'middle', font: t.fonts.math});
+        c.text(s.equation, {x: m, y: 1.6, w: W0, h: 1.2, size: 34, color: t.color.text, align: 'center', valign: 'middle', font: t.fonts.math});
+        y = 3.1;
       }
-      s.legend.forEach((lg, i) => {
-        const y = 3.3 + i * 0.75; const col = t.color.sym[lg.sym - 1];
-        c.rect({x: 3.2, y: y + 0.12, w: 0.42, h: 0.42, fill: col, radius: 0.05});
-        c.text(lg.text, {x: 3.85, y, w: 7.5, h: 0.66, size: t.size.body, color: t.color.body, valign: 'middle'});
+      const legend = s.legend || []; const bottom = t.grid.footerY - (s.note ? 0.65 : 0.15);
+      const rowH = legend.length ? Math.min(0.75, (bottom - y) / legend.length) : 0;
+      if (legend.length && rowH < 0.45) throw new Error(`symbols: ${legend.length} legend rows do not fit under the equation; move some to the notes or the next slide`);
+      legend.forEach((lg, i) => {
+        const ly = y + i * rowH; const col = t.color.sym[lg.sym - 1];
+        c.rect({x: 3.2, y: ly + (rowH - 0.42) / 2, w: 0.42, h: 0.42, fill: col, radius: 0.05});
+        c.text(lg.text, {x: 3.85, y: ly, w: 8.2, h: rowH, size: t.size.body, color: t.color.body, valign: 'middle'});
       });
-      if (s.note) c.text(s.note, {x: 0.8, y: 6.2, w: 11.7, h: 0.5, size: 15, italic: true, color: t.color.muted, align: 'center'});
+      if (s.note) c.text(s.note, {x: m, y: t.grid.footerY - 0.6, w: W0, h: 0.5, size: 15, italic: true, color: t.color.muted, align: 'center'});
     },
     outline(c, t, s) {
       this.head(c, t, {...s, title: s.title || 'Outline'});
