@@ -104,3 +104,5 @@ Inter → Arial、Helvetica Neue → Arial、Fira Sans → Calibri、Palatino �
 - 运行 `check_fonts.py`，缺少首选字体时在 `design-brief.md` 写明实际使用的字体，渲染预览也用同一字体。
 - `qa-summary.md` 写明：使用的字体、是否嵌入、是否在目标环境打开验证。没验证就写“未验证”。
 - 不要把商业字体文件放进交付物或仓库。
+- `tokens.json` 里的字体列表只用于检查和挑选。PPTX 每段只写一个字体名，**没有回退机制**：在目标电脑上缺这个字体，PowerPoint 会自己换字体。所以生成时就要定下实际要用的字体，可以设 `PAPER_PPT_FONTS=open`，或在 `design-brief.md` 写明替换。
+- 目标是安全字体组（Arial、微软雅黑），而审阅机器上没有这些字体时：用度量兼容的开源字体审阅（Arial → Arimo；微软雅黑没有度量兼容的开源字体，用 Noto Sans SC），在 `design-brief.md` 记下这次替换，并在 `qa-summary.md` 写“目标机未验证”。这样记录后不算触发视觉红线；没有记录、渲染器静默回退到 DejaVu 之类的字体才算。

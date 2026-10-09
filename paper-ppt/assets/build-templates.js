@@ -10,7 +10,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const pptxgen = require('pptxgenjs');
-const {loadTokens, PptxCanvas, SvgCanvas, drawSlide} = require('./style-presets');
+const {loadTokens, PptxCanvas, SvgCanvas, drawSlide, writeDeck} = require('./style-presets');
 const {SAMPLES} = require('./build-style-samples');
 
 const LANG = {domestic: 'zh', 'defense-cn': 'zh', 'jp-gothic': 'ja'};
@@ -143,7 +143,7 @@ async function main() {
       fs.writeFileSync(path.join(prev, `${String(i + 1).padStart(2, '0')}-${spec.type}.svg`), svg.toSVG());
     });
     const file = path.join(dir, 'template.pptx');
-    await deck.writeFile({fileName: file});
+    await writeDeck(deck, file);
     console.log(`wrote ${file} (${slides.length} slides)`);
   }
 }

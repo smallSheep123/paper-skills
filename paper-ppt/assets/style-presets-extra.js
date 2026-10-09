@@ -3,6 +3,8 @@
 // Same contract as international/domestic: tokens in styles/<name>/tokens.json, archetypes below,
 // every archetype is drawn through the canvas API so it renders to PPTX and to the SVG preview.
 
+const {imageDimensions} = require('./image-geometry');
+
 module.exports = function makePresets({sourceLine, pageNo}) {
   const W = (t) => t.slide.w;
   const bullets = (items) => items.map((p) => (typeof p === 'string' ? {text: p, bullet: true} : {bullet: true, ...p}));
@@ -87,6 +89,8 @@ module.exports = function makePresets({sourceLine, pageNo}) {
     head(c, t, s) {
       const x = t.grid.marginX;
       c.text(s.title, {x, y: t.grid.titleY, w: W(t) - 2 * x, h: 0.75, size: t.size.title, bold: true, color: t.color.text, heading: true, valign: 'middle'});
+      // Source line: above the tracker when there is one, else on the footer line (visual-review §8 needs it on result pages).
+      if (s.source) c.text(s.source, {x, y: s.tracker ? t.slide.h - 0.42 - 0.34 : t.grid.footerY, w: 9.5, h: 0.3, size: t.size.source, color: t.color.muted});
       this.tracker(c, t, s); if (!s.tracker) pageNo(c, t, s.page); c.notes(s.notes);
     },
     cover(c, t, s) {
@@ -106,20 +110,36 @@ module.exports = function makePresets({sourceLine, pageNo}) {
         if (i > s.current) return;
         const on = i === s.current; const y = 1.45 + i * (h + 0.18); const col = t.color.sym[i % t.color.sym.length];
         c.rect({x, y, w, h, radius: 0.1, fill: on ? t.color.tint[i % t.color.tint.length] : t.color.frame, line: on ? col : null, lineW: 1.5});
-        c.text([{text: `Insight #${i + 1}  ${ins.head}`, bold: true, color: on ? col : t.color.muted}, {text: ins.body, size: 13, color: on ? t.color.body : t.color.faint}],
-          {x: x + 0.2, y, w: w - 0.4, h, size: 17, valign: 'middle', align: 'center'});
+        // label is localisable: insightLabel: '洞察' gives "洞察 1"; previous cards stay readable (muted, not faint)
+        const label = s.insightLabel ? `${s.insightLabel} ${i + 1}` : `Insight #${i + 1}`;
+        c.text([{text: `${label}  ${ins.head}`, bold: true, color: on ? col : t.color.muted}, {text: ins.body, size: 15, color: on ? t.color.body : t.color.muted}],
+          {x: x + 0.2, y, w: w - 0.4, h, size: 17, valign: 'middle', align: 'left'});
       });
     },
     // result figure + a big "N.N×" arrow annotation and a "better →" axis hint
     resultRatio(c, t, s) {
       this.head(c, t, s);
-      c.image(s.figure, {x: t.grid.marginX, y: 1.35, w: 8.3, h: 5.0, alt: s.figureAlt});
-      const x = 9.3; const w = W(t) - t.grid.marginX - x;
+      const m = t.grid.marginX; const bottom = s.tracker ? t.slide.h - 0.42 - 0.42 : t.grid.footerY - 0.1;
+      let wide = false;
+      try { const d = imageDimensions(s.figure); wide = d.w / d.h > 2.2; } catch (e) { /* SVG preview fixtures */ }
+      if (wide) {
+        // Wide figure (e.g. one row of a multi-panel plot): full width on top, ratio panel underneath.
+        const fw = W(t) - 2 * m; const fh = Math.min(fw / 2.2, bottom - 1.35 - 1.7);
+        c.image(s.figure, {x: m, y: 1.3, w: fw, h: fh, alt: s.figureAlt});
+        const y = 1.3 + fh + 0.25;
+        c.text(s.ratio, {x: m, y, w: 3.4, h: 1.1, size: 48, bold: true, color: t.color.ours, heading: true, valign: 'middle'});
+        c.text(s.ratioLabel, {x: m + 3.5, y, w: 4.6, h: 1.1, size: t.size.small, color: t.color.body, valign: 'middle'});
+        const cond = [s.better && {text: s.better, bold: true, color: t.color.muted}, s.condition && {text: s.condition, color: t.color.muted}].filter(Boolean);
+        if (cond.length) c.text(cond, {x: m + 8.3, y, w: W(t) - m - (m + 8.3), h: 1.1, size: 13, valign: 'middle'});
+        return;
+      }
+      c.image(s.figure, {x: m, y: 1.35, w: 8.3, h: bottom - 1.35, alt: s.figureAlt});
+      const x = 9.3; const w = W(t) - m - x;
       c.line({x1: x + 0.2, y1: 3.9, x2: x + 0.2, y2: 2.0, color: t.color.ours, w: 3, arrow: true});
       c.text(s.ratio, {x: x + 0.45, y: 1.9, w: w - 0.45, h: 1.0, size: 48, bold: true, color: t.color.ours, heading: true});
       c.text(s.ratioLabel, {x: x + 0.45, y: 2.95, w: w - 0.45, h: 0.9, size: t.size.small, color: t.color.body});
       if (s.better) c.text(s.better, {x, y: 4.3, w, h: 0.4, size: 13, bold: true, color: t.color.muted});
-      if (s.condition) c.text(s.condition, {x, y: 4.9, w, h: 1.2, size: 12, color: t.color.faint});
+      if (s.condition) c.text(s.condition, {x, y: 4.9, w, h: 1.2, size: 13, color: t.color.muted});
     },
     // dark full-bleed code with one callout bubble
     code(c, t, s) {
@@ -180,7 +200,13 @@ module.exports = function makePresets({sourceLine, pageNo}) {
     // equation with every symbol in its own colour + a legend of the same colours
     symbols(c, t, s) {
       this.head(c, t, s);
-      c.text(s.equation, {x: 0.8, y: 1.6, w: 11.7, h: 1.2, size: 34, color: t.color.text, align: 'center', valign: 'middle', font: t.fonts.math});
+      // Real formulas come from scripts/math_assets.py (colour terms with \\textcolor[HTML]{hex}{...}, hex = tokens.color.sym).
+      // A plain string is only allowed for flat symbol strings with no sub/superscripts, fractions or sums.
+      if (s.equationAsset) c.equation(s.equationAsset, {x: 0.8, y: 1.45, w: 11.7, h: 1.6});
+      else {
+        if (/[_^]|\\frac|\\sum|\\int/.test(s.equation)) throw new Error('symbols: pass equationAsset from math_assets.py; text formulas are not allowed (math-equations.md)');
+        c.text(s.equation, {x: 0.8, y: 1.6, w: 11.7, h: 1.2, size: 34, color: t.color.text, align: 'center', valign: 'middle', font: t.fonts.math});
+      }
       s.legend.forEach((lg, i) => {
         const y = 3.3 + i * 0.75; const col = t.color.sym[lg.sym - 1];
         c.rect({x: 3.2, y: y + 0.12, w: 0.42, h: 0.42, fill: col, radius: 0.05});

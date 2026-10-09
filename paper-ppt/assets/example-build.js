@@ -24,7 +24,12 @@ const SANS = "Microsoft YaHei";
 const SERIF = "Arial";    // for numerals / emphasis only
 const W = 13.33;
 
-const IMG = "D:/AIGC/dvla-ppt/img/";
+// Historical example (DVLA, OSDI 2026). Paths come from the command line, never hard-coded:
+//   node assets/example-build.js <image-dir> <out.pptx>
+// The image directory must hold the cropped figures referenced below (fig1.png, ...).
+const path = require("node:path");
+const IMG = path.resolve(process.argv[2] || "img") + "/";
+const OUT = path.resolve(process.argv[3] || "example.pptx");
 const AR = { fig1: 2.75, f2a: 1.67, f2b: 1.71, fig5: 2.04, fig6: 2.36, fig7: 2.61, f8pd: 1.558, f8vr: 1.363, fig13: 2.6 };
 
 // ---------- helpers ----------
@@ -428,4 +433,4 @@ function vmrow(s, label, x, y, kinds, sw, sh) {
   );
 }
 
-p.writeFile({ fileName: "D:/AIGC/dvla-ppt/DVLA_OSDI26_论文汇报.pptx" }).then(() => console.log("written"));
+require("./style-presets").writeDeck(p, OUT).then(() => console.log("written", OUT));

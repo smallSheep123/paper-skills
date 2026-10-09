@@ -57,9 +57,9 @@ description: AI 主导的论文汇报 PPT 工作流：开工前先访谈用户�
 
 用户没说时长、页数或“详细/简略”时，必须问，并给出默认选项：
 
-> 这篇要讲多细？**简略版**约 10 页、8–10 分钟，只讲主线和关键结果；**详细版**约 18–20 页、15–20 分钟，含方法分解和主要实验。不说的话我按详细版做。
+> 这篇要讲多细？**简略版**约 8–12 页、8–10 分钟，只讲主线和关键结果；**详细版**约 16–22 页、15–20 分钟，含方法分解和主要实验。不说的话我按详细版做。
 
-已给时长或页数 → 直接推断，不再问。档位细节见 [source-sufficiency.md](references/source-sufficiency.md) §1。
+已给时长或页数 → 直接推断，不再问。档位与页数**以 [source-sufficiency.md](references/source-sufficiency.md) §1 为唯一标准**，其他文件里的页数只是场景参考。
 
 ### 0.4 怎么问才不烦人
 
@@ -196,7 +196,16 @@ description: AI 主导的论文汇报 PPT 工作流：开工前先访谈用户�
 
 优先选与用户参考、场景和内容密度匹配的一套；不确定时采用可逆候选并在样页中验证。选定方言/预设或案例风格写入 `design-brief.md`。
 
-所有方言和预设都可直接调用（[styles/](styles/README.md)）：`tokens.json` 定义字体、字号、配色语义和网格，`assets/style-presets.js` 提供封面、提纲/问题导航、章节、方法、增量构建、公式讲解、结果、总结等页面原型。使用预设时：
+**三层怎么叠加（冲突时按这个顺序）：**
+
+1. 用户明确要求；
+2. **预设**（9 套，`international` / `domestic` 本身也是预设）：决定字体、配色、网格和页面原型，**字体以预设 `tokens.json` 为准**；
+3. **方言**：只叠加文案习惯，不改视觉。例如中文汇报选 `systems-talk` 时，仍可以用“一、二、三”标题前缀、提纲页、出处标签、结尾讨论问题；
+4. **Academic Clean / Rich**：只决定密度和演示感，不覆盖预设的字体和配色。
+
+每次只选一套预设，选定理由和叠加的方言规则写进 `design-brief.md`。
+
+所有预设都可直接调用（[styles/](styles/README.md)）：`tokens.json` 定义字体、字号、配色语义和网格，`assets/style-presets.js` 与 `style-presets-extra.js` 提供页面原型。**各预设的原型数量不同**：international / domestic 较全；其余 7 套只有各自的招牌原型（例如 systems-talk 没有方法页和讨论页原型，editorial 没有结果页原型）。没有原型的页型照预设 token 自由绘制，可参考 `lab/annotated-v2/` 的构图。使用预设时：
 
 - storyboard 中为每页标注原型名；没有合适原型的页面自由绘制，但仍遵守该预设的 token 与硬性约束（见对应 `STYLE.md` §5）；
 - 先看 `styles/<name>/refs/` 中的真实参考页和 `samples/` 中的示例页，再动手；
@@ -271,7 +280,8 @@ AI 自主构图，可以使用宿主演示工具，也可以编写当次 PptxGen
 - 论文原图可以作为图片；
 - 自绘解释图优先使用可编辑形状/矢量；
 - 生成式图片只能用于非证据性的概念/气氛素材；
-- 禁止生成实验结果、补画论文数据或伪造系统截图。
+- 禁止生成论文没有的实验结果、伪造系统截图，或凭像素估算补画数据；
+- 重绘图表只用论文**明确写出**的数值（正文、表格、图上的数值标注）。没有标注的序列（例如只画了圆点、没写数）保留原图裁切，不要重绘成精确值。判定细则见 [style-guide.md](references/style-guide.md) §8。
 
 每页写正式口语演讲备注。复杂 Figure 先告诉听众“怎么看”，再解释机制或结果。
 
@@ -286,6 +296,24 @@ AI 自主构图，可以使用宿主演示工具，也可以编写当次 PptxGen
 → 重新渲染
 → 复审
 ```
+
+本地工具链的一轮：
+
+```bash
+python scripts/check_fonts.py <preset>           # 每批都跑；MISS 先修字体
+node build.js                                     # 生成脚本里用 writeDeck(pptx, 'deck.pptx') 保存
+python scripts/check_deck.py deck.pptx            # 结构检查
+python scripts/bridge.py render deck.pptx --out renders/rNN   # 每轮新目录
+# 用视觉模型逐页查看 renders/rNN/slide-*.png 和 contact-sheet.png，并追加记录到 review-log.json
+python scripts/check_review.py renders/rNN/render.json review-log.json
+```
+
+`check_review.py` 要求五个阶段（source / design / pilot / slides / deck）都有通过记录，并且每条记录的 `inputs` 都带当前 sha256：
+
+- source 阶段：提交实际看过的页面截图或裁切图；
+- design 阶段：提交 `design-brief.md` 和参考图；
+- pilot / slides 阶段：提交逐页 PNG；
+- deck 阶段：提交最终 contact sheet。
 
 审阅问题要具体到：**页码 / 区域 / 严重程度 / 为什么影响理解 / 应如何修改**。
 

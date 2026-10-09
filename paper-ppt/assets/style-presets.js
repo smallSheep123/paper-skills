@@ -469,4 +469,30 @@ function drawSlide(canvas, tokens, spec) {
   fn.call(preset, canvas, tokens, spec);
 }
 
-module.exports = {loadTokens, parseRuns, scriptRuns, PptxCanvas, SvgCanvas, drawSlide, PRESETS};
+
+// ---------- writing ----------
+// PptxGenJS emits one <a:pPr> per run, so any paragraph with several runs (mixed CJK/Latin, **bold**, {{c:color}})
+// gets duplicate paragraph properties that PowerPoint may reject and check_deck.py fails. Always save through
+// writeDeck(), which keeps the first <a:pPr> of each paragraph. Conflicting copies are dropped with a warning.
+async function writeDeck(pptx, fileName) {
+  const JSZip = require('jszip');
+  const zip = await JSZip.loadAsync(await pptx.write({outputType: 'nodebuffer'}));
+  let fixed = 0; let conflicts = 0;
+  for (const name of Object.keys(zip.files).filter(n => /^ppt\/(slides|notesSlides|slideLayouts|slideMasters)\/[^/]+\.xml$/.test(n))) {
+    const xml = await zip.file(name).async('string');
+    const out = xml.replace(/<a:p>([\s\S]*?)<\/a:p>/g, (whole, body) => {
+      const props = body.match(/<a:pPr\b[^>]*?(?:\/>|>[\s\S]*?<\/a:pPr>)/g) || [];
+      if (props.length < 2) return whole;
+      fixed++;
+      if (props.some(x => x !== props[0])) conflicts++;
+      let seen = false;
+      return '<a:p>' + body.replace(/<a:pPr\b[^>]*?(?:\/>|>[\s\S]*?<\/a:pPr>)/g, m => (seen ? '' : (seen = true, m))) + '</a:p>';
+    });
+    if (out !== xml) zip.file(name, out);
+  }
+  if (conflicts) console.warn(`writeDeck: ${conflicts} paragraph(s) had conflicting run-level paragraph options; kept the first`);
+  fs.writeFileSync(fileName, await zip.generateAsync({type: 'nodebuffer', compression: 'DEFLATE'}));
+  return {fileName, paragraphsFixed: fixed};
+}
+
+module.exports = {writeDeck, loadTokens, parseRuns, scriptRuns, PptxCanvas, SvgCanvas, drawSlide, PRESETS};

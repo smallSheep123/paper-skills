@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {spawnSync} = require('node:child_process');
 const {createDeck, loadEquations} = require('./ppt-helpers');
-const {loadTokens, PptxCanvas, PRESETS} = require('./style-presets');
+const {loadTokens, PptxCanvas, PRESETS, writeDeck} = require('./style-presets');
 const {equationContent} = require('../styles/academic-evidence/equation-layout');
 
 const FORMULAS = [
@@ -52,7 +52,7 @@ async function main() {
       equationContent(canvas, tokens, s);
     });
     const draft = path.join(out, `${style}-math.raw.pptx`);
-    await deck.writeFile({fileName: draft});
+    await writeDeck(deck, draft);
     python([script, 'finalize', draft, '--manifest', manifest, '--out', path.join(out, `${style}-math.pptx`)]);
   }
 }

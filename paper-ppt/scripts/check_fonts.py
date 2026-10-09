@@ -74,13 +74,18 @@ def is_installed(font: str, have: set[str]) -> bool:
 def check(preset: str, have: set[str], track: str = "default") -> dict:
     tokens = json.loads((STYLES / preset / "tokens.json").read_text(encoding="utf-8"))
     fonts = dict(tokens.get("fonts", {}))
-    if track == "open" and "open" in fonts:
-        o = fonts["open"]
-        for role in ROLES:
-            if role in o:
-                base = fonts.get(role) or []
-                base = [base] if isinstance(base, str) else base
-                fonts[role] = ([o[role]] if isinstance(o[role], str) else o[role]) + base
+    # The open track (scripts/get_fonts.py) is always a valid substitute: in the default track it is appended
+    # after the preferred fonts (so an installed open font reports SUB, not MISS); in the open track it leads.
+    o = fonts.get("open") or {}
+    for role in ROLES:
+        if role not in o and role not in fonts:
+            continue
+        base = fonts.get(role) or []
+        base = [base] if isinstance(base, str) else list(base)
+        extra = o.get(role) or []
+        extra = [extra] if isinstance(extra, str) else list(extra)
+        merged = extra + base if track == "open" else base + extra
+        fonts[role] = list(dict.fromkeys(merged))
     report = {"preset": preset, "roles": {}}
     for role in ROLES:
         lst = fonts.get(role)
@@ -117,7 +122,8 @@ def main() -> int:
                 mark, note = "SUB ", f"{x['wanted']} missing -> uses {x['uses']}"
                 worst = max(worst, 1)
             else:
-                mark, note = "MISS", f"none of {', '.join(x['missing'])} installed"
+                mark, note = "MISS", (f"none of {', '.join(x['missing'])} installed; renderers will silently fall back"
+                                      " (e.g. DejaVu Sans), so visual review on this machine is invalid")
                 worst = 2
             print(f"  [{mark}] {role:<5} {note}")
     print("\nSources and safe substitutes: references/fonts.md; open fonts: python scripts/get_fonts.py --install")

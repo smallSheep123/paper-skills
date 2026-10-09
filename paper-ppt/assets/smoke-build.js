@@ -2,6 +2,7 @@
 const path = require('node:path');
 const fs = require('node:fs');
 const {createDeck, addNotes} = require('./ppt-helpers');
+const {writeDeck} = require('./style-presets');
 async function main() {
   const out = path.resolve(process.argv[2] || 'smoke.pptx');
   if (fs.existsSync(out)) throw new Error(`Refusing to overwrite ${out}`);
@@ -18,7 +19,7 @@ async function main() {
   slide.addText('请实际查看渲染图，确认字体、字符和版面。',
     {x: 0.7, y: 4.5, w: 11.9, h: 0.6, fontFace: font, fontSize: 22, color: '232A31', margin: 0});
   addNotes(slide, '此页只测试可编辑文本、中文字符、演讲备注和渲染链路。不是论文汇报质量验收。');
-  await deck.writeFile({fileName: out});
+  await writeDeck(deck, out);
   console.log(out);
 }
 if (require.main === module) main().catch(error => {console.error(error.message); process.exitCode = 1;});

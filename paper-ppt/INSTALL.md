@@ -25,6 +25,18 @@ python scripts/bridge.py doctor
 - LibreOffice
 - Poppler（提供 `pdftoppm`）
 
+缺 LibreOffice 时（`doctor` 报 `soffice: null`）按平台安装，**不要跳过真实渲染**：
+
+| 平台 | 命令 |
+|---|---|
+| Debian / Ubuntu（含容器、沙箱） | `sudo apt-get update && sudo apt-get install -y libreoffice-impress poppler-utils` |
+| macOS | `brew install --cask libreoffice && brew install poppler` |
+| Windows | 安装 LibreOffice 后用 `--soffice "C:\Program Files\LibreOffice\program\soffice.com"` |
+
+沙箱或容器重启后，apt 装的 LibreOffice 和 `~/.local/share/fonts` 里的字体都可能丢失：每批渲染前重跑 `doctor` 和 `check_fonts.py`。
+确实装不上时，`scripts/svg_preview.py` 的 SVG 预览只能检查布局草稿；它按估算字宽排版，不能作为文字溢出、换行和字体的视觉验收，审阅记录里要写明 `renderer: svg-preview (not final)`。
+LibreOffice 渲染中英文之间、全角括号旁的空隙往往比 PowerPoint 宽，看到这类空隙先在源文本里确认没有多余空格，不要为此改版式。
+
 `doctor` 只检查本地工具链，不检查视觉模型是否可用，也不代表 PowerPoint 兼容性已经验证。
 
 ## 2. 渲染 PPTX
@@ -102,17 +114,16 @@ python scripts/check_review.py renders/r01/render.json review-log.json
 
 它**不会调用视觉模型，也不会判断页面好不好看或论文事实是否正确**。
 
-## 5. 可选 OOXML 修复
+## 5. 保存 PPTX：一律用 `writeDeck`
 
-仅在确实遇到 PptxGenJS 多 run 段落的重复 `<a:pPr>` 问题时使用：
+PptxGenJS 会给同一段落的每个 run 都写一份 `<a:pPr>`。中英混排、`**粗体**`、`{{c:颜色}}` 都会把一段拆成多个 run，生成的文件过不了 `check_deck.py`，PowerPoint 也可能要求修复。保存时不要直接调用 `pptx.writeFile()`，改用：
 
-```bash
-python assets/fix_pPr.py deck.pptx --out deck.fixed.pptx
+```js
+const {writeDeck} = require('./assets/style-presets');
+await writeDeck(pptx, 'deck.pptx');   // 每段只保留第一份 pPr
 ```
 
-脚本默认另存，不覆盖源文件。出现冲突属性时应回到生成源修复，而不是让脚本猜。
-
-修复后必须重新渲染并复审。
+已经用 `writeFile` 生成的旧文件，可以用 `python assets/fix_pPr.py deck.pptx --out deck.fixed.pptx` 补救。修复后必须重新渲染并复审。
 
 ## 6. 可选：MinerU 本地论文提取
 

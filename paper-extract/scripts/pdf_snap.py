@@ -20,7 +20,10 @@ import sys
 import tempfile
 from pathlib import Path
 
-CAPTION = re.compile(r'^\s*(Figure|Fig\.|Table|图|表)\s*([0-9]+[a-z]?|[A-Z]\.?[0-9]+)\s*[:：]\s*(.*)$', re.I)
+# Separator after the number: ":" / "：" (most venues) or "." / "|" (ACM, IEEE, some CVPR templates).
+CAPTION = re.compile(r'^\s*(Figure|Fig\.|Table|Algorithm|Alg\.|图|表|算法)\s*([0-9]+[a-z]?|[A-Z]\.?[0-9]+)\s*[:：.|]\s*(.*)$', re.I)
+# Algorithm boxes often have no separator: "Algorithm 1 Score Entropy Training Loop".
+ALGO = re.compile(r'^\s*(Algorithm|算法)\s*([0-9]+)\s*[:：.]?\s+([A-Z\u4e00-\u9fff].*)$')
 COLUMN_GAP = re.compile(r'\s{3,}')  # pdftotext -layout puts side-by-side columns on one line
 
 
@@ -60,16 +63,17 @@ def find_captions(page_texts: list[str]) -> list[dict]:
     for page, text in enumerate(page_texts, 1):
         for line in text.splitlines():
             for segment in COLUMN_GAP.split(line):
-                m = CAPTION.match(segment)
+                m = CAPTION.match(segment) or ALGO.match(segment)
                 if not m or not m.group(3).strip():
                     continue
-                kind = 'Table' if m.group(1).lower() in ('table', '表') else 'Figure'
+                head = m.group(1).lower()
+                kind = 'Table' if head in ('table', '表') else 'Algorithm' if head in ('algorithm', 'alg.', '算法') else 'Figure'
                 key = (kind, m.group(2))
                 if key in seen:
                     continue
                 seen.add(key)
                 items.append({'kind': kind, 'id': m.group(2), 'page': page, 'caption': m.group(3).strip()[:160]})
-    order = {'Figure': 0, 'Table': 1}
+    order = {'Figure': 0, 'Table': 1, 'Algorithm': 2}
     return sorted(items, key=lambda i: (order[i['kind']], int(re.sub(r'\D', '', i['id']) or 0), i['id']))
 
 
@@ -159,6 +163,10 @@ def cmd_inventory(a) -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text('\n'.join(lines) + '\n', encoding='utf-8')
     print(f'{len(items)} captions -> {out}')
+    if not items:
+        print('WARNING: 0 captions found. The caption format may be unusual (check one caption on the page image);'
+              ' fill the inventory by hand from the page images instead of assuming the paper has no figures.',
+              file=sys.stderr)
 
 
 def cmd_crop(a) -> None:
