@@ -212,6 +212,7 @@ description: AI 主导的论文汇报 PPT 工作流：开工前先访谈用户�
 - `c.text(content, box)`：`content` 是字符串或数组，数组的**每一项是一个段落**；文本里的 `\n` 也会拆成新段落。同一行里要用不同样式，写成 `{runs: [{text: '结果：', bold: true, color}, {text: '…'}]}`。标记 `**粗**`、`[[强调]]`、`{{n:符号}}` 不能嵌套，要粗体又要着色时用 runs。
 - `c.table(rows, box)`：原生表格，按预设 token 自动选中英文字体、给表头上底色、数字列右对齐；用 `highlight: [行号]` 高亮本文行。
 - `c.equation(asset, box)`：公式资产，框放不下会直接报错，不会自动缩小。
+- 原生图表：`slide.addChart(type, data, {...chartFonts(t), ...})`，否则图表文字会写成 Arial，`check_fonts --deck` 会报 MISS。
 - `drawSlide(c, t, {type: 'head', ...})`（international / domestic 叫 `frame`）：只画该预设的页头、页脚和出处行，正文自由绘制。
 
 使用预设时：

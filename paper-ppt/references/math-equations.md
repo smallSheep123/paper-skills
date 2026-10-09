@@ -58,7 +58,7 @@ python scripts/bridge.py render build/deck.math.pptx --out renders/math-r01
 - 校验器禁止 `\newcommand` 和 `\def`，同一个符号每次出现都要重复写颜色宏。可以在生成 `math-request.json` 的脚本里做字符串替换，不要在 LaTeX 里定义宏。
 - `math_assets.py` 只返回整条公式的外框，拿不到子项坐标。逐项讲解有三种做法，按优先级：
   1. **拆式**：把公式拆成几段独立资产，左右并排放，每段各自有坐标，可以精确加框、加箭头。拆式要注意三点：
-     - 每段都加同一个**定界符包裹的**幻影：`\left.\vphantom{\frac{p(y)}{p(x)}}\right.`。带括号的那段写成 `\left[ \vphantom{\frac{p(y)}{p(x)}} …`。只加裸 `\vphantom` 不够：`\left…\right` 会按自身规则多撑出高度，带括号的段会比其他段高约 20%，按高度居中后基线就错开了；
+     - 每段都加同一个**内含真实括号**的幻影：`\vphantom{\left(\frac{p(y)}{p(x)}\right)}`（括号里放全式最高的部分）。带括号的那段也加这同一个幻影。不要写裸 `\vphantom{X}`，也不要写 `\left.\vphantom{X}\right.`：`\left.` 不占高度，`\left…\right` 会多撑出约 10–20% 的高度，没括号的段因此偏矮，按高度居中后基线就会错开（SEDD 测试实测差 0.07 in，改成这种写法后 ≤ 0.007 in）；
      - 每段在请求里设 `"border": 0`，否则每段自带 2 bp 边距，拼接处会有缝；
      - 成对括号被拆开时写成 `\left[ … \right.` 和 `\left. … \right]`，两半和其他段都用同一个幻影；
      - 拼好后放大看一眼基线：各段字母底部要在同一条水平线上，差 0.03 in 以上就回去检查幻影。

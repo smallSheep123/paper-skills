@@ -134,12 +134,24 @@ function tableCells(t, rows, o) {
   }));
 }
 
+// Native chart font options from tokens; spread into addChart options so charts do not fall back to Arial:
+//   slide.addChart(pptx.ChartType.bar, data, {...chartFonts(t), x, y, w, h})
+function chartFonts(t) {
+  const f = t.fonts.body || t.fonts.latin[0];
+  return {titleFontFace: f, legendFontFace: f, catAxisLabelFontFace: f, valAxisLabelFontFace: f,
+    dataLabelFontFace: f, catAxisTitleFontFace: f, valAxisTitleFontFace: f};
+}
+
 // ---------- backends ----------
 class PptxCanvas {
   constructor(slide, tokens) { this.slide = slide; this.t = tokens; }
   text(content, o) {
     const t = this.t;
     const paras = splitParas(content);
+    // a missing size (e.g. a renamed token such as size.hero) would silently fall back to 18 pt
+    if (!Number.isFinite(o.size) && paras.some((p) => !Number.isFinite(p.size) && !(p.runs || []).every((r) => Number.isFinite(r.size)))) {
+      console.warn(`text: no font size for "${textOf(paras[0]).slice(0, 30)}" — check the token name; PowerPoint will use 18 pt`);
+    }
     const runs = [];
     paras.forEach((p, i) => {
       const src = typeof p === 'string' ? {text: p} : p;
@@ -181,7 +193,7 @@ class PptxCanvas {
       options: {bold: !!c.bold, color: c.color || t.color.text, fill: c.fill ? {color: c.fill} : undefined, align: c.align,
         fontFace: fontFor(t, o), colspan: c.colspan, rowspan: c.rowspan, valign: 'middle'}})));
     this.slide.addTable(data, {x: o.x, y: o.y, w: o.w, h: o.h, colW: o.colW, rowH: o.rowH, fontSize: o.size,
-      border: {type: 'solid', pt: 0.75, color: t.color.rule || t.color.ghost || 'D9D9D9'}, margin: o.margin || [0.04, 0.1, 0.04, 0.1], autoPage: false});
+      border: {type: 'solid', pt: 0.75, color: t.color.rule || t.color.ghost || 'D9D9D9'}, margin: o.margin || [0.03, 0.06, 0.03, 0.06], autoPage: false});
   }
   rect(o) {
     const opt = {x: o.x, y: o.y, w: o.w, h: o.h,
@@ -589,4 +601,4 @@ async function writeDeck(pptx, fileName) {
   return {fileName, paragraphsFixed: fixed};
 }
 
-module.exports = {writeDeck, loadTokens, parseRuns, splitParas, paraRuns, scriptRuns, PptxCanvas, SvgCanvas, drawSlide, PRESETS};
+module.exports = {chartFonts, writeDeck, loadTokens, parseRuns, splitParas, paraRuns, scriptRuns, PptxCanvas, SvgCanvas, drawSlide, PRESETS};

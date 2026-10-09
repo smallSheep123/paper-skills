@@ -231,10 +231,14 @@ module.exports = function makePresets({sourceLine, pageNo}) {
       // text may be a string or a paragraph array (strings / {text} / {runs}); every paragraph and every \n line
       // wraps on its own, so count lines per line and add paragraph spacing
       const estH = (text, size) => {
-        const paras = (Array.isArray(text) ? text : [text]).map((p) => (typeof p === 'string' ? p : (p.runs ? p.runs.map((r) => r.text).join('') : p.text || '')));
-        const lines = paras.reduce((n, para) => n + String(para).split('\n')
-          .reduce((m, line) => m + Math.max(1, Math.ceil(ems(line) * size / 72 / 11.0)), 0), 0);
-        return 0.42 + 0.25 + lines * size * 1.25 / 72 + (paras.length - 1) * 0.06;
+        const paras = (Array.isArray(text) ? text : [text]).map((p) => (typeof p === 'string' ? {text: p} : p));
+        let hIn = 0;   // each paragraph at its own size (p.size), else the block size
+        paras.forEach((p) => {
+          const sz = p.size || size; const str = p.runs ? p.runs.map((r) => r.text).join('') : (p.text || '');
+          const lines = String(str).split('\n').reduce((m, line) => m + Math.max(1, Math.ceil(ems(line) * sz / 72 / 11.2)), 0);
+          hIn += lines * sz * 1.2 / 72;
+        });
+        return 0.42 + 0.22 + hIn + (paras.length - 1) * 0.05;
       };
       s.blocks.forEach((b) => {
         const col = t.color.block[b.kind] || t.color.dark; const h = b.h || estH(b.text, t.size.body);
