@@ -48,8 +48,12 @@
 | `resultRatio` | 原图 + 大号“N.N×”比值箭头 + “better ↓”方向提示 + 条件小字。宽图（宽高比 > 2.2）自动改为上图、下方比值行 |
 | `banner` | 图 + 底部整宽本文色横幅写一句结论 |
 | `tracker` | 任一内容页传入 tracker/stage 即在底部画贡献追踪条（P13） |
+| `pipeline` | 编号阶段流水线，每段带自己的注，当前段取阶段色；用于「改了什么」而不放图。`stages: [{label,note}]`、`active` | 系统论文设计页 |
+| `results` | 整宽数据表 + 表头 + 本文行高亮 + 口径小字；多组设置的评测。`columns`、`rows`、`highlight` | 系统论文评测表 |
 
 示例 deck：`node assets/build-style-samples.js out` 后查看 `out/systems-talk-sample.pptx`。
+
+九套预设的版式骨架对照见 [references/layout-atlas.md](../../references/layout-atlas.md)：换预设必须换构图，只改颜色和字体不算换风格。
 
 ## 4. 硬性约束
 

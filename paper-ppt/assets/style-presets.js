@@ -15,6 +15,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {containGeometry, imageDimensions} = require('./image-geometry');
 const {addEquation, equationGeometry} = require('./equations');
+const K = require('./layout-kit');
 
 const STYLE_DIR = path.join(__dirname, '..', 'styles');
 
@@ -406,6 +407,48 @@ const international = {
     if (s.takeaway) this.takeaway(c, t, s.takeaway, top + figH + 0.25);
   },
 
+  // Goal / Challenge / Solution as three running lines, then two figures side by side, each
+  // with its own sub-caption. Song Han's opener: the claims are above the evidence, so the
+  // reader gets the argument before looking at the plots (and never a bullet list).
+  // rows: [{k, v}]; figures: [{file, caption}]
+  setup(c, t, s) {
+    this.frame(c, t, s);
+    const mx = t.grid.marginX; const w = t.slide.w - 2 * mx;
+    let y = t.grid.contentY + 0.02;
+    (s.rows || []).forEach((r) => {
+      c.text(r.k, {x: mx, y, w: 1.55, h: 0.4, size: 14, bold: true, color: t.color.accent});
+      c.text(r.v, {x: mx + 1.6, y, w: w - 1.6, h: 0.4, size: 15, color: t.color.body});
+      y += 0.42;
+    });
+    const figs = (s.figures || []).slice(0, 2);
+    const top = y + 0.2; const capH = 0.42;
+    const gap = 0.55; const slot = (w - gap * (figs.length - 1)) / Math.max(1, figs.length);
+    figs.forEach((f, i) => {
+      const card = K.figure(c, t, f.file, {x: mx + i * (slot + gap), y: top, w: slot, h: t.grid.contentBottom - top - capH}, {frame: false, align: 'left'});
+      c.text(f.caption || '', {x: card.x, y: top + (t.grid.contentBottom - top - capH) - 0.02, w: slot, h: capH,
+        size: t.size.caption, color: t.color.muted, align: 'center'});
+    });
+  },
+
+  // Main figure plus a magnified inset of the part under discussion. Used when the figure is
+  // a whole architecture but the argument lives in one corner (Kaiming's annotation habit).
+  // inset: {file, caption, at: [fx, fy], label}
+  zoom(c, t, s) {
+    this.frame(c, t, s);
+    const mx = t.grid.marginX; const top = t.grid.contentY + 0.02;
+    const main = K.figure(c, t, s.figure, {x: mx, y: top, w: 8.1, h: t.grid.contentBottom - top}, {frame: false});
+    if (s.inset) {
+      const box = {x: 9.35, y: 2.15, w: 3.35, h: 3.1};
+      c.text(s.inset.label || '放大', {x: box.x, y: box.y - 0.36, w: box.w, h: 0.3, size: 12, bold: true, color: t.color.accent});
+      const card = K.figure(c, t, s.inset.file, box, {fill: 'FFFFFF', line: t.color.rule, lineW: 1, caption: s.inset.caption, captionSize: t.size.caption});
+      const from = K.at(main, s.inset.at || [0.8, 0.5]);
+      c.line({x1: from.x, y1: from.y, x2: box.x, y2: box.y + box.h / 2, color: t.color.accent, w: 1.25, dash: true, arrow: true});
+      K.ring(c, from, 0.16, t.color.accent, 1.75);
+      void card;
+    }
+    if (s.points) c.text(s.points.map((p) => ({text: p, bullet: true})), {x: 9.35, y: 5.55, w: 3.35, h: 1.2, size: 14, color: t.color.body, paraSpaceBefore: 6});
+  },
+
   // One-line takeaway box at the end of the eye path.
   takeaway(c, t, text, y, kind = 'accent') {
     const col = kind === 'note' ? t.color.note : t.color.accent;
@@ -456,6 +499,46 @@ const international = {
     this.frame(c, t, s);
     c.text(s.points.map((p) => ({text: p, bullet: true})), {x: 1.0, y: t.grid.contentY + 0.4, w: 11.3, h: 4.6, size: 22, color: t.color.body, paraSpaceBefore: 22});
   },
+
+  // Closing page with an argument, not a bullet list. Chris Ré's takeaway box plus
+  // Leskovec's "where we go next" navigation: three numbered findings on the left,
+  // one boxed takeaway and the open questions on the right.
+  // points: [string]; takeaway: string; questions: [string]
+  recap(c, t, s) {
+    this.frame(c, t, s);
+    const mx = t.grid.marginX; const top = t.grid.contentY + 0.15;
+    const split = 7.1; const bottom = t.grid.contentBottom;
+    const pts = (s.points || []).slice(0, 3);
+    const rowH = (bottom - top) / Math.max(1, pts.length);
+    pts.forEach((p, i) => {
+      const y = top + i * rowH;
+      c.text(String(i + 1).padStart(2, '0'), {x: mx, y, w: 0.9, h: rowH - 0.15,
+        size: 32, bold: true, color: t.color.accent, valign: 'middle'});
+      c.text(p, {x: mx + 1.05, y, w: split - mx - 1.25, h: rowH - 0.15,
+        size: 18, color: t.color.body, valign: 'middle', lineSpacing: 1.35});
+      if (i < pts.length - 1) c.line({x1: mx, y1: y + rowH - 0.08, x2: split - 0.35,
+        y2: y + rowH - 0.08, color: t.color.rule, w: 1});
+    });
+    K.divide(c, split, top, bottom, t.color.rule, 1);
+    const rx = split + 0.4; const rw = t.slide.w - t.grid.marginX - rx;
+    if (s.takeaway) {
+      c.rect({x: rx, y: top, w: rw, h: 2.25, line: t.color.accent, lineW: 2});
+      c.text('TAKEAWAY', {x: rx + 0.22, y: top + 0.18, w: rw - 0.44, h: 0.3,
+        size: 11, bold: true, color: t.color.accent, charSpacing: 1.5});
+      c.text(s.takeaway, {x: rx + 0.22, y: top + 0.6, w: rw - 0.44, h: 1.5,
+        size: 19, bold: true, color: t.color.text, lineSpacing: 1.4});
+    }
+    const qs = s.questions || [];
+    if (qs.length) {
+      const qy = top + 2.65;
+      c.text('OPEN QUESTIONS', {x: rx, y: qy, w: rw, h: 0.3,
+        size: 11, bold: true, color: t.color.muted, charSpacing: 1.5});
+      qs.forEach((q, i) => {
+        c.text(`Q${i + 1}  ${q}`, {x: rx, y: qy + 0.45 + i * 0.62, w: rw, h: 0.55,
+          size: 15, color: t.color.body, lineSpacing: 1.3});
+      });
+    }
+  },
 };
 
 // ================= Domestic =================
@@ -503,6 +586,13 @@ const domestic = {
     c.rect({x: 3.7, y: 2.75, w: 0.08, h: 1.0, fill: t.color.primary});
     c.text(s.title, {x: 4.0, y: 2.55, w: 8.3, h: 0.9, size: t.size.section, bold: true, color: t.color.primary, valign: 'middle'});
     if (s.subtitle) c.text(s.subtitle, {x: 4.0, y: 3.45, w: 8.3, h: 0.6, size: t.size.subtitle, color: t.color.muted});
+    // 章节页默认是半空的；给三个关键词就有一条"本节看点"，导航感立刻立住。
+    if (s.keys && s.keys.length) {
+      const y = 5.06;
+      c.line({x1: t.grid.marginX, y1: y, x2: t.slide.w - t.grid.marginX, y2: y, color: t.color.rule, w: 1});
+      c.text('本节', {x: t.grid.marginX, y: y + 0.14, w: 0.7, h: 0.3, size: t.size.source + 1, bold: true, color: t.color.faint});
+      c.text(s.keys.join('　·　'), {x: t.grid.marginX + 0.78, y: y + 0.12, w: t.slide.w - 2 * t.grid.marginX - 0.78, h: 0.34, size: t.size.small - 2, color: t.color.muted});
+    }
     this.footer(c, t, s); c.notes(s.notes);
   },
 
@@ -590,6 +680,33 @@ const domestic = {
     c.text(s.points.map((p) => ({text: p, bullet: true})), {x: nx, y: top + 0.2, w: nw, h: 4.9, size: t.size.body - 1, color: t.color.body, paraSpaceBefore: 16});
   },
 
+  // 方法页变体：原图上圈 ①②③，右侧按编号逐条解释。
+  // 与 method 的区别是读图顺序——先看图上的位置，再读对应说明；要点不再是并列的 bullet，
+  // 而是必须落在图上的锚点。marks: [{f: [fx, fy], n, text}]
+  annotatedFigure(c, t, s) {
+    this.frame(c, t, s);
+    const top = t.grid.contentY + 0.15;
+    const card = this.figureFrame(c, t, s.figure, s.caption, {x: t.grid.marginX, y: top, w: 8.0, h: 5.1});
+    (s.marks || []).forEach((m) => {
+      const p = K.at(card, m.f);
+      K.ring(c, p, 0.19, t.color.accent, 2);
+      K.badge(c, {x: p.x - 0.34, y: p.y - 0.3}, m.n, {fill: t.color.accent, color: 'FFFFFF'});
+    });
+    const nx = t.grid.marginX + 8.0 + 0.4; const nw = t.slide.w - t.grid.marginX - nx;
+    let y = top + 0.05;
+    (s.marks || []).forEach((m) => {
+      c.rect({x: nx, y: y + 0.02, w: 0.28, h: 0.28, fill: t.color.primaryLight, line: t.color.primary, lineW: 1});
+      c.text(String(m.n), {x: nx, y: y + 0.02, w: 0.28, h: 0.28, size: 11, bold: true, color: t.color.primary, align: 'center', valign: 'middle'});
+      c.text(m.text, {x: nx + 0.4, y, w: nw - 0.4, h: 1.0, size: 14, color: t.color.text, lineSpacing: 1.3});
+      y += 1.15;
+    });
+    if (s.takeaway) {
+      const ty = t.grid.contentBottom - 0.62;
+      c.rect({x: nx, y: ty, w: nw, h: 0.62, fill: t.color.primaryLight});
+      c.text(s.takeaway, {x: nx + 0.16, y: ty, w: nw - 0.32, h: 0.62, size: 13.5, bold: true, color: t.color.primary, valign: 'middle'});
+    }
+  },
+
   // 结果页：原图 + 唯一强调数字 + 实验条件
   result(c, t, s) {
     this.frame(c, t, s);
@@ -602,16 +719,136 @@ const domestic = {
   },
 
   // 总结 / 个人思考 / 讨论问题：两栏，不用卡片
+  // 两栏（结论 / 讨论）；给了 s.limits 就变三栏（结论 / 边界 / 讨论）。
   summary(c, t, s) {
     this.frame(c, t, {...s, title: s.title || '总结与讨论'});
-    const top = t.grid.contentY + 0.25; const colW = 5.75;
+    const top = t.grid.contentY + 0.25;
+    // 两栏是安全默认值：三栏会把中文长句压成两行，行首标点的概率也跟着上去。
+    // 只有同时给了 limits 和 discussion 才排三栏。
+    const columns = s.limits && s.discussion
+      ? [['本文结论', s.conclusions], ['局限与边界', s.limits], ['思考与讨论', s.discussion]]
+      : s.limits
+        ? [['本文结论', s.conclusions], ['局限与边界', s.limits]]
+        : [['本文结论', s.conclusions], ['思考与讨论', s.discussion]];
+    const gap = 0.5;
+    const colW = (t.slide.w - 2 * t.grid.marginX - 0.2 - gap * (columns.length - 1)) / columns.length;
     const col = (x, head, items) => {
       c.text(head, {x, y: top, w: colW, h: 0.5, size: t.size.body, bold: true, color: t.color.primary});
       c.line({x1: x, y1: top + 0.55, x2: x + colW, y2: top + 0.55, color: t.color.primaryLight, w: 1.5});
-      c.text(items.map((p) => ({text: p, bullet: true})), {x, y: top + 0.75, w: colW, h: 4.3, size: t.size.small + 1, color: t.color.body, paraSpaceBefore: 12});
+      // 两栏保持原来的字号与高度；只有三栏才收紧，避免旧稿悄悄变样。
+      const tight = columns.length > 2;
+      c.text((items || []).map((p) => ({text: p, bullet: true})), {x, y: top + 0.75, w: colW,
+        h: tight ? 4.1 : 4.3, size: tight ? t.size.small : t.size.small + 1, color: t.color.body, paraSpaceBefore: 12});
     };
-    col(t.grid.marginX + 0.1, '本文结论', s.conclusions);
-    col(t.grid.marginX + 0.1 + colW + 0.6, '思考与讨论', s.discussion);
+    columns.forEach(([head, items], i) => col(t.grid.marginX + 0.1 + i * (colW + gap), head, items));
+    // 组会最后一页常见的收束句：深色横条 + 一句"真正可复用的东西"。
+    if (s.takeaway) {
+      const y = t.grid.contentBottom - 1.45;
+      c.rect({x: t.grid.marginX, y, w: t.slide.w - 2 * t.grid.marginX, h: 0.82, fill: t.color.primary, radius: 0.06});
+      c.text(s.takeaway, {x: t.grid.marginX + 0.24, y, w: t.slide.w - 2 * t.grid.marginX - 0.48, h: 0.82,
+        size: t.size.small + 1, bold: true, color: 'FFFFFF', valign: 'middle'});
+    }
+    if (s.closing) c.text(s.closing, {x: t.grid.marginX, y: t.grid.contentBottom - 0.4, w: t.slide.w - 2 * t.grid.marginX,
+      h: 0.4, size: t.size.small + 2, bold: true, color: t.color.primary, align: 'center'});
+  },
+
+  // 三方案对比：上面一条示意图（可无），下面三栏各一两句结论。
+  compare3(c, t, s) {
+    this.frame(c, t, s);
+    const mx = t.grid.marginX, gap = 0.4;
+    const cw = (t.slide.w - 2 * mx - gap * 2) / 3;
+    let bodyTop = t.grid.contentY + 0.05;
+    if (s.figure) {
+      const size = imageDimensions(s.figure);
+      const ar = size.w / size.h;
+      const bandW = t.slide.w - 2 * mx;
+      // A portrait figure would compute a band taller than the page; clamp to the
+      // space left after reserving room for the three columns and the callout.
+      const reserved = (s.note ? 1.05 : 0.2) + 0.95;
+      const bandH = Math.min(bandW / ar, t.grid.contentBottom - bodyTop - reserved);
+      c.image(s.figure, {x: mx, y: bodyTop, w: Math.min(bandW, bandH * ar), h: bandH});
+      if (s.caption) c.text(s.caption, {x: mx, y: bodyTop + bandH + 0.04, w: bandW, h: 0.3, size: t.size.caption, color: t.color.muted, align: 'center'});
+      bodyTop += bandH + (s.caption ? 0.42 : 0.16);
+    }
+    const room = t.grid.contentBottom - bodyTop;
+    (s.items || []).forEach((item, i) => {
+      const x = mx + i * (cw + gap);
+      if (item.title) c.text(item.title, {x, y: bodyTop, w: cw, h: 0.32, size: t.size.small + 1, bold: true, color: item.accent ? t.color.primary : t.color.text});
+      c.text(item.body, {x, y: bodyTop + (item.title ? 0.4 : 0), w: cw, h: Math.max(0.6, room - 0.4), size: t.size.small - 1, color: t.color.body, lineSpacingMultiple: 1.35});
+    });
+    if (s.note) {
+      const ny = t.grid.contentBottom - 0.95;
+      c.rect({x: mx, y: ny, w: t.slide.w - 2 * mx, h: 0.72, fill: t.color.primaryLight, radius: 0.05});
+      c.text(s.note, {x: mx + 0.24, y: ny, w: t.slide.w - 2 * mx - 0.48, h: 0.72, size: t.size.small, bold: true, color: t.color.primary, valign: 'middle'});
+    }
+  },
+
+  // 并排两图 + 一句结论：高度统一，图注同基线。
+  twoFigures(c, t, s) {
+    this.frame(c, t, s);
+    const mx = t.grid.marginX;
+    const leadH = s.lead ? 0.95 : 0.1;
+    const top = t.grid.contentY + 0.1;
+    this.figureRow(c, t, s.items, {x: mx, y: top, maxW: t.slide.w - 2 * mx, maxH: t.grid.contentBottom - top - leadH});
+    if (s.lead) {
+      const y = t.grid.contentBottom - leadH + 0.15;
+      c.rect({x: mx, y, w: t.slide.w - 2 * mx, h: 0.78, fill: t.color.primaryLight, radius: 0.05});
+      c.text(s.lead, {x: mx + 0.24, y, w: t.slide.w - 2 * mx - 0.48, h: 0.78, size: t.size.small + 1, bold: true, color: t.color.primary, valign: 'middle'});
+    }
+  },
+
+  // 2×2 指标矩阵：每格左边一张小图，右边标题 + 两句口径。
+  metricGrid(c, t, s) {
+    this.frame(c, t, s);
+    const mx = t.grid.marginX, gapX = 0.45, gapY = 0.35;
+    const cw = (t.slide.w - 2 * mx - gapX) / 2;
+    const top = t.grid.contentY + 0.05;
+    const noteH = s.note ? 0.42 : 0;      // reserve a band so the note cannot sit on the frames
+    const ch = (t.grid.contentBottom - top - gapY - noteH) / 2;
+    (s.cells || []).forEach((cell, i) => {
+      const x = mx + (i % 2) * (cw + gapX);
+      const y = top + Math.floor(i / 2) * (ch + gapY);
+      const fw = cw * 0.5;
+      const box = this.figureFrame(c, t, cell.figure, cell.caption, {x, y, maxW: fw, maxH: ch - 0.15});
+      const tx = box.x + box.w + 0.22;
+      c.text(cell.head, {x: tx, y: y + 0.05, w: cw - fw - 0.25, h: 0.34, size: t.size.small, bold: true, color: t.color.text});
+      c.text(cell.body, {x: tx, y: y + 0.45, w: cw - fw - 0.25, h: Math.max(0.5, ch - 0.7), size: t.size.small - 2, color: t.color.body, lineSpacingMultiple: 1.35});
+    });
+    if (s.note) c.text(s.note, {x: mx, y: t.grid.contentBottom - 0.3, w: t.slide.w - 2 * mx, h: 0.28, size: t.size.source, color: t.color.muted});
+  },
+
+  // 成本/参数表：左边公式，右边分项 + 合计 + 一个红色大数字。
+  formulaTable(c, t, s) {
+    this.frame(c, t, s);
+    const mx = t.grid.marginX;
+    const leftW = 4.6;
+    let top = t.grid.contentY + 0.08;
+    // The formula gets the full width; squeezing it into the left column makes it
+    // wrap into the note underneath, which reads as a rendering bug.
+    c.text(s.formula, {x: mx, y: top, w: t.slide.w - 2 * mx, h: 0.34, size: t.size.small + 1, bold: true, color: t.color.primary});
+    top += 0.36;
+    if (s.formulaNote) {
+      c.text(s.formulaNote, {x: mx, y: top, w: t.slide.w - 2 * mx, h: 0.28, size: t.size.source, color: t.color.muted});
+      top += 0.34;
+    }
+    if (s.figure) {
+      this.figureFrame(c, t, s.figure, s.caption, {x: mx, y: top, maxW: leftW, maxH: t.grid.contentBottom - top - 0.1});
+    }
+    const rx = mx + leftW + 0.55;
+    const rw = t.slide.w - mx - rx;
+    (s.rows || []).forEach((row, i) => {
+      const y = top + i * 0.44;
+      c.text(row[0], {x: rx, y, w: rw * 0.6, h: 0.3, size: t.size.small, color: t.color.body});
+      c.text(row[1], {x: rx + rw * 0.6, y, w: rw * 0.22, h: 0.3, size: t.size.small, bold: true, color: t.color.text, align: 'right'});
+      if (row[2]) c.text(row[2], {x: rx + rw * 0.84, y, w: rw * 0.16, h: 0.3, size: t.size.source, color: t.color.muted, align: 'right'});
+    });
+    const totalY = top + (s.rows || []).length * 0.44 + 0.15;
+    if (s.total) c.text(s.total, {x: rx, y: totalY, w: rw, h: 0.3, size: t.size.small, color: t.color.muted});
+    if (s.bigNumber) {
+      c.line({x1: rx, y1: totalY + 0.5, x2: rx + rw, y2: totalY + 0.5, color: t.color.rule, w: 0.75});
+      c.text(s.bigNumber, {x: rx, y: totalY + 0.62, w: 2.6, h: 0.8, size: t.size.bigNumber, bold: true, color: t.color.accent});
+      c.text(s.bigLabel || '', {x: rx + 2.7, y: totalY + 0.82, w: rw - 2.7, h: 0.5, size: t.size.small, color: t.color.muted});
+    }
   },
 
   thanks(c, t, s) {

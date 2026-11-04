@@ -205,7 +205,9 @@ description: AI 主导的论文汇报 PPT 工作流：开工前先访谈用户�
 
 每次只选一套预设，选定理由和叠加的方言规则写进 `design-brief.md`。
 
-所有预设都可直接调用（[styles/](styles/README.md)）：`tokens.json` 定义字体、字号、配色语义和网格，`assets/style-presets.js` 与 `style-presets-extra.js` 提供页面原型。**各预设的原型数量不同**：international / domestic 较全；其余 7 套只有各自的招牌原型（例如 systems-talk 没有方法页和讨论页原型，editorial 没有结果页原型）。没有原型的页型照预设 token 自由绘制，可参考 `lab/annotated-v2/` 的构图。
+所有预设都可直接调用（[styles/](styles/README.md)）：`tokens.json` 定义字体、字号、配色语义和网格，`assets/style-presets.js` 与 `style-presets-extra.js` 提供页面原型，`assets/layout-kit.js` 提供共用的构图原语（按宽高比放图并回传紧致矩形、引线标注、圈点与编号徽章、分栏、列头、竖直分隔线）。**九套预设都已补齐覆盖概述 / 方法 / 结果 / 对比 / 收尾五类页型的版式**，每套的版式骨架各不相同，见 [references/layout-atlas.md](references/layout-atlas.md) 的「预设 → 版式骨架」对照表；不要只用 `head` 加一张图就当作该预设的设计。没有合适原型的页型照预设 token 自由绘制，可参考 `lab/annotated-v2/` 的构图。
+
+**先按内容选版式，再按风格取颜色**：同一页型在九套预设里对应不同的构图（例如「对比」页，`international` 是带高亮模块的流水线、`systems-talk` 是整宽数据表、`dark-tech` 是左右数值对照、`defense-cn` 是双案例图卡、`jp-gothic` 是变更前后双栏表）。换预设必须换构图，只换 `tokens.json` 的颜色和字体等于没换风格。
 
 自由绘制时用画布接口，不要直接调 PptxGenJS：
 

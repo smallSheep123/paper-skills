@@ -47,8 +47,13 @@
 | `focus` | 线框模块，当前模块亮白描边，其余压暗 |
 | `explain` | 白色承托框放论文图 + 青色箭头注释 |
 | `statement` | 一句话居中大字 + 黄色署名 |
+| `steps` | 大号细体编号逐行排列，无框，只有行间节奏线；当前行 accent。`items: [{text,note}]` | `refs/klimovic-p28.jpg` |
+| `annotated` | 论文白底图放进白色圆角承托框，多条青色引线把注释扇向右侧（不是 bullet 列表）。`notes: [{f:[fx,fy],text}]` | `refs/jasonwei-p12.jpg` |
+| `versus` | 一条竖直强调线把页面劈成左右两半，各放一个细体大数字；用于前后状态对照。`sides: [{label,value,note}]` | `refs/bachkey-p1.jpg` |
 
 示例 deck：`node assets/build-style-samples.js out` 后查看 `out/dark-tech-sample.pptx`。
+
+九套预设的版式骨架对照见 [references/layout-atlas.md](../../references/layout-atlas.md)：换预设必须换构图，只改颜色和字体不算换风格。
 
 ## 4. 硬性约束
 

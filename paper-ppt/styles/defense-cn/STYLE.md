@@ -44,8 +44,13 @@
 | `chapter` | 左侧校色竖块写“第三章”，右侧章名 + 副标题 |
 | `figureConclusion` | 编号标题“3.2 …” + 一句引导 + 大图 + “好处：/结论：”描边框（关键词红） |
 | `contributions` | “创新点一/二/三”卡片，每张附对应发表论文 |
+| `figureBand` | 一句引导 + 编号要点作为行文 + 整宽图带 + 图下分栏图注。`steps`、`panels` | `refs/def_fudan_wang-p12.jpg` |
+| `matrix` | 方法 × 特性对照表，本文行高亮，红色描边结论框收尾。`columns`、`rows`、`highlight` | `refs/fudan_zhangqi-p11.jpg` |
+| `casePair` | 两个案例并排，各有校色标题带、图与图注，中间竖线，底部红色结论框。`cases: [{label,figure,caption,note}]` | `refs/def_thu_lyu-p15.jpg` |
 
 示例 deck：`node assets/build-style-samples.js out` 后查看 `out/defense-cn-sample.pptx`。
+
+九套预设的版式骨架对照见 [references/layout-atlas.md](../../references/layout-atlas.md)：换预设必须换构图，只改颜色和字体不算换风格。
 
 ## 4. 硬性约束
 

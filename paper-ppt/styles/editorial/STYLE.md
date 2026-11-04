@@ -43,8 +43,12 @@
 | `hero` | 斜体标题 + 一句副标题 + 一张大图 + 斜体图注 |
 | `chips` | 2×2 概念：浅色圆盘编号 + 粗体标题 + 一行解释（不用剪贴画图标） |
 | `quote` | 大引号 + 斜体引文 + 出处 |
+| `panel` | 剪报拼贴：左侧大图卡 + 右侧窄栏带下划线的栏目头 + 底部深色出处条。`columns`、`paper`、`prose` | `refs/hearst-p23.jpg` |
+| `essay` | 首字下沉 + 宽栏衬线正文 + 外侧页边编号注释 + 斜体 pull quote；正文栏不得侵入页边注列。`text`、`pull`、`notes` | `refs/rushdeepseek-p23.jpg` |
 
 示例 deck：`node assets/build-style-samples.js out` 后查看 `out/editorial-sample.pptx`。
+
+九套预设的版式骨架对照见 [references/layout-atlas.md](../../references/layout-atlas.md)：换预设必须换构图，只改颜色和字体不算换风格。
 
 ## 4. 硬性约束
 

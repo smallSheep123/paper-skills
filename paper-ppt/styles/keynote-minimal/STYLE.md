@@ -47,9 +47,13 @@
 | `section` | 小号大写 kicker（PART 2）+ 一句问题 |
 | `focus` | 同一张模块图连续多页，只有当前模块实心，其余灰框 |
 | `figure` | 标题 + 结论副标题 + 一张大图 + 一行条件说明 |
+| `duel` | 左图右判决表，中间细竖线，胜出行 accent 描边；用于「两个主张对照」而不是一图配要点。`rows: [{k,v,on}]` | `refs/eden-p13.jpg` |
+| `figureFull` | 图铺满整宽，标题与一句话分列上下；页面就是那张图。`claim`、`line` | `refs/chajed-p34.jpg` |
 | `closing` | 编号大数字 + 三条结论 |
 
 示例 deck：`node assets/build-style-samples.js out` 后查看 `out/keynote-minimal-sample.pptx`。
+
+九套预设的版式骨架对照见 [references/layout-atlas.md](../../references/layout-atlas.md)：换预设必须换构图，只改颜色和字体不算换风格。
 
 ## 4. 硬性约束
 

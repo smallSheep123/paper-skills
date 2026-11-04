@@ -4,6 +4,7 @@
 // every archetype is drawn through the canvas API so it renders to PPTX and to the SVG preview.
 
 const {imageDimensions} = require('./image-geometry');
+const K = require('./layout-kit');
 
 module.exports = function makePresets({sourceLine, pageNo}) {
   const W = (t) => t.slide.w;
@@ -61,6 +62,37 @@ module.exports = function makePresets({sourceLine, pageNo}) {
       const top = 1.75; const h = s.caption ? 4.6 : 5.0;
       c.image(s.figure, {x: 1.2, y: top, w: 10.9, h, alt: s.figureAlt});
       if (s.caption) c.text(s.caption, {x: 1.2, y: top + h + 0.1, w: 10.9, h: 0.4, size: t.size.small, color: t.color.muted, align: 'center'});
+    },
+    // Two-column duel: chart on the left, a verdict table on the right, split by a hairline.
+    // Distilled from Eden/S3-FIFO: the reader compares two claims, not one figure with bullets.
+    // rows: [{k, v, on}] — `on` boxes the row in accent (the winner).
+    duel(c, t, s) {
+      this.head(c, t, s);
+      const top = 1.62; const bottom = t.grid.contentBottom - 0.45; const split = 7.0;
+      K.divide(c, split, top, bottom, t.color.rule, 1);
+      K.columnHead(c, 0.85, top, 5.6, s.leftHead || 'Performance', {size: 17, color: t.color.muted, ruleColor: t.color.rule});
+      K.columnHead(c, split + 0.45, top, 5.0, s.rightHead || 'Cost', {size: 17, color: t.color.muted, ruleColor: t.color.rule});
+      K.figure(c, t, s.figure, {x: 0.85, y: top + 0.62, w: 5.6, h: bottom - top - 0.72, frame: false});
+      const rows = s.rows || [];
+      const rh = Math.min(1.05, (bottom - top - 0.7) / Math.max(1, rows.length));
+      rows.forEach((r, i) => {
+        const y = top + 0.62 + i * (rh + 0.12);
+        if (r.on) c.rect({x: split + 0.35, y: y - 0.04, w: 5.15, h: rh + 0.02, line: t.color.accent, lineW: 2});
+        c.text(r.k, {x: split + 0.5, y, w: 2.65, h: rh, size: 19, color: r.on ? t.color.accent : t.color.body, valign: 'middle'});
+        c.text(r.v, {x: split + 3.1, y, w: 2.25, h: rh, size: 25, bold: true, color: r.on ? t.color.accent : t.color.text, align: 'right', valign: 'middle'});
+      });
+      if (s.note) c.text(s.note, {x: 0.85, y: bottom + 0.08, w: 5.6, h: 0.35, size: t.size.caption, color: t.color.muted});
+      sourceLine(c, t, s.source); pageNo(c, t, s.page); c.notes(s.notes);
+    },
+    // Edge-to-edge figure, one sentence underneath. The page is the picture.
+    figureFull(c, t, s) {
+      c.text(s.title, {x: 0.6, y: 0.3, w: 12.1, h: 0.6, size: t.size.title, bold: true, color: t.color.text, heading: true});
+      if (s.claim) c.text(s.claim, {x: 0.6, y: 0.92, w: 12.1, h: 0.36, size: t.size.subtitle, bold: true, color: t.color.body});
+      const top = s.claim ? 1.4 : 1.05;
+      const lineH = s.line ? 0.85 : 0.25;
+      K.figure(c, t, s.figure, {x: 0.35, y: top, w: 12.63, h: t.grid.contentBottom - top - lineH, frame: false});
+      if (s.line) c.text(s.line, {x: 0.6, y: t.grid.contentBottom - 0.6, w: 12.1, h: 0.6, size: 21, bold: true, color: t.color.text, valign: 'middle'});
+      sourceLine(c, t, s.source); pageNo(c, t, s.page); c.notes(s.notes);
     },
     section(c, t, s) {
       c.text(s.kicker || '', {x: 0.9, y: 2.4, w: 11, h: 0.5, size: t.size.small, bold: true, color: t.color.accent, charSpacing: 2});
@@ -197,6 +229,43 @@ module.exports = function makePresets({sourceLine, pageNo}) {
       c.rect({x: 0, y: 5.75, w: W(t), h: 0.8, fill: t.color.ours});
       c.text(s.takeaway, {x: 0.6, y: 5.75, w: W(t) - 1.2, h: 0.8, size: 20, bold: true, color: 'FFFFFF', align: 'center', valign: 'middle'});
     },
+    // Numbered stage pipeline: one row of stages, each with its own note, current stage in
+    // its stage colour. Systems papers use this to show "what we changed" without a figure.
+    // stages: [{label, note}]; active: index
+    pipeline(c, t, s) {
+      this.head(c, t, s);
+      const top = 1.6; const n = s.stages.length; const gap = 0.3;
+      const bw = (W(t) - 2 * t.grid.marginX - gap * (n - 1)) / n; const bh = 1.3;
+      const col = t.color.sym[(s.stage != null ? s.stage : 0) % t.color.sym.length];
+      s.stages.forEach((st, i) => {
+        const x = t.grid.marginX + i * (bw + gap); const on = i === s.active;
+        c.rect({x, y: top, w: bw, h: bh, radius: 0.08, fill: on ? col : t.color.frame, line: on ? col : t.color.rule, lineW: on ? 2 : 1});
+        c.text(String(i + 1).padStart(2, '0'), {x: x + 0.14, y: top + 0.1, w: 0.6, h: 0.3, size: 12, bold: true, color: on ? 'FFFFFF' : t.color.faint, font: t.fonts.mono[0]});
+        c.text(st.label, {x: x + 0.14, y: top + 0.42, w: bw - 0.28, h: 0.5, size: 16, bold: true, color: on ? 'FFFFFF' : t.color.text, valign: 'middle'});
+        if (i < n - 1) c.line({x1: x + bw + 0.04, y1: top + bh / 2, x2: x + bw + gap - 0.04, y2: top + bh / 2, color: t.color.muted, w: 1.5, arrow: true});
+        if (st.note) c.text(st.note, {x, y: top + bh + 0.18, w: bw, h: 1.5, size: 13, color: on ? t.color.body : t.color.muted, lineSpacing: 1.35});
+      });
+      if (s.takeaway) {
+        const y = top + bh + 1.8;
+        c.rect({x: t.grid.marginX, y, w: W(t) - 2 * t.grid.marginX, h: 0.7, fill: t.color.tint[(s.stage != null ? s.stage : 0) % t.color.tint.length]});
+        c.text(s.takeaway, {x: t.grid.marginX + 0.2, y, w: W(t) - 2 * t.grid.marginX - 0.4, h: 0.7, size: 17, bold: true, color: t.color.text, valign: 'middle'});
+      }
+      sourceLine(c, t, s.source); pageNo(c, t, s.page); c.notes(s.notes);
+    },
+    // Results table with the reader's own row highlighted and a ratio column. Systems decks
+    // report a table when the claim is "cheaper at equal quality", not a single ratio.
+    results(c, t, s) {
+      this.head(c, t, s);
+      const m = t.grid.marginX; const w = W(t) - 2 * m;
+      if (s.headline) c.text(s.headline, {x: m, y: 1.35, w, h: 0.4, size: 18, color: t.color.body});
+      const top = s.headline ? 1.85 : 1.5;
+      const rows = [s.columns].concat(s.rows);
+      c.table(rows, {x: m, y: top, w, h: s.height || 3.6, size: s.size || 14, header: true,
+        highlight: [s.highlight || 1], highlightFill: t.color.tint[(s.stage != null ? s.stage : 0) % t.color.tint.length],
+        highlightCols: s.highlightCols || [], numAlign: 'right'});
+      if (s.note) c.text(s.note, {x: m, y: top + (s.height || 3.6) + 0.12, w, h: 0.5, size: 13, color: t.color.muted, lineSpacing: 1.3});
+      sourceLine(c, t, s.source); pageNo(c, t, s.page); c.notes(s.notes);
+    },
   };
 
   // ================= theory-beamer =================
@@ -303,6 +372,90 @@ module.exports = function makePresets({sourceLine, pageNo}) {
         c.text(`${i + 1}.  ${it}`, {x: 1.6, y: 1.8 + i * 0.85, w: 10, h: 0.7, size: 24, color: on ? t.color.accent : (i < s.current ? t.color.faint : t.color.text), bold: on, heading: true, valign: 'middle'});
       });
     },
+    // Two-column block mosaic (Yasuda): a stack of small outline blocks on the left, one
+    // large block on the right, and a coloured conclusion chip fed by an arrow.
+    // left: [{kind, name, text}]; right: {kind, name, text}; conclusion: string
+    mosaic(c, t, s) {
+      this.head(c, t, s);
+      const top = 1.5; const bottom = t.grid.contentBottom;
+      const lw = 4.9; const rx = 5.95; const rw = W(t) - t.grid.marginX - rx;
+      const outline = (x, y, w, h, b, big) => {
+        const col = t.color.block[b.kind] || t.color.dark;
+        c.rect({x, y, w, h, radius: 0.14, fill: 'FFFFFF', line: col, lineW: big ? 3 : 2});
+        c.text([{text: b.kind + (b.name ? ` (${b.name})` : ''), bold: true, color: col},
+          {text: b.text, size: big ? 16 : 14.5, color: t.color.text}],
+          {x: x + 0.2, y: y + 0.12, w: w - 0.4, h: h - 0.2, size: big ? 19 : 16, valign: 'middle', lineSpacing: 1.35});
+      };
+      const left = s.left || [];
+      const chipH = s.conclusion ? 0.85 : 0;
+      const avail = bottom - top - chipH - 0.55 - 0.18 * Math.max(0, left.length - 1);
+      const gap = 0.18;
+      let y = top;
+      left.forEach((b, i) => {
+        const h = b.h || Math.max(0.9, Math.min(1.7, avail / Math.max(1, left.length)));
+        outline(t.grid.marginX, y, lw, h, b, false);
+        y += h + gap;
+      });
+      if (s.right) outline(rx, top, rw, bottom - top - chipH - 0.55, s.right, true);
+      if (s.conclusion) {
+        const cy = bottom - chipH;
+        c.line({x1: rx - 0.55, y1: cy - 0.22, x2: rx - 0.1, y2: cy - 0.22, color: t.color.accent, w: 2, arrow: true});
+        c.rect({x: rx, y: cy, w: rw, h: chipH, radius: 0.1, line: t.color.accent, lineW: 2.5, fill: 'FFFFFF'});
+        c.text(s.conclusion, {x: rx + 0.2, y: cy, w: rw - 0.4, h: chipH, size: 17, bold: true, color: t.color.accent, valign: 'middle'});
+      }
+      sourceLine(c, t, s.source); pageNo(c, t, s.page); c.notes(s.notes);
+    },
+    // Numbered derivation ladder: step labels in the left gutter, one line of math per step,
+    // hairline between steps, boxed result at the bottom. For "show the algebra" pages.
+    // steps: [{label, expr, note}]
+    derivation(c, t, s) {
+      this.head(c, t, s);
+      const top = 1.5; const bottom = t.grid.contentBottom;
+      const n = s.steps.length; const resH = s.result ? 0.9 : 0;
+      const rowH = Math.min(1.35, (bottom - top - resH - 0.2) / Math.max(1, n));
+      s.steps.forEach((st, i) => {
+        const y = top + i * rowH;
+        c.text(`(${i + 1})`, {x: t.grid.marginX, y, w: 0.5, h: 0.4, size: 13, bold: true, color: t.color.accent, font: t.fonts.mono[0]});
+        c.text(st.label || '', {x: t.grid.marginX, y: y + 0.32, w: 1.35, h: rowH - 0.4, size: 12, color: t.color.muted, lineSpacing: 1.3});
+        c.text(st.expr, {x: t.grid.marginX + 1.5, y: y + 0.02, w: 8.4, h: 0.5, size: s.size || 19, color: t.color.text});
+        if (st.note) c.text(st.note, {x: t.grid.marginX + 1.5, y: y + 0.48, w: 8.4, h: rowH - 0.55, size: 13, color: t.color.muted, lineSpacing: 1.35});
+        if (i < n - 1) c.line({x1: t.grid.marginX, y1: y + rowH - 0.06, x2: W(t) - t.grid.marginX, y2: y + rowH - 0.06, color: t.color.frame, w: 1});
+      });
+      if (s.result) {
+        const y = bottom - resH;
+        c.rect({x: t.grid.marginX, y, w: W(t) - 2 * t.grid.marginX, h: resH, radius: 0.1, fill: t.color.blockBody, line: t.color.accent, lineW: 2.5});
+        c.text(s.result, {x: t.grid.marginX + 0.25, y, w: W(t) - 2 * t.grid.marginX - 0.5, h: resH, size: 20, bold: true, color: t.color.text, valign: 'middle'});
+      }
+      sourceLine(c, t, s.source); pageNo(c, t, s.page); c.notes(s.notes);
+    },
+    // Closing page for a theory talk (Yasuda/Fuernsinn): one centred Corollary card,
+    // then the three consequences laid out as equal columns, each carrying its own
+    // symbol colour. Not a stack of blocks and not the numbered derivation ladder.
+    // claim: string; consequences: [{name, text}]
+    verdict(c, t, s) {
+      this.head(c, t, s);
+      const mx = t.grid.marginX, w = W(t) - 2 * mx;
+      c.rect({x: mx + 0.7, y: 1.45, w: w - 1.4, h: 1.5, radius: 0.14,
+        fill: t.color.blockBody, line: t.color.accent, lineW: 2.5});
+      c.text([{text: 'Corollary　', bold: true, color: t.color.accent},
+        {text: s.claim || '', bold: true, color: t.color.text}],
+        {x: mx + 1.0, y: 1.45, w: w - 2.0, h: 1.5, size: 21, valign: 'middle', lineSpacing: 1.35});
+      const cs = (s.consequences || []).slice(0, 3);
+      const cols = K.columns({x: mx, y: 3.35, w, h: 2.35}, Math.max(1, cs.length), 0.35);
+      cs.forEach((q, i) => {
+        const col = t.color.sym[i % t.color.sym.length];
+        c.rect({x: cols[i].x, y: cols[i].y, w: cols[i].w, h: 2.35, radius: 0.12,
+          fill: 'FFFFFF', line: col, lineW: 2});
+        c.text(`${i + 1}`, {x: cols[i].x + 0.2, y: cols[i].y + 0.14, w: 0.6, h: 0.6,
+          size: 30, bold: true, color: col, font: t.fonts.mono[0]});
+        c.text([{text: q.name, bold: true, color: col},
+          {text: q.text, size: 14.5, color: t.color.text}],
+          {x: cols[i].x + 0.2, y: cols[i].y + 0.85, w: cols[i].w - 0.4, h: 1.3,
+            size: 16, valign: 'top', lineSpacing: 1.35});
+      });
+      c.rect({x: mx, y: t.grid.contentBottom - 0.12, w, h: 0.06, fill: t.color.accent});
+      sourceLine(c, t, s.source); pageNo(c, t, s.page); c.notes(s.notes);
+    },
   };
 
   // ================= dark-tech =================
@@ -329,6 +482,43 @@ module.exports = function makePresets({sourceLine, pageNo}) {
       focusRow(c, t, s, 3.0, {onFill: t.color.bgRaised, onLine: t.color.text, onText: t.color.text, offFill: null});
       if (s.caption) c.text(s.caption, {x: 1.1, y: 4.8, w: 11.1, h: 0.9, size: t.size.body, color: t.color.muted, align: 'center'});
     },
+    // One idea per row, thin type, huge index. Bach/Kakao rhythm: no boxes, only rhythm.
+    // items: [{text, note}]
+    steps(c, t, s) {
+      this.head(c, t, s);
+      const top = 1.55; const bottom = t.grid.contentBottom - 0.1;
+      const n = s.items.length; const rowH = (bottom - top) / n;
+      s.items.forEach((it, i) => {
+        const y = top + i * rowH;
+        if (i) c.line({x1: t.grid.marginX, y1: y - 0.06, x2: W(t) - t.grid.marginX, y2: y - 0.06, color: t.color.frame, w: 1});
+        c.text(String(i + 1).padStart(2, '0'), {x: t.grid.marginX, y: y + 0.12, w: 1.0, h: 0.7, size: 34, color: i === (s.active != null ? s.active : n - 1) ? t.color.accent : t.color.faint, font: t.fonts.mono[0]});
+        c.text(it.text, {x: t.grid.marginX + 1.15, y: y + 0.1, w: 9.6, h: rowH - 0.5, size: s.size || 24, color: i === (s.active != null ? s.active : n - 1) ? t.color.text : t.color.body, valign: 'middle', lineSpacing: 1.3});
+        if (it.note) c.text(it.note, {x: t.grid.marginX + 11.0, y: y + 0.1, w: 1.6, h: rowH - 0.4, size: 12, color: t.color.muted, valign: 'middle',
+          align: 'right', font: t.fonts.mono[0], lineSpacing: 1.3});
+      });
+      sourceLine(c, t, s.source); pageNo(c, t, s.page); c.notes(s.notes);
+    },
+    // White inset card holding a paper figure, with N leader-line annotations fanning out to
+    // the right. Jason Wei signature: annotation, not a bullet list.
+    // notes: [{f: [fx, fy], text}]
+    annotated(c, t, s) {
+      this.head(c, t, s);
+      const card = {x: t.grid.marginX, y: 1.5, w: 8.0, h: t.grid.contentBottom - 1.55};
+      c.rect({x: card.x, y: card.y, w: card.w, h: card.h, fill: 'FFFFFF', radius: 0.05});
+      const img = K.figure(c, t, s.figure, {x: card.x + 0.1, y: card.y + 0.1, w: card.w - 0.2, h: card.h - 0.2, frame: false});
+      const notes = s.notes || [];
+      const lx = 8.95; const lw = W(t) - t.grid.marginX - lx;
+      const pitch = Math.min(1.55, (card.h - 0.2) / Math.max(1, notes.length));
+      notes.forEach((nt, i) => {
+        const by = card.y + 0.15 + i * pitch;
+        const box = {x: lx, y: by, w: lw, h: Math.min(0.85, pitch - 0.15)};
+        const p = K.at(img, nt.f);
+        K.callout(c, p, box, nt.text, {color: t.color.accent, line: t.color.accent, fill: null, size: 12.5, lineW: 1.5, radius: 0.04});
+      });
+      if (notes.length) c.line({x1: lx - 0.12, y1: card.y + 0.15, x2: lx - 0.12, y2: card.y + 0.15 + (notes.length - 1) * pitch + 0.6, color: t.color.accent, w: 1});
+      if (s.caption) c.text(s.caption, {x: card.x, y: card.y + card.h + 0.08, w: card.w, h: 0.32, size: t.size.caption, color: t.color.muted});
+      sourceLine(c, t, s.source); pageNo(c, t, s.page); c.notes(s.notes);
+    },
     // figure on dark with one accent annotation
     explain(c, t, s) {
       this.head(c, t, s);
@@ -341,6 +531,26 @@ module.exports = function makePresets({sourceLine, pageNo}) {
       c.text(s.statement, {x: 1.2, y: 1.6, w: 10.9, h: 3.4, size: 40, color: t.color.text, heading: true, align: 'center', valign: 'middle', weight: '300'});
       if (s.by) c.text(s.by, {x: 1.2, y: 5.2, w: 10.9, h: 0.5, size: t.size.small, color: t.color.accent2, align: 'center'});
       pageNo(c, t, s.page); c.notes(s.notes);
+    },
+    // Two-state split. Bach's black/white alternation: two large thin-type numbers
+    // divided by one hairline, no module chain and no arrows. Use for before/after
+    // comparisons where the point IS the difference between two values.
+    // sides: [{label, value, note}]; conclusion: string
+    versus(c, t, s) {
+      this.head(c, t, s);
+      const mx = t.grid.marginX, w = W(t) - 2 * mx;
+      const mid = mx + w / 2, top = 1.45, bottom = t.grid.contentBottom - 0.6;
+      c.rect({x: mx, y: top, w: w / 2 - 0.12, h: bottom - top, fill: t.color.bgRaised});
+      c.line({x1: mid, y1: top, x2: mid, y2: bottom, color: t.color.accent, w: 2});
+      (s.sides || []).slice(0, 2).forEach((sd, i) => {
+        const x = i === 0 ? mx : mid + 0.12, sw = w / 2 - 0.24;
+        const col = i ? t.color.accent : t.color.faint;
+        c.text(sd.label || '', {x: x + 0.35, y: top + 0.3, w: sw - 0.7, h: 0.4, size: 14, bold: true, color: i ? t.color.accent : t.color.muted, charSpacing: 1.5});
+        c.text(sd.value, {x: x + 0.35, y: top + 1.0, w: sw - 0.7, h: 2.0, size: 84, color: col, heading: true, weight: '200', valign: 'middle'});
+        c.text(sd.note || '', {x: x + 0.35, y: top + 3.15, w: sw - 0.7, h: 1.0, size: 17, color: t.color.body, lineSpacing: 1.4});
+      });
+      if (s.conclusion) c.text(s.conclusion, {x: mx, y: bottom + 0.12, w, h: 0.45, size: 16, color: t.color.text, align: 'center'});
+      sourceLine(c, t, s.source); pageNo(c, t, s.page); c.notes(s.notes);
     },
   };
 
@@ -363,8 +573,56 @@ module.exports = function makePresets({sourceLine, pageNo}) {
       c.image(s.figure, {x: 1.4, y: top, w: 10.5, h: 6.75 - top - 0.55, alt: s.figureAlt});
       if (s.caption) c.text(s.caption, {x: 1.4, y: 6.3, w: 10.5, h: 0.45, size: t.size.small, italic: true, color: t.color.muted, heading: true, align: 'center'});
     },
+    // Magazine plate: a white panel holds figure + two annotations, a caption strip with the
+    // paper title, and the prose runs underneath (Hearst). Reads as an article, not a slide.
+    // notes: [{head, body}]
+    panel(c, t, s) {
+      this.head(c, t, s);
+      const card = {x: 1.45, y: 1.5, w: 10.43, h: 4.25};
+      c.rect({x: card.x, y: card.y, w: card.w, h: card.h, fill: 'FFFFFF', line: t.color.rule, lineW: 1});
+      K.figure(c, t, s.figure, {x: card.x + 0.3, y: card.y + 0.28, w: 5.5, h: card.h - 0.95, frame: false});
+      const nx = card.x + 6.05; const nw = card.w - 6.35;
+      (s.notes || []).forEach((nt, i) => {
+        const y = card.y + 0.3 + i * 1.28;
+        c.line({x1: nx, y1: y - 0.1, x2: nx + nw, y2: y - 0.1, color: t.color.rule, w: 1});
+        c.text(nt.head, {x: nx, y, w: nw, h: 0.32, size: 13.5, bold: true, color: t.color.text, heading: true});
+        c.text(nt.body, {x: nx, y: y + 0.34, w: nw, h: 0.9, size: 13, color: t.color.body, heading: true, lineSpacing: 1.35});
+      });
+      const stripY = card.y + card.h - 0.52;
+      c.rect({x: card.x, y: stripY, w: card.w, h: 0.52, fill: t.color.inkStrip || t.color.text});
+      c.text(s.paper || s.caption || '', {x: card.x + 0.25, y: stripY, w: card.w - 0.5, h: 0.52, size: 11.5, color: 'FFFFFF', heading: true, valign: 'middle', charSpacing: 0.6});
+      if (s.prose) c.text(s.prose, {x: 1.45, y: card.y + card.h + 0.35, w: 10.43, h: 1.5, size: 16.5, color: t.color.text, heading: true, lineSpacing: 1.5});
+      c.notes(s.notes);
+    },
+    // Essay page: drop cap + a wide serif measure, numbered notes in the outer margin.
+    // notes: [string]
+    essay(c, t, s) {
+      this.head(c, t, {...s, title: s.title});
+      const top = s.subtitle ? 2.05 : 1.55;
+      const lead = String(s.text || '');
+      const first = lead.slice(0, 1); const rest = lead.slice(1);
+      // Drop cap must fit its own box: a 66pt CJK glyph is ~0.92in wide and needs ~1.3in
+      // of line box. 92pt overflowed into the measure and printed on top of the body copy.
+      c.text(first, {x: 0.62, y: top - 0.16, w: 1.0, h: 1.45, size: 66, color: t.color.accent, heading: true, valign: 'middle'});
+      // Keep the measure clear of the margin-note column (starts at 8.55in).
+      c.text(rest, {x: 1.72, y: top, w: 6.45, h: 3.05, size: 16.5, color: t.color.text, heading: true, lineSpacing: 1.6});
+      if (s.pull) {
+        c.line({x1: 1.62, y1: top + 4.0, x2: 3.0, y2: top + 4.0, color: t.color.accent, w: 2});
+        c.text(s.pull, {x: 1.62, y: top + 4.15, w: 6.2, h: 1.0, size: 20, italic: true, color: t.color.accent, heading: true, lineSpacing: 1.4});
+      }
+      const mx = 8.55; const mw = W(t) - t.grid.marginX - mx;
+      (s.notes || []).forEach((nt, i) => {
+        const y = top + i * 1.55;
+        c.text(String(i + 1), {x: mx, y, w: 0.4, h: 0.35, size: 12, bold: true, color: t.color.accent, heading: true});
+        c.text(nt, {x: mx + 0.45, y: y + 0.02, w: mw - 0.45, h: 1.2, size: 13, color: t.color.body, heading: true, lineSpacing: 1.4});
+        c.line({x1: mx, y1: y + 1.3, x2: mx + mw, y2: y + 1.3, color: t.color.rule, w: 1});
+      });
+      // `notes` here is the array of margin annotations, not speaker notes.
+      c.notes(s.speakerNotes);
+    },
     quote(c, t, s) {
-      c.text('\u201C', {x: 1.1, y: 0.9, w: 1.5, h: 1.6, size: 120, color: t.color.accent, heading: true});
+      // 120pt glyph needs ~2.3in of line box; a 1.6in box makes PPT clip the quote mark.
+      c.text('\u201C', {x: 1.1, y: 0.9, w: 1.5, h: 2.4, size: 120, color: t.color.accent, heading: true});
       c.text(s.quote, {x: 1.9, y: 1.9, w: 9.6, h: 2.8, size: 32, italic: true, color: t.color.text, heading: true, lineSpacing: 1.3});
       c.rect({x: 1.9, y: 5.0, w: 1.0, h: 0.04, fill: t.color.accent});
       c.text(s.by, {x: 1.9, y: 5.2, w: 9.6, h: 0.5, size: t.size.small, color: t.color.body});
@@ -458,6 +716,75 @@ module.exports = function makePresets({sourceLine, pageNo}) {
         c.text([{text: it.head, bold: true, color: t.color.primary}, {text: it.body, size: 15}, {text: it.pub, size: 12, color: t.color.muted}], {x: x + 0.2, y: 2.35, w: w - 0.4, h: 3.4, size: 18, color: t.color.body, paraSpaceBefore: 10});
       });
     },
+    // Narrative-then-band page (Fudan defence): a claim line, the numbered points as running
+    // text, one full-width figure band, and a row of panel labels under it.
+    // steps: [string]; panels: [string]
+    figureBand(c, t, s) {
+      this.head(c, t, s);
+      const mx = t.grid.marginX; const w = W(t) - 2 * mx;
+      let y = 1.15;
+      if (s.lead) { c.text(s.lead, {x: mx, y, w, h: 0.5, size: 15, color: t.color.body, lineSpacing: 1.3}); y += 0.55; }
+      const steps = s.steps || [];
+      steps.forEach((st, i) => {
+        c.text(`(${i + 1})`, {x: mx, y: y + i * 0.245, w: 0.45, h: 0.24, size: 12.5, bold: true, color: t.color.primary});
+        c.text(st, {x: mx + 0.45, y: y + i * 0.245, w: w - 0.45, h: 0.24, size: 12.5, color: t.color.body});
+      });
+      const bandTop = y + steps.length * 0.245 + 0.12;
+      const labelH = s.panels && s.panels.length ? 0.3 : 0;
+      const band = {x: mx, y: bandTop, w, h: 6.78 - labelH - bandTop};
+      K.figure(c, t, s.figure, band, {fill: 'FFFFFF', line: t.color.rule, lineW: 1, pad: 0.1});
+      (s.panels || []).forEach((p, i, arr) => {
+        const slot = w / arr.length;
+        c.text(p, {x: mx + i * slot, y: band.y + band.h + 0.02, w: slot, h: labelH, size: 11.5, color: t.color.muted, align: 'center'});
+      });
+      this.nav(c, t, s); c.notes(s.notes);
+    },
+    // Comparison matrix: candidate methods x properties, the reader's row highlighted and
+    // closed with the red conclusion bar. Defence committees read this page as a checklist.
+    // columns: [string]; rows: [[string]]; highlight: row index (1-based incl. header)
+    matrix(c, t, s) {
+      this.head(c, t, s);
+      const mx = t.grid.marginX; const w = W(t) - 2 * mx;
+      const rows = [s.columns].concat(s.rows);
+      const h = s.height || 3.5;
+      c.table(rows, {x: mx, y: 1.3, w, h, size: 14, header: true,
+        highlight: [s.highlight || s.rows.length], highlightFill: t.color.primaryLight, highlightCols: [0]});
+      const cy = 1.3 + h + 0.35;
+      c.rect({x: mx, y: cy, w, h: 0.72, line: t.color.accent, lineW: 1.5});
+      c.text(`**结论：**${s.conclusion || ''}`, {x: mx + 0.2, y: cy, w: w - 0.4, h: 0.72, size: 15, color: t.color.text, valign: 'middle'});
+      if (s.note) c.text(s.note, {x: mx, y: cy + 0.82, w, h: 0.32, size: 11.5, color: t.color.muted});
+      this.nav(c, t, s); c.notes(s.notes);
+    },
+    // Two cases side by side, each with its own framed figure and numbered verdict,
+    // closed by the red conclusion bar. Defence committees read this as "before / after"
+    // evidence; unlike figureConclusion (one centred figure) and matrix (a checklist).
+    // cases: [{label, figure, caption, note}]
+    casePair(c, t, s) {
+      this.head(c, t, s);
+      const mx = t.grid.marginX, w = W(t) - 2 * mx;
+      const cases = (s.cases || []).slice(0, 2);
+      const gap = 0.5, cw = (w - gap) / Math.max(1, cases.length);
+      const top = 1.35, figH = 3.15;
+      cases.forEach((cs, i) => {
+        const x = mx + i * (cw + gap);
+        c.rect({x, y: top, w: cw, h: 0.44, fill: i ? t.color.primaryMid : t.color.primary});
+        c.text(cs.label, {x: x + 0.12, y: top, w: cw - 0.24, h: 0.44,
+          size: 14, bold: true, color: 'FFFFFF', valign: 'middle'});
+        K.figure(c, t, cs.figure, {x, y: top + 0.52, w: cw, h: figH},
+          {fill: 'FFFFFF', line: t.color.rule, lineW: 1});
+        c.text(cs.caption || '', {x, y: top + 0.52 + figH + 0.06, w: cw, h: 0.32,
+          size: 11.5, color: t.color.muted, align: 'center'});
+        if (cs.note) c.text(cs.note, {x, y: top + 0.52 + figH + 0.42, w: cw, h: 0.55,
+          size: 13, color: t.color.body, lineSpacing: 1.3});
+      });
+      c.line({x1: mx + w / 2, y1: top + 0.52, x2: mx + w / 2, y2: top + 0.52 + figH,
+        color: t.color.rule, w: 1});
+      const cy = t.grid.contentBottom - 0.72;
+      c.rect({x: mx, y: cy, w, h: 0.68, line: t.color.accent, lineW: 1.5});
+      c.text(`**结论：**${s.conclusion || ''}`, {x: mx + 0.2, y: cy, w: w - 0.4, h: 0.68,
+        size: 15, color: t.color.text, valign: 'middle'});
+      this.nav(c, t, s); c.notes(s.notes);
+    },
   };
 
   // ================= jp-gothic =================
@@ -499,6 +826,128 @@ module.exports = function makePresets({sourceLine, pageNo}) {
     references(c, t, s) {
       this.head(c, t, {...s, title: s.title || '参考文献'});
       c.text(s.items.map((r) => ({text: r})), {x: 0.9, y: 1.5, w: 11.6, h: 5.2, size: 14, color: t.color.body, paraSpaceBefore: 8});
+    },
+    // Dense handout spread (kantoCV / yokoi): figure with a speech bubble on the left, a dark
+    // inset panel of examples on the right, numbered points underneath, chips at the bottom.
+    // points: [string]; examples: [{left, right}]; chips: [string]
+    dense(c, t, s) {
+      this.head(c, t, s);
+      const fig = K.figure(c, t, s.figure, {x: t.grid.marginX, y: 1.42, w: 6.0, h: 3.35}, {fill: 'FFFFFF', line: t.color.rule, lineW: 1, pad: 0.08});
+      if (s.bubble) {
+        K.callout(c, K.at(fig, s.bubbleAt || [0.22, 0.2]), {x: t.grid.marginX + 0.12, y: 1.2, w: 2.7, h: 0.55},
+          s.bubble, {fill: t.color.frame, line: t.color.text, color: t.color.text, size: 12, lineW: 1.25, radius: 0.12});
+      }
+      const px = 6.9; const pw = W(t) - t.grid.marginX - px;
+      c.rect({x: px, y: 1.42, w: pw, h: 3.35, fill: t.color.text});
+      const ex = s.examples || [];
+      ex.forEach((e, i) => {
+        const y = 1.55 + i * 0.5;
+        if (e.on) c.rect({x: px + 0.12, y: y - 0.02, w: pw - 0.24, h: 0.42, fill: t.color.sticker});
+        c.text(e.left, {x: px + 0.2, y, w: pw * 0.46, h: 0.42, size: 10.5, color: e.on ? t.color.text : 'E8E8E8', lineSpacing: 1.15});
+        c.text(e.right || '', {x: px + pw * 0.48, y, w: pw * 0.48, h: 0.42, size: 10.5, color: e.on ? t.color.text : 'E8E8E8', lineSpacing: 1.15});
+      });
+      (s.points || []).forEach((p, i) => {
+        c.text(`${i + 1}. ${p}`, {x: t.grid.marginX, y: 4.85 + i * 0.55, w: 6.0, h: 0.52, size: 13.5, color: t.color.text, lineSpacing: 1.25});
+      });
+      const chips = (s.chips || []).slice(0, 3);
+      chips.forEach((ch, i) => {
+        const cw = (pw - 0.16 * (chips.length - 1)) / Math.max(1, chips.length);
+        c.rect({x: px + i * (cw + 0.16), y: 4.85, w: cw, h: 0.62, fill: i === chips.length - 1 ? t.color.primary : t.color.frame});
+        c.text(ch, {x: px + i * (cw + 0.16) + 0.08, y: 4.85, w: cw - 0.16, h: 0.62, size: 11.5, bold: true,
+          color: i === chips.length - 1 ? 'FFFFFF' : t.color.text, align: 'center', valign: 'middle', lineSpacing: 1.15});
+      });
+      if (s.conclusion) {
+        c.rect({x: t.grid.marginX, y: 6.3, w: W(t) - 2 * t.grid.marginX, h: 0.6, fill: t.color.text});
+        c.text(s.conclusion, {x: t.grid.marginX + 0.2, y: 6.3, w: W(t) - 2 * t.grid.marginX - 0.4, h: 0.6, size: 17, bold: true, color: 'FFFFFF', valign: 'middle'});
+      }
+      pageNo(c, t, s.page); c.notes(s.notes);
+    },
+    // Formula page: the expression in a band, then three columns (symbols / steps / reading),
+    // closed by coloured chips. The Japanese handout convention: everything visible at once.
+    // legend: [{k, v}]; steps: [string]; chips: [string]
+    formula(c, t, s) {
+      this.head(c, t, s);
+      const mx = t.grid.marginX; const w = W(t) - 2 * mx;
+      c.rect({x: mx, y: 1.4, w, h: 0.95, fill: t.color.frame});
+      c.rect({x: mx, y: 1.4, w: 0.09, h: 0.95, fill: t.color.primary});
+      c.text(s.formula, {x: mx + 0.3, y: 1.4, w: w - 0.6, h: 0.95, size: 22, color: t.color.text, valign: 'middle', align: 'center'});
+      const cols = K.columns({x: mx, y: 2.55, w, h: 3.0}, 3, 0.4);
+      cols.forEach((col, i) => {
+        c.rect({x: col.x, y: col.y, w: col.w, h: 0.34, fill: t.color.text});
+        c.text((s.heads || ['符号', '推导', '读法'])[i], {x: col.x + 0.1, y: col.y, w: col.w - 0.2, h: 0.34, size: 12.5, bold: true, color: 'FFFFFF', valign: 'middle'});
+      });
+      (s.legend || []).forEach((lg, i) => {
+        c.text(`**${lg.k}**　${lg.v}`, {x: cols[0].x, y: 3.0 + i * 0.42, w: cols[0].w, h: 0.4, size: 12, color: t.color.body});
+      });
+      (s.steps || []).forEach((st, i) => {
+        c.text(`${i + 1}. ${st}`, {x: cols[1].x, y: 3.0 + i * 0.62, w: cols[1].w, h: 0.6, size: 12.5, color: t.color.body, lineSpacing: 1.3});
+      });
+      (s.reading || []).forEach((rd, i) => {
+        c.text(rd, {x: cols[2].x, y: 3.0 + i * 0.62, w: cols[2].w, h: 0.6, size: 12.5, color: t.color.body, lineSpacing: 1.3});
+      });
+      const chips = s.chips || [];
+      chips.forEach((ch, i) => {
+        const cw = (w - 0.2 * (chips.length - 1)) / Math.max(1, chips.length);
+        c.rect({x: mx + i * (cw + 0.2), y: 5.85, w: cw, h: 0.6, fill: i === chips.length - 1 ? t.color.primary : t.color.sticker});
+        c.text(ch, {x: mx + i * (cw + 0.2), y: 5.85, w: cw, h: 0.6, size: 14, bold: true,
+          color: i === chips.length - 1 ? 'FFFFFF' : t.color.text, align: 'center', valign: 'middle'});
+      });
+      pageNo(c, t, s.page); c.notes(s.notes);
+    },
+    // Before/after spread (JP handout convention): two tall labelled columns joined by a
+    // central arrow, changed rows marked with the yellow sticker, black conclusion banner.
+    // Structurally different from formula (one band + three columns) and dense (figure +
+    // dark inset). heads: [string, string]; rows: [{left, right, changed}]
+    beforeAfter(c, t, s) {
+      this.head(c, t, s);
+      const mx = t.grid.marginX, w = W(t) - 2 * mx;
+      const heads = s.heads || ['変更前', '変更後'];
+      const gap = 1.15, cw = (w - gap) / 2, top = 1.45, rowH = 0.82;
+      [0, 1].forEach((i) => {
+        const x = mx + i * (cw + gap);
+        c.rect({x, y: top, w: cw, h: 0.5, fill: t.color.text});
+        c.text(heads[i], {x: x + 0.15, y: top, w: cw - 0.3, h: 0.5,
+          size: 15, bold: true, color: 'FFFFFF', valign: 'middle'});
+      });
+      const rows = (s.rows || []).slice(0, 5);
+      rows.forEach((r, i) => {
+        const y = top + 0.62 + i * rowH;
+        if (r.changed) {
+          c.rect({x: mx, y, w: cw, h: rowH - 0.08, fill: t.color.sticker});
+          c.rect({x: mx + cw + gap, y, w: cw, h: rowH - 0.08, fill: t.color.sticker});
+        } else {
+          c.rect({x: mx, y, w: cw, h: rowH - 0.08, fill: t.color.frame});
+          c.rect({x: mx + cw + gap, y, w: cw, h: rowH - 0.08, fill: t.color.frame});
+        }
+        c.text(r.left, {x: mx + 0.18, y, w: cw - 0.36, h: rowH - 0.08,
+          size: 13.5, color: t.color.text, valign: 'middle', lineSpacing: 1.25});
+        c.text(r.right, {x: mx + cw + gap + 0.18, y, w: cw - 0.36, h: rowH - 0.08,
+          size: 13.5, bold: !!r.changed, color: t.color.text, valign: 'middle', lineSpacing: 1.25});
+        c.line({x1: mx + cw + 0.16, y1: y + (rowH - 0.08) / 2,
+          x2: mx + cw + gap - 0.16, y2: y + (rowH - 0.08) / 2,
+          color: r.changed ? t.color.primary : t.color.rule, w: r.changed ? 2.5 : 1.25, arrow: true});
+      });
+      if (s.conclusion) this.banner(c, t, s.conclusion);
+      pageNo(c, t, s.page); c.notes(s.notes);
+    },
+    // Closing spread: huge outlined numbers down the left gutter, one takeaway each,
+    // black conclusion banner. A summary, not the figure-driven dense/read pages.
+    // points: [string]
+    takeaways(c, t, s) {
+      this.head(c, t, s);
+      const mx = t.grid.marginX, w = W(t) - 2 * mx;
+      const pts = (s.points || []).slice(0, 3);
+      const rowH = Math.min(1.35, (t.grid.contentBottom - 1.6) / Math.max(1, pts.length));
+      pts.forEach((p, i) => {
+        const y = 1.55 + i * rowH;
+        c.text(String(i + 1).padStart(2, '0'), {x: mx, y, w: 1.45, h: rowH - 0.15,
+          size: 54, bold: true, color: i === pts.length - 1 ? t.color.primary : t.color.ghost, heading: true, valign: 'middle'});
+        c.rect({x: mx + 1.6, y: y + 0.12, w: w - 1.6, h: rowH - 0.35, fill: t.color.frame});
+        c.text(p, {x: mx + 1.85, y: y + 0.12, w: w - 2.1, h: rowH - 0.35,
+          size: 18, bold: true, color: t.color.text, valign: 'middle', lineSpacing: 1.3});
+      });
+      if (s.conclusion) this.banner(c, t, s.conclusion);
+      pageNo(c, t, s.page); c.notes(s.notes);
     },
   };
 

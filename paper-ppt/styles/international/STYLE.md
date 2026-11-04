@@ -72,8 +72,12 @@
 | `equation` | 公式讲解 | 公式 ≤ 2 行；“want / do”对照；讲解标签 note 色 + 细箭头，标签 ≤ 4 词 | `refs/kaiming-equation-annotation.jpg` |
 | `result` | 结果页 | 原图/原表 + 右侧唯一大数字 + 实验条件小字 | `refs/kaiming-one-callout-result.jpg` |
 | `closing` | 收尾 | Looking ahead / Open questions，≤ 3 条，用问题结尾 | — |
+| `setup` | 概述 | Goal / Challenge / Solution 三行论点在上、两张证据图并排在下；先读论点再看图，不用 bullet 列表。`rows: [{k,v}]`、`figures: [{file,caption}]` | `refs/han-goal-challenge-solution.jpg` |
+| `zoom` | 方法 | 主图占左侧，右上角嵌入局部放大图；虚线引线 + 圆圈标出被放大的位置。`inset: {file,caption,at:[fx,fy],label}` | `refs/kaiming-equation-annotation.jpg` |
+| `recap` | 收尾（有论点版） | 左侧三条编号结论 + 竖直分隔线 + 右侧描边 takeaway 框与开放问题；不要退化成 bullet 列表。`takeaway`、`questions` | `refs/re-takeaway-box.jpg`、`refs/leskovec-question-nav.jpg` |
 
-Goal / Challenge / Our Solution 三行骨架（`refs/han-goal-challenge-solution.jpg`）在 Domestic 预设中实现为 `paperGlance`，两种风格都可以借用。
+`setup` / `zoom` / `recap` 的图上锚点由 `assets/layout-kit.js` 的 `figure()` 返回的紧致矩形计算，
+不要写死坐标。九套预设的版式骨架对照见 [references/layout-atlas.md](../../references/layout-atlas.md)。
 
 ## 4. 推荐页序
 

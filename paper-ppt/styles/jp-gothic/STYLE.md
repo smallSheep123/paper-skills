@@ -44,8 +44,14 @@
 | `section` | 强调色左竖条 + 章节名 |
 | `read` | 论文出处行 + 黑竖条标题 + 要点（→ 子点）+ 图 + 黑色结论横幅；可加时间徽章 `badge`、可跳过贴纸 `optional` |
 | `references` | 参考文献页 |
+| `dense` | 密集讲义页：图 + 气泡标注 + 右侧深色例子面板 + 下方编号要点 + 底部 chips。`bubble`、`examples`、`points`、`chips` | `refs/kantocv_ja-p13.jpg` |
+| `formula` | 顶部公式带 + 黑表头三栏（符号 / 推导 / 读法）+ 底部彩色 chips。`legend`、`steps`、`reading` | `refs/utokyo_suzuki-p45.jpg` |
+| `beforeAfter` | 变更前后双栏表，改动行贴黄色 sticker，中间箭头，底部黑色结论横幅。`heads`、`rows: [{left,right,changed}]` | `refs/yokoi_ja-p38.jpg` |
+| `takeaways` | 收尾：大号轮廓编号竖排 + 每条一行结论 + 黑色横幅。`points`、`conclusion` | `refs/okada-p4.jpg` |
 
 示例 deck：`node assets/build-style-samples.js out` 后查看 `out/jp-gothic-sample.pptx`。
+
+九套预设的版式骨架对照见 [references/layout-atlas.md](../../references/layout-atlas.md)：换预设必须换构图，只改颜色和字体不算换风格。
 
 ## 4. 硬性约束
 

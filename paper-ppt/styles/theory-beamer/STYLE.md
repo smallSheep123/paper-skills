@@ -46,10 +46,15 @@
 | `section` | 居中章节名 + 进度条 |
 | `blocks` | 1–3 个类型块：Question 红 / Theorem 蓝 / Definition 灰 / Example 绿。`text` 可以是字符串或段落数组；高度按文字自动估算（每段可设自己的 `size`），超出页脚直接报错，需要时用 `h` 指定 |
 | `symbols` | 一行公式，每个符号一种颜色 + 同色图例（P12）。`equationAsset` 传一个公式资产，或传拆式分段数组（规则见 math-equations.md）；`labels: [{text, sym}]` 在每段下方加同色标注，标注相撞时自动降到第二行并加引线；图例行高按剩余空间自动计算 |
+| `mosaic` | 左列若干小块 + 右侧一个大定理块，结论条在底部并有引线；块按类型固定配色。`left`、`right`、`conclusion` | `refs/yasuda-p16.jpg` |
+| `derivation` | 编号推导阶梯：左栏步骤标签、每行一条式子、行间细线、底部结果框。`steps: [{label,expr,note}]` | `refs/schadlich-p19.jpg` |
+| `verdict` | 收尾：居中 Corollary 框 + 三条等宽推论卡（各带符号色）+ 底部橙色进度线。`claim`、`consequences` | 理论报告收尾页 |
 
 示例 deck：`node assets/build-style-samples.js out` 后查看 `out/theory-beamer-sample.pptx`。
 
 页脚出处用 `source` 字段（旧名 `footer` 仍可用），颜色为 muted。
+
+九套预设的版式骨架对照见 [references/layout-atlas.md](../../references/layout-atlas.md)：换预设必须换构图，只改颜色和字体不算换风格。
 
 ## 4. 硬性约束
 

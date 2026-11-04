@@ -67,10 +67,14 @@
 | `section` | 章节页 | 大号浅色编号（02）+ 主色竖条 + 标题 + 一句核心问题 | — |
 | `paperGlance` | 一页看懂 | “研究目标 / 核心挑战 / 本文方法”三行（各 ≤ 1 行）+ 一张总览图 | `refs/huhan-title-keyword.jpg` |
 | `method` | 方法页 | 左图（承托框 + 图注）右要点；每条最多 1 个红色关键词 | `refs/huhan-figure-caption.jpg`、`refs/hylee-diagram-vocabulary.jpg` |
+| `annotatedFigure` | 方法页（读图顺序版） | 原图上圈 ①②③，右侧按编号逐条解释；要点必须落在图上锚点，而不是并列 bullet。`marks: [{f:[fx,fy],n,text}]` | `refs/hylee-diagram-vocabulary.jpg` |
+| `compare3` / `twoFigures` / `metricGrid` / `formulaTable` | 三方案对照 / 并排图 / 指标网格 / 公式表 | 见 `docs/review/style-lint-and-archetypes.md` | — |
 | `figureRow` | 并排多图 | 同一行统一高度、图注同基线；比并排两个 `method` 更稳 | — |
 | `result` | 结果页 | 原图 + 唯一红色大数字 + 比较对象 + 实验条件 | — |
 | `summary` | 总结与讨论 | 两栏：“本文结论” / “思考与讨论”，不用卡片；讨论栏写可以让导师追问的问题 | — |
 | `thanks` | 结束页 | 可选，一句话，最多一页 | — |
+
+九套预设的版式骨架对照见 [references/layout-atlas.md](../../references/layout-atlas.md)：换预设必须换构图，只改颜色和字体不算换风格。
 
 自绘图词汇：用具体例子（一个中文词、一个 token）走完机制，同一套图元全稿复用（`refs/hylee-visual-equation.jpg`、`refs/hylee-example-driven.jpg`）。
 
