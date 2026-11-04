@@ -371,7 +371,8 @@ class JavaScriptTests(unittest.TestCase):
 const s=p.addSlide();s.addShape(p.ShapeType.rect,{x:-0.1,y:0,w:1,h:1});
 s.addText('Clipped text',{x:-0.1,y:2,w:1,h:1});s.addNotes('Boundary fixture');
 p.writeFile({fileName:process.argv[1]}).catch(e=>{console.error(e);process.exitCode=1});"""
-            result = subprocess.run([self.node, '-e', code, str(target)], capture_output=True, text=True)
+            result = subprocess.run([self.node, '-e', code, str(target)], capture_output=True,
+                                    text=True, cwd=str(ROOT / 'paper-ppt'))
             self.assertEqual(result.returncode, 0, result.stderr)
             report = check_deck.audit(target)
             self.assertEqual(len(report['warnings']), 1, report)
