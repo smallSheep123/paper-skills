@@ -106,7 +106,7 @@ description: AI 主导的论文汇报 PPT 工作流：开工前先访谈用户�
 
 | 路径 | 做法 | 何时用 |
 | --- | --- | --- |
-| **A. 原生** | 智能体自己截图 + 视觉识别：`paper-extract/scripts/pdf_snap.py` 的 `pages` / `text` / `inventory` / `crop` | 宿主能看图、PDF 有文本层（默认） |
+| **A. 原生** | 智能体自己截图 + 视觉识别：`paper-extract/scripts/pdf_snap.py` 的 `pages` / `text` / `inventory` / `figure` / `crop` | 宿主能看图、PDF 有文本层（默认） |
 | **B. MinerU** | [paper-extract](../paper-extract/SKILL.md) 的 MinerU 路径 → Markdown | 扫描件、公式要 LaTeX、表格多、要可复用 Markdown、宿主不能看图 |
 
 两者可以并行：B 出正文，A 出截图与原图裁切。无论哪条路径，**原 PDF 页面都是 Figure、Table 和公式的视觉真值**。使用的路径写入 `source-notes.md`。
@@ -287,13 +287,45 @@ AI 自主构图，可以使用宿主演示工具，也可以编写当次 PptxGen
 要求：
 
 - 标题、正文、来源和必要标注保持可编辑；
+- 论文原图优先用 `pdf_snap.py figure` 自动取框（见下），只有它失败时才手量 `crop` 坐标；
+- 自绘解释图：先用 HTML/CSS/SVG 渲染成 PNG（`scripts/diagram.py`），再放回页面；
+  只有在改一两个箭头、加一个色块这种一处两处的标注时，才用 pptx 原生形状；
 - 论文原图可以作为图片；
-- 自绘解释图优先使用可编辑形状/矢量；
 - 生成式图片只能用于非证据性的概念/气氛素材；
 - 禁止生成论文没有的实验结果、伪造系统截图，或凭像素估算补画数据；
 - 重绘图表只用论文**明确写出**的数值（正文、表格、图上的数值标注）。没有标注的序列（例如只画了圆点、没写数）保留原图裁切，不要重绘成精确值。判定细则见 [style-guide.md](references/style-guide.md) §8。
 
 每页写正式口语演讲备注。复杂 Figure 先告诉听众“怎么看”，再解释机制或结果。
+
+### 原图裁切：先 `figure`，再 `crop`
+
+```bash
+python ../paper-extract/scripts/pdf_snap.py figure paper.pdf \
+  --page 5 --region 0.04,0.05,0.49,0.30 --out figs/fig2.png [--dpi 300] [--json figs/fig2.json]
+```
+
+`figure` 会在 `--region` 里取「矢量图形 ∪ 位图 ∪ 文字」的真实范围：用页面渲染的像素做最终判定
+（旋转的刻度标签、贴在白底上的截图都不会漏），用 caption 的 y 作为下界（caption 永远在图下方），
+并打印 `bbox / aspect / pixels`。宽高比直接抄进 `img()` 的 AR 表，不要再目测。
+
+什么时候退回 `crop`：图与正文混排在同一区域、`figure` 报 no drawings、或图本身没有 caption 兜底。
+无论哪种，裁完都要打开 PNG 确认坐标轴标签、图例、子图编号完整。
+
+### 自绘示意图：HTML/CSS/SVG → PNG
+
+```bash
+python scripts/diagram.py assets/diagram-example.html \
+  --out figs/p07.png --width 1213 --height 250 --scale 2
+```
+
+给 AI 自己画的解释图（层级树、对拍结构、时间轴、泳道）**不要用 pptx 原生线条拼**：
+线段端点要手写坐标，框一挪线就偏，最后就是"线头在框外飘着"。
+HTML + inline SVG 把坐标算出来再截图，连线永远落在盒边上，中文字体也走系统字体栈。
+
+- 页面尺寸 = 幻灯片上的实际尺寸（1 px = 0.01 in，1213×250 px ↔ 12.13×2.5 in）；
+- `--scale 2` 出 2 倍图，投影不糊；`--selector` 可只截某个分栏；
+- 视觉语言对齐当前预设：颜色用 token、1.2px 细线、4px 圆角、不加阴影；
+- 只有"改一两个箭头、加一个高亮框"这种一处两处的标注，才回到 pptx 原生形状。
 
 每批都走：
 
@@ -324,6 +356,8 @@ cp $IN deck.$R.pptx                                     # 本轮最终文件
 python scripts/check_deck.py deck.$R.pptx               # 结构检查，必须 pass
 python scripts/check_fonts.py --deck deck.$R.pptx       # PPTX 实际写入的字体本机都有，否则渲染无效
 python scripts/bridge.py render deck.$R.pptx --out renders/$R
+#   渲染后端自动选择：LibreOffice → Windows 上的 PowerPoint COM；
+#   PDF→PNG 自动选择 pdftoppm → PyMuPDF。三者都不报错就说明闭环可用。
 # 用视觉模型逐页看 renders/$R/slide-*.png 和 contact-sheet.png，在 review-log.json 末尾追加记录
 python scripts/check_review.py renders/$R/render.json review-log.json
 ```

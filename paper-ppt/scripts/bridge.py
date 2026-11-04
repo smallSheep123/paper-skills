@@ -65,6 +65,90 @@ def contact_sheet(images: list[Path], output: Path) -> None:
     sheet.save(output)
 
 
+POWERPOINT_KEY = 'PAPER_PPT_POWERPOINT'
+
+
+def powerpoint_available() -> str | None:
+    """Return a usable PowerPoint entry point on Windows, else None.
+
+    Office installs PowerPoint as an out-of-process COM server, so there is no
+    binary to shell out to. We only need to know whether COM can be reached;
+    the probe is cheap and never launches a window.
+    """
+    if sys.platform != 'win32' or os.environ.get(POWERPOINT_KEY) == '0':
+        return None
+    candidates = [Path(os.environ.get('ProgramFiles', 'C:/Program Files')) / 'Microsoft Office/root/Office16/POWERPNT.EXE']
+    for env in ('ProgramFiles(x86)', 'ProgramW6432'):
+        if os.environ.get(env):
+            candidates.append(Path(os.environ[env]) / 'Microsoft Office/root/Office16/POWERPNT.EXE')
+    found = next((p for p in candidates if p.is_file()), None)
+    if found:
+        return str(found)
+    try:
+        import winreg  # noqa: PLC0415 - Windows-only probe
+    except ImportError:
+        return None
+    for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+        try:
+            with winreg.OpenKey(hive, r'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\POWERPNT.EXE') as key:
+                value = winreg.QueryValueEx(key, '')[0]
+        except OSError:
+            continue
+        if value and Path(value).is_file():
+            return value
+    return None
+
+
+def _ps_quote(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
+
+
+def pptx_to_pdf_powerpoint(source: Path, pdf: Path, timeout: int) -> None:
+    """Convert through the PowerPoint COM automation server (Windows).
+
+    Uses a here-string-free one-liner so no .ps1 file has to survive an
+    ExecutionPolicy. Runs hidden, never touches the user's recent files, and
+    always releases the COM objects so POWERPNT.EXE does not linger.
+    """
+    script = (
+        "$ErrorActionPreference='Stop';"
+        "$ppt=New-Object -ComObject PowerPoint.Application;"
+        'try{'
+        "$ppt.DisplayAlerts=1;"
+        f'$pres=$ppt.Presentations.Open({_ps_quote(str(source))},$true,$false,$false);'
+        f'try{{$pres.SaveAs({_ps_quote(str(pdf))},32)}}finally{{$pres.Close()}}'
+        '}finally{'
+        '$ppt.Quit();'
+        '[System.Runtime.InteropServices.Marshal]::ReleaseComObject($ppt)|Out-Null'
+        '}'
+    )
+    powershell = shutil.which('powershell') or shutil.which('pwsh')
+    if not powershell:
+        raise RuntimeError('PowerShell not found; cannot drive PowerPoint COM')
+    run_tool([powershell, '-NoProfile', '-NonInteractive', '-STA', '-Command', script], timeout)
+
+
+def pdf_to_png(pdf: Path, output: Path, dpi: int, pdftoppm: str | None, timeout: int) -> tuple[list[Path], str]:
+    """Rasterise with Poppler when present, otherwise PyMuPDF."""
+    if pdftoppm:
+        run_tool([pdftoppm, '-png', '-r', str(dpi), str(pdf), str(output / 'slide')], timeout)
+        pages = sorted(output.glob('slide-*.png'), key=lambda p: int(p.stem.rsplit('-', 1)[1]))
+        return pages, 'pdftoppm'
+    try:
+        import fitz  # noqa: PLC0415 - optional dependency, probed on demand
+    except ImportError as exc:
+        raise RuntimeError('Neither pdftoppm nor PyMuPDF is available; install Poppler or `pip install pymupdf`') from exc
+    pages = []
+    with fitz.open(pdf) as doc:
+        zoom = dpi / 72.0
+        matrix = fitz.Matrix(zoom, zoom)
+        for index, page in enumerate(doc, 1):
+            target = output / f'slide-{index:02d}.png'
+            page.get_pixmap(matrix=matrix, alpha=False).save(target)
+            pages.append(target)
+    return pages, 'pymupdf'
+
+
 def render(source: Path, output: Path, soffice: str | None = None,
            pdftoppm: str | None = None, dpi: int = 150, timeout: int = 180) -> dict:
     source, output = source.expanduser().resolve(), output.expanduser().resolve()
@@ -74,32 +158,41 @@ def render(source: Path, output: Path, soffice: str | None = None,
         raise ValueError('DPI must be 72..600 and timeout must be positive')
     if output.exists():
         raise ValueError('Output directory already exists; use a new revision directory')
+    # Poppler is optional: PyMuPDF can rasterise the same PDF.
     poppler = executable('pdftoppm', pdftoppm or os.environ.get('PDFTOPPM_PATH'))
-    if not poppler:
-        raise RuntimeError('pdftoppm not found; install Poppler or supply --pdftoppm')
-    lo = None
+    lo = powerpoint = None
     if source.suffix.lower() == '.pptx':
         lo = executable('soffice', soffice or os.environ.get('LIBREOFFICE_PATH'))
         if not lo:
-            raise RuntimeError('LibreOffice not found; supply --soffice or use host rendering tools')
+            powerpoint = powerpoint_available()
+        if not lo and not powerpoint:
+            raise RuntimeError('No PPTX renderer found: install LibreOffice, or run on Windows with '
+                               'Microsoft PowerPoint (COM), or export a PDF and pass that instead')
     # No system configuration changes and no shell expansion of user paths.
     source_sha = digest(source)
     output.mkdir(parents=True, exist_ok=False)
     pdf = output / (source.stem + '.pdf')
     expected = None
+    backend = 'pdf-passthrough'
     if lo:
+        backend = 'soffice'
         with zipfile.ZipFile(source) as archive:
             root = ET.fromstring(archive.read('ppt/presentation.xml'))
             expected = len(root.findall('.//{http://schemas.openxmlformats.org/presentationml/2006/main}sldId'))
         with tempfile.TemporaryDirectory(prefix='paper-ppt-lo-') as profile:
             run_tool([lo, '-env:UserInstallation=' + Path(profile).resolve().as_uri(),
                       '--headless', '--convert-to', 'pdf', '--outdir', str(output), str(source)], timeout)
+    elif powerpoint:
+        backend = 'powerpoint'
+        with zipfile.ZipFile(source) as archive:
+            root = ET.fromstring(archive.read('ppt/presentation.xml'))
+            expected = len(root.findall('.//{http://schemas.openxmlformats.org/presentationml/2006/main}sldId'))
+        pptx_to_pdf_powerpoint(source, pdf, timeout)
     else:
         shutil.copy2(source, pdf)
     if not pdf.is_file() or pdf.stat().st_size == 0:
         raise RuntimeError('Renderer did not produce a PDF; revision left for diagnosis')
-    run_tool([poppler, '-png', '-r', str(dpi), str(pdf), str(output / 'slide')], timeout)
-    pages = sorted(output.glob('slide-*.png'), key=lambda p: int(p.stem.rsplit('-', 1)[1]))
+    pages, rasterizer = pdf_to_png(pdf, output, dpi, poppler, timeout)
     if not pages or (expected is not None and len(pages) != expected):
         raise RuntimeError(f'Rendered page count mismatch: expected {expected}, got {len(pages)}')
     if digest(source) != source_sha:
@@ -109,7 +202,9 @@ def render(source: Path, output: Path, soffice: str | None = None,
     def entry(p: Path) -> dict:
         return {'path': p.name, 'sha256': digest(p)}
     manifest = {'input': {'path': str(source), 'sha256': source_sha},
-                'dpi': dpi, 'renderer': {'soffice': lo, 'pdftoppm': poppler},
+                'dpi': dpi, 'backend': backend,
+                'renderer': {'backend': backend, 'soffice': lo, 'powerpoint': powerpoint,
+                             'pdftoppm': poppler, 'rasterizer': rasterizer},
                 'pages': [entry(p) for p in pages], 'overview': entry(overview),
                 'visual_review': 'pending'}
     (output / 'render.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
@@ -128,7 +223,9 @@ def doctor() -> dict:
             pass
     return {'python': sys.version.split()[0], 'node': node, 'pptxgenjs': package,
             'soffice': executable('soffice', os.environ.get('LIBREOFFICE_PATH')),
+            'powerpoint': powerpoint_available(),
             'pdftoppm': executable('pdftoppm', os.environ.get('PDFTOPPM_PATH')),
+            'pymupdf': importlib.util.find_spec('fitz') is not None,
             'pillow': importlib.util.find_spec('PIL') is not None,
             'visual_model': 'NOT_CHECKED: discover a real image-capable tool in your AI client'}
 
@@ -148,7 +245,9 @@ def main() -> int:
     try:
         if args.command == 'doctor':
             result = doctor()
-            ok = all(result[k] for k in ('node', 'pptxgenjs', 'soffice', 'pdftoppm', 'pillow'))
+            can_render = bool(result['soffice'] or result['powerpoint'])
+            can_raster = bool(result['pdftoppm'] or result['pymupdf'])
+            ok = all((result['node'], result['pptxgenjs'], can_render, can_raster, result['pillow']))
         else:
             result = render(args.source, args.out, args.soffice, args.pdftoppm, args.dpi, args.timeout)
             ok = True

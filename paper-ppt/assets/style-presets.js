@@ -13,7 +13,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const {containGeometry} = require('./image-geometry');
+const {containGeometry, imageDimensions} = require('./image-geometry');
 const {addEquation, equationGeometry} = require('./equations');
 
 const STYLE_DIR = path.join(__dirname, '..', 'styles');
@@ -520,10 +520,65 @@ const domestic = {
   },
 
   // Paper figure on a light grey frame with a short Chinese caption underneath.
-  figureFrame(c, t, file, caption, b) {
-    c.rect({x: b.x, y: b.y, w: b.w, h: b.h, fill: t.color.frame, radius: 0.06});
-    c.image(file, {x: b.x + 0.15, y: b.y + 0.12, w: b.w - 0.3, h: b.h - (caption ? 0.55 : 0.24)});
-    if (caption) c.text(caption, {x: b.x, y: b.y + b.h - 0.42, w: b.w, h: 0.36, size: t.size.caption, color: t.color.muted, align: 'center'});
+  //
+  // Two ways to call it:
+  //   box = {x, y, w, h}                      -> fixed panel; the figure is centred inside it
+  //   box = {x, y, maxW, maxH, fit, align}    -> the panel hugs the figure (tight frame)
+  // `fit: 'h'` equalises height, which is what side-by-side figures need so both
+  // captions sit on one baseline. Returns the frame rect so callers can lay out
+  // a second figure or a text column against the real right edge.
+  figureFrame(c, t, file, caption, box = {}) {
+    const capH = caption ? 0.36 : 0.06;
+    const tight = box.maxW != null || box.maxH != null;
+    let fw, fh, fx, fy;
+    if (tight) {
+      const maxW = box.maxW != null ? box.maxW : box.w;
+      const maxH = box.maxH != null ? box.maxH : box.h;
+      const innerW = maxW - 0.3;
+      const innerH = maxH - 0.24 - capH;
+      const size = imageDimensions(file);
+      const ar = size.w / size.h;
+      let w, h;
+      if (box.fit === 'h') {
+        h = innerH; w = h * ar;
+        if (w > innerW) { w = innerW; h = w / ar; }
+      } else {
+        w = Math.min(innerW, innerH * ar); h = w / ar;
+      }
+      fw = w + 0.3; fh = h + 0.24 + capH;
+      fx = box.align === 'center' ? box.x + (maxW - fw) / 2 : box.x;
+      fy = box.y;
+      c.rect({x: fx, y: fy, w: fw, h: fh, fill: t.color.frame, radius: 0.06});
+      c.image(file, {x: fx + 0.15, y: fy + 0.12, w, h});
+      if (caption) c.text(caption, {x: fx, y: fy + fh - 0.375, w: fw, h: 0.26, size: t.size.caption, color: t.color.muted, align: 'center'});
+      return {x: fx, y: fy, w: fw, h: fh};
+    }
+    fw = box.w; fh = box.h; fx = box.x; fy = box.y;
+    c.rect({x: fx, y: fy, w: fw, h: fh, fill: t.color.frame, radius: 0.06});
+    c.image(file, {x: fx + 0.15, y: fy + 0.12, w: fw - 0.3, h: fh - (caption ? 0.55 : 0.24)});
+    if (caption) c.text(caption, {x: fx, y: fy + fh - 0.42, w: fw, h: 0.36, size: t.size.caption, color: t.color.muted, align: 'center'});
+    return {x: fx, y: fy, w: fw, h: fh};
+  },
+
+  // Several figures on one row with a shared height, so every caption sits on the
+  // same baseline. Frames hug their figures and centre inside equal-width slots.
+  // items: [{file, caption}]; box: {x, y, maxW, maxH, gap}
+  figureRow(c, t, items, box) {
+    const capH = 0.36;
+    const gap = box.gap != null ? box.gap : 0.35;
+    const slot = (box.maxW - gap * (items.length - 1)) / items.length;
+    const ars = items.map((it) => {
+      const size = imageDimensions(it.file);
+      return size.w / size.h;
+    });
+    const h = Math.min(
+      ...items.map((it, i) => Math.min(box.maxH - 0.24 - capH, (slot - 0.3) / ars[i]))
+    );
+    return items.map((it, i) => {
+      const fw = h * ars[i] + 0.3;
+      const fx = box.x + i * (slot + gap) + (slot - fw) / 2;
+      return this.figureFrame(c, t, it.file, it.caption, {x: fx, y: box.y, maxW: fw, maxH: h + 0.6});
+    });
   },
 
   // 方法页：左图（承托框+图注）右要点（关键词标红、出处小字）

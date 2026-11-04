@@ -29,6 +29,7 @@ python scripts/pdf_snap.py pages     paper.pdf --out work/pages --dpi 150   # �
 python scripts/pdf_snap.py text      paper.pdf --out work/paper.txt.md      # 每页文本，带 <!-- Page N --> 标记
 python scripts/pdf_snap.py inventory paper.pdf --out work/inventory.md      # Figure/Table 清单初稿（含页码）
 python scripts/pdf_snap.py crop      paper.pdf --page 5 --box 0.05,0.08,0.45,0.30 --out work/figs/fig4.png
+python scripts/pdf_snap.py figure    paper.pdf --page 5 --region 0.04,0.05,0.49,0.30 --out work/figs/fig2.png  # 自动取框（首选）
 ```
 
 做法：
@@ -36,7 +37,11 @@ python scripts/pdf_snap.py crop      paper.pdf --page 5 --box 0.05,0.08,0.45,0.3
 1. `pages` 出整套截图，先看 `sheet.png` 掌握版面，再逐页打开含图表的页；
 2. `text` 出文本层用于通读。多栏论文在图注、表格、公式处常常错乱：**凡是会进入汇报的数字，都以页面截图为准**；
 3. `inventory` 按 “Figure N:” / “Table N:” / “图 N：” 抓 caption，给出图表清单初稿。它是线索不是真值——漏抓、错位都要看图修正；
-4. `crop` 用页面比例坐标（0–1）在 300 dpi 下重新渲染并裁切。坐标由 AI 看截图估出，裁完**必须打开裁切结果**核对坐标轴标签、图例、子图编号是否完整，不完整就调坐标再裁；
+4. `figure` 是首选：给定一个宽松的 `--region`，它自己算图的真实范围——矢量图形、位图、文字都算，
+   以页面低分辨率渲染的像素为最终判定（旋转刻度、贴图都跑不掉），并用 caption 的 y 当下界；
+   输出里带 `bbox` 与 `aspect`，可直接用于 PPT 排版。
+   `crop` 用页面比例坐标（0–1）在 300 dpi 下重新渲染并裁切，只在 `figure` 失败时用。
+   两种方式裁完都**必须打开裁切结果**核对坐标轴标签、图例、子图编号是否完整；
 5. 公式：优先裁原图；需要可编辑公式时由视觉模型对照截图转写 LaTeX，并在 `source-notes.md` 标注“转写，已对照第 N 页”；
 6. 截图和裁切文件名保留页码/图号（`fig4.png`、`p05.png`），方便追溯。
 
