@@ -35,6 +35,7 @@ fix = load('fix_pPr', ROOT / 'paper-ppt/assets/fix_pPr.py')
 mineru_models = load('mineru_models', ROOT / 'paper-extract/scripts/mineru_models.py')
 mineru_extract = load('mineru_extract', ROOT / 'paper-extract/scripts/mineru_extract.py')
 pdf_snap = load('pdf_snap', ROOT / 'paper-extract/scripts/pdf_snap.py')
+lint_style = load('lint_style', ROOT / 'paper-ppt/scripts/lint_style.py')
 
 
 class ReviewTests(unittest.TestCase):
@@ -619,3 +620,85 @@ class TemplatesAndFontsTest(unittest.TestCase):
         skill = (Path(__file__).resolve().parent.parent / 'paper-ppt' / 'SKILL.md').read_text(encoding='utf-8')
         for key in ('开工前访谈', 'G1', 'G2', 'G3', 'intake.md', 'page-content-guide.md', 'fonts.md'):
             self.assertIn(key, skill)
+
+
+class StyleLintTests(unittest.TestCase):
+    """Heuristics, not pixel truth: assert the rules fire, not the exact line count."""
+
+    @staticmethod
+    def shape(text, x=0.6, y=1.6, w=4.0, h=0.5, size=18, colour='262626'):
+        runs = ''.join(
+            f'<a:r><a:rPr lang="zh-CN" sz="{size * 100}"><a:solidFill><a:srgbClr val="{colour}"/>'
+            f'</a:solidFill></a:rPr><a:t>{chunk}</a:t></a:r>'
+            for chunk in (text,)
+        )
+        return ('<p:sp><p:spPr><a:xfrm><a:off x="%d" y="%d"/><a:ext cx="%d" cy="%d"/></a:xfrm></p:spPr>'
+                '<p:txBody><a:bodyPr wrap="square"/><a:p>%s</a:p></p:txBody></p:sp>'
+                % (x * 914400, y * 914400, w * 914400, h * 914400, runs))
+
+    def deck(self, *shapes, per_slide=None):
+        slides = per_slide or [shapes]
+        z = zipfile.ZipFile(self.target, 'w')
+        with z:
+            for index, group in enumerate(slides, 1):
+                z.writestr(f'ppt/slides/slide{index}.xml',
+                           '<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" '
+                           'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
+                           '<p:cSld><p:spTree>' + ''.join(group) + '</p:spTree></p:cSld></p:sld>')
+        return self.target
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.target = Path(self.temp.name) / 'deck.pptx'
+
+    def findings(self, report):
+        return ' | '.join(report['warnings'] + report['errors'])
+
+    def test_cjk_width_is_wider_than_latin(self):
+        self.assertGreater(lint_style.text_width_em('中文中文'), lint_style.text_width_em('abcd'))
+
+    def test_overflowing_box_is_flagged(self):
+        path = self.deck(self.shape('这是一段很长的正文' * 12, w=3.0, h=0.6, size=18))
+        report = lint_style.audit(path, 'domestic')
+        self.assertTrue(any('text needs' in w for w in report['warnings']), self.findings(report))
+
+    def test_roomy_box_is_not_flagged(self):
+        path = self.deck(self.shape('短句', w=6.0, h=1.5, size=18))
+        report = lint_style.audit(path, 'domestic')
+        self.assertFalse(any('text needs' in w for w in report['warnings']), self.findings(report))
+
+    def test_line_starting_with_punctuation_is_flagged(self):
+        path = self.deck(self.shape('，晚切就多付溢价。', w=6.0, h=1.0))
+        report = lint_style.audit(path, 'domestic')
+        self.assertTrue(any('行首标点' in w for w in report['warnings']), self.findings(report))
+
+    def test_long_red_run_is_flagged(self):
+        path = self.deck(self.shape('保证任何情况下都能看', w=6.0, h=1.0, colour='C00000'))
+        report = lint_style.audit(path, 'domestic')
+        self.assertTrue(any('红色连续' in w for w in report['warnings']), self.findings(report))
+
+    def test_short_red_run_is_not_flagged(self):
+        path = self.deck(self.shape('可控可问责', w=6.0, h=1.0, colour='C00000'))
+        report = lint_style.audit(path, 'domestic')
+        self.assertFalse(any('红色连续' in w for w in report['warnings']), self.findings(report))
+
+    def test_duplicate_figure_numbers_are_flagged(self):
+        caption = self.shape('图 3 架构', x=0.6, y=5.6, w=6.0, h=0.3, size=12, colour='6B6B6B')
+        path = self.deck(per_slide=[[caption], [caption]])
+        report = lint_style.audit(path, 'domestic')
+        self.assertTrue(any('repeated' in w for w in report['warnings']), self.findings(report))
+
+    def test_clean_deck_reports_nothing(self):
+        path = self.deck(self.shape('图 1 架构', x=0.6, y=5.6, w=6.0, h=0.3, size=12, colour='6B6B6B'),
+                         self.shape('一句话结论。', w=6.0, h=1.0))
+        report = lint_style.audit(path, 'domestic')
+        self.assertEqual(report['warnings'], [])
+        self.assertTrue(report['ok'])
+
+    def test_strict_promotes_warnings_to_errors(self):
+        path = self.deck(self.shape('，晚切就多付溢价。', w=6.0, h=1.0))
+        report = lint_style.audit(path, 'domestic', strict=True)
+        self.assertFalse(report['ok'])
+        self.assertTrue(report['errors'])
+

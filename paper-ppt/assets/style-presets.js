@@ -503,6 +503,13 @@ const domestic = {
     c.rect({x: 3.7, y: 2.75, w: 0.08, h: 1.0, fill: t.color.primary});
     c.text(s.title, {x: 4.0, y: 2.55, w: 8.3, h: 0.9, size: t.size.section, bold: true, color: t.color.primary, valign: 'middle'});
     if (s.subtitle) c.text(s.subtitle, {x: 4.0, y: 3.45, w: 8.3, h: 0.6, size: t.size.subtitle, color: t.color.muted});
+    // 章节页默认是半空的；给三个关键词就有一条"本节看点"，导航感立刻立住。
+    if (s.keys && s.keys.length) {
+      const y = 5.06;
+      c.line({x1: t.grid.marginX, y1: y, x2: t.slide.w - t.grid.marginX, y2: y, color: t.color.rule, w: 1});
+      c.text('本节', {x: t.grid.marginX, y: y + 0.14, w: 0.7, h: 0.3, size: t.size.source + 1, bold: true, color: t.color.faint});
+      c.text(s.keys.join('　·　'), {x: t.grid.marginX + 0.78, y: y + 0.12, w: t.slide.w - 2 * t.grid.marginX - 0.78, h: 0.34, size: t.size.small - 2, color: t.color.muted});
+    }
     this.footer(c, t, s); c.notes(s.notes);
   },
 
@@ -602,16 +609,130 @@ const domestic = {
   },
 
   // 总结 / 个人思考 / 讨论问题：两栏，不用卡片
+  // 两栏（结论 / 讨论）；给了 s.limits 就变三栏（结论 / 边界 / 讨论）。
   summary(c, t, s) {
     this.frame(c, t, {...s, title: s.title || '总结与讨论'});
-    const top = t.grid.contentY + 0.25; const colW = 5.75;
+    const top = t.grid.contentY + 0.25;
+    // 两栏是安全默认值：三栏会把中文长句压成两行，行首标点的概率也跟着上去。
+    // 只有同时给了 limits 和 discussion 才排三栏。
+    const columns = s.limits && s.discussion
+      ? [['本文结论', s.conclusions], ['局限与边界', s.limits], ['思考与讨论', s.discussion]]
+      : s.limits
+        ? [['本文结论', s.conclusions], ['局限与边界', s.limits]]
+        : [['本文结论', s.conclusions], ['思考与讨论', s.discussion]];
+    const gap = 0.5;
+    const colW = (t.slide.w - 2 * t.grid.marginX - 0.2 - gap * (columns.length - 1)) / columns.length;
     const col = (x, head, items) => {
       c.text(head, {x, y: top, w: colW, h: 0.5, size: t.size.body, bold: true, color: t.color.primary});
       c.line({x1: x, y1: top + 0.55, x2: x + colW, y2: top + 0.55, color: t.color.primaryLight, w: 1.5});
-      c.text(items.map((p) => ({text: p, bullet: true})), {x, y: top + 0.75, w: colW, h: 4.3, size: t.size.small + 1, color: t.color.body, paraSpaceBefore: 12});
+      c.text((items || []).map((p) => ({text: p, bullet: true})), {x, y: top + 0.75, w: colW, h: 4.1, size: t.size.small, color: t.color.body, paraSpaceBefore: 12});
     };
-    col(t.grid.marginX + 0.1, '本文结论', s.conclusions);
-    col(t.grid.marginX + 0.1 + colW + 0.6, '思考与讨论', s.discussion);
+    columns.forEach(([head, items], i) => col(t.grid.marginX + 0.1 + i * (colW + gap), head, items));
+    // 组会最后一页常见的收束句：深色横条 + 一句"真正可复用的东西"。
+    if (s.takeaway) {
+      const y = t.grid.contentBottom - 1.45;
+      c.rect({x: t.grid.marginX, y, w: t.slide.w - 2 * t.grid.marginX, h: 0.82, fill: t.color.primary, radius: 0.06});
+      c.text(s.takeaway, {x: t.grid.marginX + 0.24, y, w: t.slide.w - 2 * t.grid.marginX - 0.48, h: 0.82,
+        size: t.size.small + 1, bold: true, color: 'FFFFFF', valign: 'middle'});
+    }
+    if (s.closing) c.text(s.closing, {x: t.grid.marginX, y: t.grid.contentBottom - 0.4, w: t.slide.w - 2 * t.grid.marginX,
+      h: 0.4, size: t.size.small + 2, bold: true, color: t.color.primary, align: 'center'});
+  },
+
+  // 三方案对比：上面一条示意图（可无），下面三栏各一两句结论。
+  compare3(c, t, s) {
+    this.frame(c, t, s);
+    const mx = t.grid.marginX, gap = 0.4;
+    const cw = (t.slide.w - 2 * mx - gap * 2) / 3;
+    let bodyTop = t.grid.contentY + 0.05;
+    if (s.figure) {
+      const size = imageDimensions(s.figure);
+      const ar = size.w / size.h;
+      const bandW = t.slide.w - 2 * mx;
+      const bandH = bandW / ar;
+      c.image(s.figure, {x: mx, y: bodyTop, w: bandW, h: bandH});
+      if (s.caption) c.text(s.caption, {x: mx, y: bodyTop + bandH + 0.04, w: bandW, h: 0.3, size: t.size.caption, color: t.color.muted, align: 'center'});
+      bodyTop += bandH + (s.caption ? 0.42 : 0.16);
+    }
+    const room = t.grid.contentBottom - bodyTop;
+    (s.items || []).forEach((item, i) => {
+      const x = mx + i * (cw + gap);
+      if (item.title) c.text(item.title, {x, y: bodyTop, w: cw, h: 0.32, size: t.size.small + 1, bold: true, color: item.accent ? t.color.primary : t.color.text});
+      c.text(item.body, {x, y: bodyTop + (item.title ? 0.4 : 0), w: cw, h: Math.max(0.6, room - 0.4), size: t.size.small - 1, color: t.color.body, lineSpacingMultiple: 1.35});
+    });
+    if (s.note) {
+      const ny = t.grid.contentBottom - 0.95;
+      c.rect({x: mx, y: ny, w: t.slide.w - 2 * mx, h: 0.72, fill: t.color.primaryLight, radius: 0.05});
+      c.text(s.note, {x: mx + 0.24, y: ny, w: t.slide.w - 2 * mx - 0.48, h: 0.72, size: t.size.small, bold: true, color: t.color.primary, valign: 'middle'});
+    }
+  },
+
+  // 并排两图 + 一句结论：高度统一，图注同基线。
+  twoFigures(c, t, s) {
+    this.frame(c, t, s);
+    const mx = t.grid.marginX;
+    const leadH = s.lead ? 0.95 : 0.1;
+    const top = t.grid.contentY + 0.1;
+    this.figureRow(c, t, s.items, {x: mx, y: top, maxW: t.slide.w - 2 * mx, maxH: t.grid.contentBottom - top - leadH});
+    if (s.lead) {
+      const y = t.grid.contentBottom - leadH + 0.15;
+      c.rect({x: mx, y, w: t.slide.w - 2 * mx, h: 0.78, fill: t.color.primaryLight, radius: 0.05});
+      c.text(s.lead, {x: mx + 0.24, y, w: t.slide.w - 2 * mx - 0.48, h: 0.78, size: t.size.small + 1, bold: true, color: t.color.primary, valign: 'middle'});
+    }
+  },
+
+  // 2×2 指标矩阵：每格左边一张小图，右边标题 + 两句口径。
+  metricGrid(c, t, s) {
+    this.frame(c, t, s);
+    const mx = t.grid.marginX, gapX = 0.45, gapY = 0.35;
+    const cw = (t.slide.w - 2 * mx - gapX) / 2;
+    const top = t.grid.contentY + 0.05;
+    const noteH = s.note ? 0.42 : 0;      // reserve a band so the note cannot sit on the frames
+    const ch = (t.grid.contentBottom - top - gapY - noteH) / 2;
+    (s.cells || []).forEach((cell, i) => {
+      const x = mx + (i % 2) * (cw + gapX);
+      const y = top + Math.floor(i / 2) * (ch + gapY);
+      const fw = cw * 0.5;
+      const box = this.figureFrame(c, t, cell.figure, cell.caption, {x, y, maxW: fw, maxH: ch - 0.15});
+      const tx = box.x + box.w + 0.22;
+      c.text(cell.head, {x: tx, y: y + 0.05, w: cw - fw - 0.25, h: 0.34, size: t.size.small, bold: true, color: t.color.text});
+      c.text(cell.body, {x: tx, y: y + 0.45, w: cw - fw - 0.25, h: Math.max(0.5, ch - 0.7), size: t.size.small - 2, color: t.color.body, lineSpacingMultiple: 1.35});
+    });
+    if (s.note) c.text(s.note, {x: mx, y: t.grid.contentBottom - 0.3, w: t.slide.w - 2 * mx, h: 0.28, size: t.size.source, color: t.color.muted});
+  },
+
+  // 成本/参数表：左边公式，右边分项 + 合计 + 一个红色大数字。
+  formulaTable(c, t, s) {
+    this.frame(c, t, s);
+    const mx = t.grid.marginX;
+    const leftW = 4.6;
+    let top = t.grid.contentY + 0.08;
+    // The formula gets the full width; squeezing it into the left column makes it
+    // wrap into the note underneath, which reads as a rendering bug.
+    c.text(s.formula, {x: mx, y: top, w: t.slide.w - 2 * mx, h: 0.34, size: t.size.small + 1, bold: true, color: t.color.primary});
+    top += 0.36;
+    if (s.formulaNote) {
+      c.text(s.formulaNote, {x: mx, y: top, w: t.slide.w - 2 * mx, h: 0.28, size: t.size.source, color: t.color.muted});
+      top += 0.34;
+    }
+    if (s.figure) {
+      this.figureFrame(c, t, s.figure, s.caption, {x: mx, y: top, maxW: leftW, maxH: t.grid.contentBottom - top - 0.1});
+    }
+    const rx = mx + leftW + 0.55;
+    const rw = t.slide.w - mx - rx;
+    (s.rows || []).forEach((row, i) => {
+      const y = top + i * 0.44;
+      c.text(row[0], {x: rx, y, w: rw * 0.6, h: 0.3, size: t.size.small, color: t.color.body});
+      c.text(row[1], {x: rx + rw * 0.6, y, w: rw * 0.22, h: 0.3, size: t.size.small, bold: true, color: t.color.text, align: 'right'});
+      if (row[2]) c.text(row[2], {x: rx + rw * 0.84, y, w: rw * 0.16, h: 0.3, size: t.size.source, color: t.color.muted, align: 'right'});
+    });
+    const totalY = top + (s.rows || []).length * 0.44 + 0.15;
+    if (s.total) c.text(s.total, {x: rx, y: totalY, w: rw, h: 0.3, size: t.size.small, color: t.color.muted});
+    if (s.bigNumber) {
+      c.line({x1: rx, y1: totalY + 0.5, x2: rx + rw, y2: totalY + 0.5, color: t.color.rule, w: 0.75});
+      c.text(s.bigNumber, {x: rx, y: totalY + 0.62, w: 2.6, h: 0.8, size: t.size.bigNumber, bold: true, color: t.color.accent});
+      c.text(s.bigLabel || '', {x: rx + 2.7, y: totalY + 0.82, w: rw - 2.7, h: 0.5, size: t.size.small, color: t.color.muted});
+    }
   },
 
   thanks(c, t, s) {

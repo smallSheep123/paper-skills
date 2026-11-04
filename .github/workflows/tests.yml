@@ -1,0 +1,26 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pillow pymupdf
+          npm ci --prefix paper-ppt
+      - name: Unit tests (the command documented in README)
+        env:
+          NODE_PATH: ${{ github.workspace }}/paper-ppt/node_modules
+        run: python -m unittest discover -s tests -v
