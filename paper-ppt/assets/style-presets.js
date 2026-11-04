@@ -625,7 +625,10 @@ const domestic = {
     const col = (x, head, items) => {
       c.text(head, {x, y: top, w: colW, h: 0.5, size: t.size.body, bold: true, color: t.color.primary});
       c.line({x1: x, y1: top + 0.55, x2: x + colW, y2: top + 0.55, color: t.color.primaryLight, w: 1.5});
-      c.text((items || []).map((p) => ({text: p, bullet: true})), {x, y: top + 0.75, w: colW, h: 4.1, size: t.size.small, color: t.color.body, paraSpaceBefore: 12});
+      // 两栏保持原来的字号与高度；只有三栏才收紧，避免旧稿悄悄变样。
+      const tight = columns.length > 2;
+      c.text((items || []).map((p) => ({text: p, bullet: true})), {x, y: top + 0.75, w: colW,
+        h: tight ? 4.1 : 4.3, size: tight ? t.size.small : t.size.small + 1, color: t.color.body, paraSpaceBefore: 12});
     };
     columns.forEach(([head, items], i) => col(t.grid.marginX + 0.1 + i * (colW + gap), head, items));
     // 组会最后一页常见的收束句：深色横条 + 一句"真正可复用的东西"。
@@ -649,8 +652,11 @@ const domestic = {
       const size = imageDimensions(s.figure);
       const ar = size.w / size.h;
       const bandW = t.slide.w - 2 * mx;
-      const bandH = bandW / ar;
-      c.image(s.figure, {x: mx, y: bodyTop, w: bandW, h: bandH});
+      // A portrait figure would compute a band taller than the page; clamp to the
+      // space left after reserving room for the three columns and the callout.
+      const reserved = (s.note ? 1.05 : 0.2) + 0.95;
+      const bandH = Math.min(bandW / ar, t.grid.contentBottom - bodyTop - reserved);
+      c.image(s.figure, {x: mx, y: bodyTop, w: Math.min(bandW, bandH * ar), h: bandH});
       if (s.caption) c.text(s.caption, {x: mx, y: bodyTop + bandH + 0.04, w: bandW, h: 0.3, size: t.size.caption, color: t.color.muted, align: 'center'});
       bodyTop += bandH + (s.caption ? 0.42 : 0.16);
     }

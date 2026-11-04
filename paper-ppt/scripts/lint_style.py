@@ -34,6 +34,21 @@ NS = {'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
 EMU = 914400.0
 LEADING_PUNCT = '。，、；：？！）】》」』”’…·,.;:?!)]}'
 TITLE_MAX_ZONE = 1.25          # shapes above this y are titles/headers
+CAPTION_RE = re.compile(r'^\s*(?:图|Figure|Fig\.?|表|Table)\s*(\d+)', re.I)
+
+# Per-rule severity. A blanket --strict made every warning fatal, so a 29-character
+# bullet blocked delivery while a duplicated figure number did not.
+SEVERITY = {
+    'overflow': 'warn',        # 3–15% over: look at it
+    'overflow_hard': 'error',  # >15% over: it will visibly spill
+    'figure_duplicate': 'error',
+    'leading_punct': 'error',
+    'red_runs': 'warn',
+    'red_length': 'warn',
+    'chars': 'warn',
+    'bullets': 'warn',
+    'figure_gap': 'warn',
+}
 
 
 def load_tokens(preset: str) -> dict:
@@ -100,12 +115,13 @@ def paragraphs(tx, accent: str | None = None) -> list[dict]:
         size = None
         colours = set()
         text = []
-        red_runs = []
+        runs = []          # (text, is_red) in document order — needed to merge split red runs
         segments = ['']
         for child in para:
             tag = child.tag.split('}')[1]
             if tag == 'br':
                 segments.append('')
+                runs.append(('', False))
                 continue
             if tag != 'r':
                 continue
@@ -116,22 +132,33 @@ def paragraphs(tx, accent: str | None = None) -> list[dict]:
             if colour is not None:
                 colours.add(colour.get('val', '').upper())
             value = ''.join(t.text or '' for t in child.findall('a:t', NS))
-            if accent and colour is not None and colour.get('val', '').upper() == accent:
-                red_runs.append(value)
+            runs.append((value, bool(accent) and colour is not None and colour.get('val', '').upper() == accent))
             text.append(value)
             segments[-1] += value
         if not text:
             continue
+        # Merge consecutive red runs: pptxgenjs splits a phrase at every script
+        # boundary, so 「可控可问责」usually arrives as two runs and each half
+        # would slip under the 6-character limit on its own.
+        merged = []
+        for run_text, is_red in runs:
+            if is_red and merged and merged[-1][1]:
+                merged[-1] = (merged[-1][0] + run_text, True)
+            else:
+                merged.append((run_text, is_red))
+        red_runs = [run_text for run_text, is_red in merged if is_red]
+
         space_before = 0.0
-        spacing = 1.2
+        spacing = 1.0
         if ppr is not None:
-            if ppr.get('spcBef'):
-                pts = ppr.find('a:spcBef/a:spcPts', NS)
-                space_before = int(pts.get('val')) / 100 if pts is not None else 0.0
-            if ppr.get('lnSpc'):
-                pct = ppr.find('a:lnSpc/a:spcPct', NS)
-                if pct is not None:
-                    spacing = int(pct.get('val')) / 100000
+            # lnSpc / spcBef are child elements, not attributes — the old
+            # `ppr.get('lnSpc')` guard never fired, so 1.5x spacing was invisible.
+            pts = ppr.find('a:spcBef/a:spcPts', NS)
+            if pts is not None and pts.get('val'):
+                space_before = int(pts.get('val')) / 100
+            pct = ppr.find('a:lnSpc/a:spcPct', NS)
+            if pct is not None and pct.get('val'):
+                spacing = int(pct.get('val')) / 100000
         out.append({'text': ''.join(text), 'size': size, 'colours': colours,
                     'space_before': space_before, 'spacing': spacing, 'segments': segments,
                     'red_runs': red_runs})
@@ -145,14 +172,17 @@ def estimate(tx, w: float, h: float, default_size: float) -> dict:
     avail_w = max(w - left - right, 0.2)
     avail_h = max(h - top - bottom, 0.1)
     lines = 0
-    tallest = 0.0
+    height_pt = 0.0
     for para in paragraphs(tx):
         size = (para['size'] or default_size) * scale
-        tallest = max(tallest, size)
         per_line = max(avail_w * 72 / max(size, 1), 1.0)
-        for segment in para['segments']:
-            lines += max(1, math.ceil(text_width_em(segment) / per_line))
-    height = (lines * tallest * 1.2 * spacing_scale) / 72
+        para_lines = sum(max(1, math.ceil(text_width_em(segment) / per_line))
+                         for segment in para['segments'])
+        lines += para_lines
+        # lnSpc / spcBef were parsed but unused before; ignoring them under-estimates
+        # decks that set 1.4 line spacing and 12 pt between bullets.
+        height_pt += para_lines * size * 1.2 * para['spacing'] * spacing_scale + para['space_before']
+    height = height_pt / 72
     return {'lines': lines, 'needs_in': round(height, 3), 'has_in': round(avail_h, 3),
             'overflow': height / avail_h if avail_h else 99.0}
 
@@ -161,8 +191,10 @@ def audit(path: Path, preset: str, strict: bool = False) -> dict:
     tokens = load_tokens(preset)
     accent = tokens['color']['accent'].upper()
     limits = tokens.get('limits', {})
-    big = tokens['size'].get('bigNumber', 36)
     warnings, errors, stats = [], [], {'slides': 0, 'figures': [], 'accents': []}
+
+    def add(rule: str, message: str) -> None:
+        (errors if SEVERITY.get(rule) == 'error' else warnings).append(message)
 
     with zipfile.ZipFile(path) as z:
         names = sorted([n for n in z.namelist() if re.fullmatch(r'ppt/slides/slide\d+\.xml', n)],
@@ -171,10 +203,6 @@ def audit(path: Path, preset: str, strict: bool = False) -> dict:
         for index, name in enumerate(names, 1):
             root = ET.fromstring(z.read(name))
             page_reds = 0
-            page_red_chars = 0
-            page_chars = 0
-            page_big = 0
-            has_figure = root.find('.//p:pic', NS) is not None
             for sp in root.iter(f"{{{NS['p']}}}sp"):
                 box = shape_box(sp)
                 tx = sp.find('p:txBody', NS)
@@ -188,62 +216,64 @@ def audit(path: Path, preset: str, strict: bool = False) -> dict:
 
                 fit = estimate(tx, w, h, tokens['size']['body'])
                 if fit['overflow'] > 1.03:
-                    warnings.append(f'{label}: text needs ~{fit["lines"]} lines / {fit["needs_in"]}in '
-                                    f'in a {fit["has_in"]}in box ({fit["overflow"]:.2f}x)')
+                    add('overflow_hard' if fit['overflow'] > 1.15 else 'overflow',
+                        f'{label}: text needs ~{fit["lines"]} lines / {fit["needs_in"]}in '
+                        f'in a {fit["has_in"]}in box ({fit["overflow"]:.2f}x)')
 
                 # "≤4 条 / 每条 ≤28 字" only applies to real list frames: several
                 # paragraphs in the body zone, not subtitles or one-line takeaways.
                 is_list = len(paras) >= 3 and y > TITLE_MAX_ZONE
                 for para in paras:
-                    reds = sum(1 for colour in para['colours'] if colour == accent)
+                    reds = len(para['red_runs'])
                     page_reds += reds
-                    page_chars += len(para['text'])
-                    if accent in para['colours']:
-                        page_red_chars += len(para['text'])
                     text = para['text'].strip()
                     if not text:
                         continue
                     if text[0] in LEADING_PUNCT:
-                        warnings.append(f'{label}: paragraph starts with "{text[0]}" — 行首标点')
-                    for segment in para['segments']:
-                        if segment[:1] in LEADING_PUNCT and segment[:1]:
-                            warnings.append(f'{label}: line starts with "{segment[0]}" — 手动断行落在标点上')
+                        add('leading_punct', f'{label}: paragraph starts with "{text[0]}" — 行首标点')
+                    # segments[0] is the paragraph start already checked above; only
+                    # the manual breaks after <a:br/> are new.
+                    for segment in para['segments'][1:]:
+                        if segment[:1] and segment[:1] in LEADING_PUNCT:
+                            add('leading_punct', f'{label}: line starts with "{segment[0]}" — 手动断行落在标点上')
                     if reds > limits.get('keywordsPerBullet', 1):
-                        warnings.append(f'{label}: {reds} red runs in one paragraph — 「{text[:18]}」')
+                        add('red_runs', f'{label}: {reds} red runs in one paragraph — 「{text[:18]}」')
                     for run_text in para['red_runs']:
                         # 「6 个字」指的是汉字个数：数字/英文标注（deadline、35%）不占字数
                         cjk = sum(1 for ch in run_text.strip() if '\u4e00' <= ch <= '\u9fff')
                         if cjk > 6:
-                            warnings.append(f'{label}: red run of {cjk} 汉字 '
+                            add('red_length', f'{label}: red run of {cjk} 汉字 '
                                             f'「{run_text.strip()[:12]}」 — 红色连续不应超过 6 字')
                     size = (para['size'] or tokens['size']['body']) * autofit_scale(tx)[0]
-                    if size >= big * 0.9 and has_figure:
-                        page_big += 1
                     if is_list and len(text) > limits.get('charsPerBulletZh', 28):
-                        warnings.append(f'{label}: bullet {len(text)} chars > {limits.get("charsPerBulletZh", 28)}')
-                    for match in re.finditer(r'图\s*(\d+)', text):
-                        stats['figures'].append(int(match.group(1)))
+                        add('chars', f'{label}: bullet {len(text)} chars > {limits.get("charsPerBulletZh", 28)}')
+                    # Only caption-shaped text counts: a body sentence that mentions
+                    # 「如图 3 所示」is a reference, not the caption of figure 3.
+                    caption = CAPTION_RE.match(text)
+                    looks_like_caption = caption and (size <= tokens['size']['caption'] + 2
+                                                      or tokens['color']['muted'].upper() in para['colours'])
+                    if looks_like_caption:
+                        stats['figures'].append(int(caption.group(1)))
                 if is_list and len(paras) > limits.get('bulletsPerSlide', 4):
-                    warnings.append(f'{label}: {len(paras)} paragraphs in one body frame '
-                                    f'(limit {limits.get("bulletsPerSlide", 4)})')
+                    add('bullets', f'{label}: {len(paras)} paragraphs in one body frame '
+                                   f'(limit {limits.get("bulletsPerSlide", 4)})')
 
             if page_reds > 0:
                 stats['accents'].append({'page': index, 'red_runs': page_reds})
 
-            if page_big > 1:
-                warnings.append(f'p{index}: {page_big} runs at big-number size — 结果页只强调一个数')
 
     numbers = stats['figures']
     if numbers:
         duplicates = sorted({n for n in numbers if numbers.count(n) > 1})
         if duplicates:
-            warnings.append(f'figure numbers repeated: {duplicates}')
-        missing = [n for n in range(1, max(numbers) + 1) if n not in numbers]
-        if missing:
-            warnings.append(f'figure numbers missing: {missing} (captions are typed, not generated)')
-    if strict and warnings:
-        errors = warnings
-        warnings = []
+            add('figure_duplicate', f'figure numbers repeated: {duplicates}')
+        # Gaps only matter in a deck that presents most of the paper's figures; a
+        # 6-page excerpt legitimately shows 5–7 and 10–13.
+        missing = [n for n in range(min(numbers), max(numbers) + 1) if n not in numbers]
+        if missing and len(numbers) >= 8:
+            add('figure_gap', f'figure numbers missing: {missing} (captions are typed, not generated)')
+    if strict:
+        errors, warnings = errors + warnings, []
 
     return {'preset': preset, 'deck': str(path), 'stats': stats,
             'errors': errors, 'warnings': warnings,

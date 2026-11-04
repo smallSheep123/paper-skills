@@ -26,16 +26,16 @@ slide({type: 'section', number: '01', title: '背景与动机',
 slide({type: 'compare3', prefix: '一、', title: '为什么不能照搬 CDN',
   figure: FIG + 'p07.png', caption: null,
   items: [
-    {body: '缓存命中率低：设备存储小、\n热度变化快，回源带宽代价大。'},
-    {body: '全局不可见：本地决策跟不上\n热度变化，异构还会放大不均衡。'},
-    {body: '仍是 server-to-client：设备\n可控可问责，才谈得上 SLO。'},
+    {body: '缓存命中率低：设备存储小、\n热度变化快，[[回源]]代价大。'},
+    {body: '全局不可见：本地决策跟不上\n热度变化，异构会放大[[不均衡]]。'},
+    {body: '仍是 server-to-client：设备\n[[可控可问责]]，才谈得上 SLO。'},
   ],
-  note: '关键区别：P2P 的 peer 自愿、自治、随时走；Hdevice 向第三方厂商租赁，可控可问责，所以敢把决策全部收上来。'});
+  note: '关键区别：P2P 的 peer 自愿、自治、随时走；Hdevice 向第三方厂商租赁，[[可控可问责]]，所以敢把决策全部收上来。'});
 
 slide({type: 'twoFigures', prefix: '三、', title: '低谷预取抹掉回源成本',
   items: [{file: FIG + 'fig6.png', caption: '图 6  一天内的 HyperEdge 流量与回源流量'},
           {file: FIG + 'fig7.png', caption: '图 7  承接流量占比与节省比例'}],
-  lead: '省的不只是“更便宜的单位”，而是把不可控的峰值需求挪到可控的谷底。'});
+  lead: '省的不只是“更便宜的单位”，而是把不可控的峰值需求[[挪到谷底]]。'});
 
 slide({type: 'metricGrid', prefix: '四、', title: '其余指标全面看齐',
   cells: [
