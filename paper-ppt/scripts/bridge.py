@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import gc
 import hashlib
 import importlib.util
 import json
@@ -11,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import xml.etree.ElementTree as ET
 import zipfile
 
@@ -138,8 +140,20 @@ def pdf_to_png(pdf: Path, output: Path, dpi: int, pdftoppm: str | None, timeout:
         import fitz  # noqa: PLC0415 - optional dependency, probed on demand
     except ImportError as exc:
         raise RuntimeError('Neither pdftoppm nor PyMuPDF is available; install Poppler or `pip install pymupdf`') from exc
+    failure = None
+    doc = None
+    try:
+        doc = fitz.open(pdf)
+    except Exception as exc:  # noqa: BLE001 - PyMuPDF raises several unrelated types
+        failure = str(exc)
+    if failure is not None:
+        # Raise outside the except block on purpose. On Windows the pending
+        # traceback keeps the file open, and render()'s cleanup could not
+        # delete the half-built revision.
+        gc.collect()
+        raise RuntimeError(f'Cannot read PDF: {failure}')
     pages = []
-    with fitz.open(pdf) as doc:
+    with doc:
         zoom = dpi / 72.0
         matrix = fitz.Matrix(zoom, zoom)
         for index, page in enumerate(doc, 1):
@@ -158,8 +172,10 @@ def render(source: Path, output: Path, soffice: str | None = None,
         raise ValueError('DPI must be 72..600 and timeout must be positive')
     if output.exists():
         raise ValueError('Output directory already exists; use a new revision directory')
-    # Poppler is optional: PyMuPDF can rasterise the same PDF.
+    # Poppler is optional: PyMuPDF can rasterise the same PDF, but one of the two must exist.
     poppler = executable('pdftoppm', pdftoppm or os.environ.get('PDFTOPPM_PATH'))
+    if not poppler and importlib.util.find_spec('fitz') is None:
+        raise RuntimeError('No PDF rasteriser found: install Poppler, or `pip install pymupdf`')
     lo = powerpoint = None
     if source.suffix.lower() == '.pptx':
         lo = executable('soffice', soffice or os.environ.get('LIBREOFFICE_PATH'))
@@ -171,44 +187,57 @@ def render(source: Path, output: Path, soffice: str | None = None,
     # No system configuration changes and no shell expansion of user paths.
     source_sha = digest(source)
     output.mkdir(parents=True, exist_ok=False)
-    pdf = output / (source.stem + '.pdf')
-    expected = None
-    backend = 'pdf-passthrough'
-    if lo:
-        backend = 'soffice'
-        with zipfile.ZipFile(source) as archive:
-            root = ET.fromstring(archive.read('ppt/presentation.xml'))
-            expected = len(root.findall('.//{http://schemas.openxmlformats.org/presentationml/2006/main}sldId'))
-        with tempfile.TemporaryDirectory(prefix='paper-ppt-lo-') as profile:
-            run_tool([lo, '-env:UserInstallation=' + Path(profile).resolve().as_uri(),
-                      '--headless', '--convert-to', 'pdf', '--outdir', str(output), str(source)], timeout)
-    elif powerpoint:
-        backend = 'powerpoint'
-        with zipfile.ZipFile(source) as archive:
-            root = ET.fromstring(archive.read('ppt/presentation.xml'))
-            expected = len(root.findall('.//{http://schemas.openxmlformats.org/presentationml/2006/main}sldId'))
-        pptx_to_pdf_powerpoint(source, pdf, timeout)
-    else:
-        shutil.copy2(source, pdf)
-    if not pdf.is_file() or pdf.stat().st_size == 0:
-        raise RuntimeError('Renderer did not produce a PDF; revision left for diagnosis')
-    pages, rasterizer = pdf_to_png(pdf, output, dpi, poppler, timeout)
-    if not pages or (expected is not None and len(pages) != expected):
-        raise RuntimeError(f'Rendered page count mismatch: expected {expected}, got {len(pages)}')
-    if digest(source) != source_sha:
-        raise RuntimeError('Input changed while rendering; create a new revision')
-    overview = output / 'contact-sheet.png'
-    contact_sheet(pages, overview)
-    def entry(p: Path) -> dict:
-        return {'path': p.name, 'sha256': digest(p)}
-    manifest = {'input': {'path': str(source), 'sha256': source_sha},
-                'dpi': dpi, 'backend': backend,
-                'renderer': {'backend': backend, 'soffice': lo, 'powerpoint': powerpoint,
-                             'pdftoppm': poppler, 'rasterizer': rasterizer},
-                'pages': [entry(p) for p in pages], 'overview': entry(overview),
-                'visual_review': 'pending'}
-    (output / 'render.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-    return manifest
+    ok = False
+    try:
+        pdf = output / (source.stem + '.pdf')
+        expected = None
+        backend = 'pdf-passthrough'
+        if lo:
+            backend = 'soffice'
+            with zipfile.ZipFile(source) as archive:
+                root = ET.fromstring(archive.read('ppt/presentation.xml'))
+                expected = len(root.findall('.//{http://schemas.openxmlformats.org/presentationml/2006/main}sldId'))
+            with tempfile.TemporaryDirectory(prefix='paper-ppt-lo-') as profile:
+                run_tool([lo, '-env:UserInstallation=' + Path(profile).resolve().as_uri(),
+                          '--headless', '--convert-to', 'pdf', '--outdir', str(output), str(source)], timeout)
+        elif powerpoint:
+            backend = 'powerpoint'
+            with zipfile.ZipFile(source) as archive:
+                root = ET.fromstring(archive.read('ppt/presentation.xml'))
+                expected = len(root.findall('.//{http://schemas.openxmlformats.org/presentationml/2006/main}sldId'))
+            pptx_to_pdf_powerpoint(source, pdf, timeout)
+        else:
+            shutil.copy2(source, pdf)
+        if not pdf.is_file() or pdf.stat().st_size == 0:
+            raise RuntimeError('Renderer did not produce a PDF; revision left for diagnosis')
+        pages, rasterizer = pdf_to_png(pdf, output, dpi, poppler, timeout)
+        if not pages or (expected is not None and len(pages) != expected):
+            raise RuntimeError(f'Rendered page count mismatch: expected {expected}, got {len(pages)}')
+        if digest(source) != source_sha:
+            raise RuntimeError('Input changed while rendering; create a new revision')
+        overview = output / 'contact-sheet.png'
+        contact_sheet(pages, overview)
+        def entry(p: Path) -> dict:
+            return {'path': p.name, 'sha256': digest(p)}
+        manifest = {'input': {'path': str(source), 'sha256': source_sha},
+                    'dpi': dpi, 'backend': backend,
+                    'renderer': {'backend': backend, 'soffice': lo, 'powerpoint': powerpoint,
+                                 'pdftoppm': poppler, 'rasterizer': rasterizer},
+                    'pages': [entry(p) for p in pages], 'overview': entry(overview),
+                    'visual_review': 'pending'}
+        (output / 'render.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+        ok = True
+        return manifest
+    finally:
+        if not ok:
+            # A failed revision must leave nothing behind. On Windows a renderer
+            # may still hold a handle for a few milliseconds, so retry briefly.
+            gc.collect()
+            for _ in range(10):
+                shutil.rmtree(output, ignore_errors=True)
+                if not output.exists():
+                    break
+                time.sleep(0.05)
 
 
 def doctor() -> dict:
