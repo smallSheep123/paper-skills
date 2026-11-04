@@ -713,10 +713,21 @@ const domestic = {
     const mx = t.grid.marginX;
     const leftW = 4.6;
     let top = t.grid.contentY + 0.08;
-    // The formula gets the full width; squeezing it into the left column makes it
-    // wrap into the note underneath, which reads as a rendering bug.
-    c.text(s.formula, {x: mx, y: top, w: t.slide.w - 2 * mx, h: 0.34, size: t.size.small + 1, bold: true, color: t.color.primary});
-    top += 0.36;
+    // A formula is a rendered math object (LaTeX -> OMML + SVG fallback via
+    // math_assets.py), never a plain-text string. Pasting "C_total = U_HE x T_HE"
+    // into a text box is the most obvious "an AI made this" tell on a slide:
+    // underscores instead of real subscripts, upright body font instead of math
+    // italics, and a Unicode arrow jammed into a variable name.
+    if (s.equationAsset) {
+      c.equation(s.equationAsset, {x: mx, y: top, w: t.slide.w - 2 * mx, h: 0.8}, {align: 'left'});
+      top += 0.8;
+    } else if (s.formula) {
+      if (/[_^]|\\(?:frac|sum|int|text|mathrm|cdot|times|left|right|sqrt)/.test(s.formula)) {
+        throw new Error('formulaTable: a TeX-looking formula needs equationAsset; see references/math-equations.md');
+      }
+      c.text(s.formula, {x: mx, y: top, w: t.slide.w - 2 * mx, h: 0.34, size: t.size.small + 1, bold: true, color: t.color.primary});
+      top += 0.36;
+    }
     if (s.formulaNote) {
       c.text(s.formulaNote, {x: mx, y: top, w: t.slide.w - 2 * mx, h: 0.28, size: t.size.source, color: t.color.muted});
       top += 0.34;

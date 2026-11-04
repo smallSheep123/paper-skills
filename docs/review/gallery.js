@@ -4,9 +4,17 @@
 const path = require('node:path');
 const pptxgen = require('pptxgenjs');
 const {loadTokens, PptxCanvas, drawSlide, writeDeck} = require('../../paper-ppt/assets/style-presets');
+const {loadEquations} = require('../../paper-ppt/assets/equations');
 
 // 图片来自论文原图裁切（paper-extract 的 figure 子命令），放在同目录 figs/ 下
 const FIG = path.resolve(__dirname, 'figs') + path.sep;
+// 公式源码在 math-request.json，由 math_assets.py prepare 渲染成 OMML + SVG。
+// manifest 里的路径可以是绝对路径，也可以是相对仓库根的路径；统一解析成绝对路径。
+const MANIFEST = process.env.MATH_MANIFEST || path.resolve(__dirname, 'math.json');
+const EQ = loadEquations(MANIFEST);
+for (const asset of Object.values(EQ)) {
+  for (const key of ['svg', 'png']) asset[key] = path.resolve(__dirname, '..', '..', asset[key]);
+}
 const t = loadTokens('domestic');
 const deck = new pptxgen();
 deck.layout = t.slide.layout;
@@ -51,8 +59,8 @@ slide({type: 'metricGrid', prefix: '四、', title: '其余指标全面看齐',
   note: '四个次要指标里最值得学的是分段大小：一个参数同时牵着省流量和不卡顿两头。'});
 
 slide({type: 'formulaTable', prefix: '三、', title: '$360M 到 $235M',
-  formula: 'C_total = U_HE × T_HE + U_CDN × T_CDN + C_H←C',
-  formulaNote: 'U 是单位流量成本，T 是峰值流量；C_H←C 是从 CDN 回源到边缘的开销',
+  equationAsset: EQ.cost,
+  formulaNote: 'U 为单位流量成本，T 为峰值流量；末项是 CDN → 边缘的回源开销',
   figure: FIG + 'fig5.png', caption: '图 5  HyperEdge 成本构成',
   rows: [
     ['边缘网络（租设备 + 带宽）', '$198M', '83.7%'],
@@ -79,4 +87,6 @@ slide({type: 'summary', title: '总结：结论与边界',
   takeaway: '真正可复用的不是“用边缘设备”，而是“把每台设备都不达标这件事，交给能看见全局的调度器去摊平”。',
   closing: '恳请各位老师和同学批评指正'});
 
-writeDeck(deck, path.resolve(__dirname, 'gallery.pptx')).then((r) => console.log(r));
+// 先写 raw deck；math_assets.py finalize 会把公式占位图换成 OMML 原生公式
+// （PowerPoint 内可继续编辑）并附 SVG 矢量后备，产出 gallery.pptx。
+writeDeck(deck, path.resolve(__dirname, 'gallery.raw.pptx')).then((r) => console.log(r));

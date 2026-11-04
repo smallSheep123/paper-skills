@@ -205,3 +205,62 @@ Require stack: .../paper-ppt/assets/style-presets.js
 - **继续暂缓**：四个原型、`summary`、`STYLE.md`、`docs/review`、`tests/test_archetypes.py`。
 - **单独存放**：`wip/layout-kit-presets`，未审阅，不要合进 main。
 - 下一轮建议顺序：① `compare3` 改流式排布消掉空档 → ② `metricGrid` 图 60/40 并做视觉确认 → ③ 补消融表原型 → ④ lint 支持表格文字（`p:graphicFrame`）。
+
+---
+
+## 9. 公式：从纯文本换成 LaTeX / OMML 原生
+
+用户反馈：`formulaTable` 那页的 `C_total = U_HE × T_HE + …` 「一看就是 AI 的，而且丑爆了」，问能不能用 LaTeX 或 OMML。
+核对后发现 skill 自己就有规范（`references/math-equations.md`）和完整管线（`math_assets.py`），
+**是这个原型没遵守**——直接 `c.text(s.formula)` 把 LaTeX 风格的源码当普通文本贴了。
+
+### 问题出在哪
+
+- 下划线 `_total`、`_HE` 不是真下标，只是字符；
+- 正文 Arial 粗体冒充数学斜体，和中文注释不是一套排版系统；
+- `←` 直接塞进变量名写成 `C_H←C`；
+- `×` 和所有字距靠手打，没有任何排版引擎参与。
+
+### 修法：LaTeX 作源码，OMML 作 PPT 对象，SVG 作后备
+
+| 层 | 内容 |
+|---|---|
+| 源码 | `docs/review/math-request.json`：`C_{\text{total}} = U_{\text{HE}} \cdot T_{\text{HE}} + U_{\text{CDN}} \cdot T_{\text{CDN}} + C_{\text{H}\leftarrow\text{C}}`，26 pt，色 `1F4E79` 直接取 domestic token |
+| 渲染 | `math_assets.py prepare` → `pdflatex` → SVG + PNG（`text_as_path`，不依赖本机字体）+ 实测外框 **6.1 × 0.36 in** |
+| OMML | 同一次 prepare 的 `mode: auto` 把 LaTeX → MathML → OMML；结构检查通过，得到**在 PowerPoint 里可继续编辑**的原生公式 |
+| 嵌入 | `finalize` 用 `mc:AlternateContent`：`mc:Choice Requires="a14"` 放 OMML，`mc:Fallback` 放 SVG 矢量图 |
+| 验收 | `slide5.xml` 实测含 `<m:oMath>`；`finalize` 报 `{"native": 1}`；PowerPoint COM 渲染出来的确是数学排版 |
+
+为什么用 `\text` + `\cdot` 而不是 `\mathrm`：`native_math` 只放行经结构检查的 MathML 子集，
+`\mathrm` 会产生 `mathvariant` 属性从而回退到 SVG；`\text` 走 `<mtext>`、`\cdot` 走 `<mo>`，能留在 OMML 分支。
+注释里的 `C_H←C` 也改成中文描述「末项是 CDN → 边缘的回源开销」，不再重复那个丑符号。
+
+### 原型改动
+
+`formulaTable` 现在接受 `equationAsset` 并调用 `c.equation()`；若仍传含 `_` / `^` / `\frac` 等
+TeX 痕迹的 `formula` 字符串，**直接抛错**，杜绝下一次有人顺手退化回纯文本。
+公式区预留 0.8 in（原生公式的 `equationGeometry` pad），下方注释 / 图 / 表顺延，渲染实测不越界。
+
+### 成稿
+
+`output/build-domestic.js` 的 P16 同步换掉。因为逻辑框只是预留空间、字形垂直居中后落在
+1.42–1.78 in，正好沿用原来的注释与表格坐标，**整页不用重排**。
+`deck-domestic.math.pptx` 是 OMML 版，`deck-domestic.pptx` 是 LaTeX PNG 版（免后处理、兼容性更好）。
+`check_deck.py` 在 OMML 版上 **status = pass（0 error / 0 warning）**。
+
+### 复现（在仓库根执行）
+
+```bash
+cd paper-skills
+python -m pip install -r paper-ppt/requirements-math.txt   # OMML 转换才需要；pdflatex 另需 TeX Live
+python paper-ppt/scripts/math_assets.py prepare docs/review/math-request.json --out docs/review/math.json
+node docs/review/gallery.js                               # -> docs/review/gallery.raw.pptx
+python paper-ppt/scripts/math_assets.py finalize docs/review/gallery.raw.pptx \
+    --manifest docs/review/math.json --out docs/review/gallery.pptx
+python paper-ppt/scripts/bridge.py render docs/review/gallery.pptx --out renders/gal
+```
+
+`docs/review/math.json` 和 `math-assets/` 已提交，路径写成相对仓库根，clone 后可直接跑；
+`gallery.js` 会把相对路径解析成绝对路径。要改公式只需改 `math-request.json` 再跑一次 `prepare`。
+
+对比图：`docs/review/formula-before-after.png`（整页 + 公式区域放大，左右同一放大倍数）。
