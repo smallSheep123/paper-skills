@@ -35,6 +35,7 @@ fix = load('fix_pPr', ROOT / 'paper-ppt/assets/fix_pPr.py')
 mineru_models = load('mineru_models', ROOT / 'paper-extract/scripts/mineru_models.py')
 mineru_extract = load('mineru_extract', ROOT / 'paper-extract/scripts/mineru_extract.py')
 pdf_snap = load('pdf_snap', ROOT / 'paper-extract/scripts/pdf_snap.py')
+lint_style = load('lint_style', ROOT / 'paper-ppt/scripts/lint_style.py')
 
 
 class ReviewTests(unittest.TestCase):
@@ -619,3 +620,133 @@ class TemplatesAndFontsTest(unittest.TestCase):
         skill = (Path(__file__).resolve().parent.parent / 'paper-ppt' / 'SKILL.md').read_text(encoding='utf-8')
         for key in ('开工前访谈', 'G1', 'G2', 'G3', 'intake.md', 'page-content-guide.md', 'fonts.md'):
             self.assertIn(key, skill)
+
+
+class StyleLintTests(unittest.TestCase):
+    """Heuristics, not pixel truth: assert the rules fire, not the exact line count."""
+
+    @staticmethod
+    def shape(runs, x=0.6, y=1.6, w=4.0, h=0.5, size=18, colour='262626', spacing=None):
+        if isinstance(runs, str):
+            runs = [(runs, colour)]
+        body = ''.join(
+            f'<a:r><a:rPr lang="zh-CN" sz="{size * 100}"><a:solidFill><a:srgbClr val="{c}"/>'
+            f'</a:solidFill></a:rPr><a:t>{chunk}</a:t></a:r>'
+            for chunk, c in runs
+        )
+        ppr = f'<a:pPr><a:lnSpc><a:spcPct val="{int(spacing * 100000)}"/></a:lnSpc></a:pPr>' if spacing else ''
+        return ('<p:sp><p:spPr><a:xfrm><a:off x="%d" y="%d"/><a:ext cx="%d" cy="%d"/></a:xfrm></p:spPr>'
+                '<p:txBody><a:bodyPr wrap="square"/><a:p>%s%s</a:p></p:txBody></p:sp>'
+                % (x * 914400, y * 914400, w * 914400, h * 914400, ppr, body))
+
+    def deck(self, *shapes, per_slide=None):
+        slides = per_slide or [shapes]
+        with zipfile.ZipFile(self.target, 'w') as z:
+            for index, group in enumerate(slides, 1):
+                z.writestr(f'ppt/slides/slide{index}.xml',
+                           '<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" '
+                           'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
+                           '<p:cSld><p:spTree>' + ''.join(group) + '</p:spTree></p:cSld></p:sld>')
+        return self.target
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.target = Path(self.temp.name) / 'deck.pptx'
+
+    def findings(self, report):
+        return ' | '.join(report['warnings'] + report['errors'])
+
+    def test_cjk_width_is_wider_than_latin(self):
+        self.assertGreater(lint_style.text_width_em('中文中文'), lint_style.text_width_em('abcd'))
+
+    def test_overflowing_box_is_flagged(self):
+        path = self.deck(self.shape('这是一段很长的正文' * 12, w=3.0, h=0.6))
+        report = lint_style.audit(path, 'domestic')
+        self.assertTrue(any('text needs' in w for w in report['warnings'] + report['errors']),
+                        self.findings(report))
+
+    def test_roomy_box_is_not_flagged(self):
+        path = self.deck(self.shape('短句', w=6.0, h=1.5))
+        self.assertFalse(any('text needs' in w for w in lint_style.audit(path, 'domestic')['warnings']))
+
+    def test_line_spacing_counts(self):
+        plain = lint_style.estimate(
+            ET.fromstring('<p:txBody xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" '
+                          'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:p><a:r>'
+                          '<a:rPr sz="1800"/><a:t>' + '测试文本' * 12 + '</a:t></a:r></a:p></p:txBody>'),
+            3.0, 2.0, 18)
+        loose = lint_style.estimate(
+            ET.fromstring('<p:txBody xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" '
+                          'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:p><a:pPr>'
+                          '<a:lnSpc><a:spcPct val="150000"/></a:lnSpc></a:pPr><a:r><a:rPr sz="1800"/>'
+                          '<a:t>' + '测试文本' * 12 + '</a:t></a:r></a:p></p:txBody>'),
+            3.0, 2.0, 18)
+        self.assertGreater(loose['needs_in'], plain['needs_in'])
+
+    def test_line_starting_with_punctuation_is_an_error(self):
+        path = self.deck(self.shape('，晚切就多付溢价。', w=6.0, h=1.0))
+        report = lint_style.audit(path, 'domestic')
+        self.assertTrue(any('行首标点' in e for e in report['errors']), self.findings(report))
+        self.assertFalse(report['ok'])
+
+    def test_leading_punctuation_reported_once(self):
+        path = self.deck(self.shape('，晚切就多付溢价。', w=6.0, h=1.0))
+        report = lint_style.audit(path, 'domestic')
+        hits = [e for e in report['errors'] if '行首标点' in e or '手动断行' in e]
+        self.assertEqual(len(hits), 1, self.findings(report))
+
+    def test_long_red_run_is_flagged(self):
+        path = self.deck(self.shape('保证任何情况下都能看', w=6.0, h=1.0, colour='C00000'))
+        self.assertTrue(any('红色连续' in w for w in lint_style.audit(path, 'domestic')['warnings']))
+
+    def test_short_red_run_is_not_flagged(self):
+        path = self.deck(self.shape('可控可问责', w=6.0, h=1.0, colour='C00000'))
+        self.assertFalse(any('红色连续' in w for w in lint_style.audit(path, 'domestic')['warnings']))
+
+    def test_red_run_split_by_script_boundary_is_merged(self):
+        # pptxgenjs emits one run per script change; 4+4 CJK must still count as 8.
+        path = self.deck(self.shape([('这是一个很', 'C00000'), ('长的红字', 'C00000')], w=6.0, h=1.0))
+        self.assertTrue(any('红色连续' in w for w in lint_style.audit(path, 'domestic')['warnings']))
+
+    def test_two_red_runs_in_one_paragraph_are_counted(self):
+        # The old rule counted distinct colours (a set), so it could never exceed 1.
+        path = self.deck(self.shape([('攻击', 'C00000'), (' 与 ', '262626'), ('碰撞', 'C00000')], w=6.0, h=1.0))
+        report = lint_style.audit(path, 'domestic')
+        self.assertTrue(any('2 red runs' in w for w in report['warnings']), self.findings(report))
+
+    def test_duplicate_figure_numbers_are_an_error(self):
+        caption = self.shape('图 3 架构', x=0.6, y=5.6, w=6.0, h=0.4, size=12, colour='6B6B6B')
+        report = lint_style.audit(self.deck(per_slide=[[caption], [caption]]), 'domestic')
+        self.assertTrue(any('repeated' in e for e in report['errors']), self.findings(report))
+
+    def test_body_reference_is_not_a_caption(self):
+        body = self.shape('如图 3 所示，缓存命中率随热度变化。', x=0.6, y=2.0, w=6.0, h=1.0)
+        report = lint_style.audit(self.deck(per_slide=[[body], [body]]), 'domestic')
+        self.assertFalse(any('figure' in f for f in report['warnings'] + report['errors']), self.findings(report))
+
+    def test_english_caption_is_counted(self):
+        caption = self.shape('Figure 7  Impact of segment size', x=0.6, y=5.6, w=6.0, h=0.4, size=12,
+                             colour='6B6B6B')
+        report = lint_style.audit(self.deck(caption), 'domestic')
+        self.assertEqual(report['stats']['figures'], [7])
+
+    def test_clean_deck_reports_nothing(self):
+        path = self.deck(self.shape('图 1 架构', x=0.6, y=5.6, w=6.0, h=0.4, size=12, colour='6B6B6B'),
+                         self.shape('一句话结论。', w=6.0, h=1.0))
+        report = lint_style.audit(path, 'domestic')
+        self.assertEqual(report['warnings'], [])
+        self.assertEqual(report['errors'], [])
+        self.assertTrue(report['ok'])
+
+    def test_strict_promotes_soft_warnings(self):
+        # One frame, three long bullets: a soft "chars" warning by default,
+        # fatal under --strict. Three separate shapes would not be a list frame.
+        para = ('<a:p><a:r><a:rPr sz="1800"/><a:t>'
+                '这是一条明显超过二十八个字上限的要点，用来触发字数警告的示例。</a:t></a:r></a:p>')
+        frame = ('<p:sp><p:spPr><a:xfrm><a:off x="%d" y="%d"/><a:ext cx="%d" cy="%d"/></a:xfrm></p:spPr>'
+                 '<p:txBody><a:bodyPr/>%s</p:txBody></p:sp>'
+                 % (0.6 * 914400, 2.0 * 914400, 6.0 * 914400, 3.0 * 914400, para * 3))
+        path = self.deck(frame)
+        self.assertTrue(lint_style.audit(path, 'domestic')['ok'])
+        self.assertFalse(lint_style.audit(path, 'domestic', strict=True)['ok'])

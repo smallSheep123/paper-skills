@@ -354,6 +354,7 @@ python scripts/check_deck.py $IN || true                 # 只看是否提示 bl
 #   python scripts/restore_chart_zeros.py $IN --out build/deck.$R.zeros.pptx; IN=build/deck.$R.zeros.pptx
 cp $IN deck.$R.pptx                                     # 本轮最终文件
 python scripts/check_deck.py deck.$R.pptx               # 结构检查，必须 pass
+python scripts/lint_style.py deck.$R.pptx --json build/lint.$R.json   # 文字溢出/红词/中文标点/图号
 python scripts/check_fonts.py --deck deck.$R.pptx       # PPTX 实际写入的字体本机都有，否则渲染无效
 python scripts/bridge.py render deck.$R.pptx --out renders/$R
 #   渲染后端自动选择：LibreOffice → Windows 上的 PowerPoint COM；
