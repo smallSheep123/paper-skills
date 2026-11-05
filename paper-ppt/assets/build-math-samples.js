@@ -15,13 +15,42 @@ const FORMULAS = [
   {id: 'brace', latex: String.raw`y=\underbrace{r(x)f_{\mathrm{deep}}(x)}_{\text{deep path}}+\underbrace{(1-r(x))f_{\mathrm{shallow}}(x)}_{\text{shallow path}}`},
 ];
 
+function pythonExe() {
+  return process.env.PAPER_PPT_PYTHON || 'python';
+}
+
+// Fail before the deck is half-built, and say which interpreter was used: the
+// usual cause is `python` on PATH being a different install without PyMuPDF.
+// math_assets.py also accepts the pre-1.24 module name `fitz`, so the probe does.
+function importsModule(exe, module) {
+  const probe = spawnSync(exe, ['-c', `import ${module}`], {encoding: 'utf8'});
+  return {ok: !probe.error && probe.status === 0, error: probe.error, stderr: probe.stderr};
+}
+
+function preflight() {
+  const exe = pythonExe();
+  const modern = importsModule(exe, 'pymupdf');
+  if (modern.ok || importsModule(exe, 'fitz').ok) return;
+  const why = modern.error ? `cannot execute it (${modern.error.code || modern.error.message})`
+    : `it has neither pymupdf nor fitz (${(modern.stderr || '').trim().split('\n').pop()})`;
+  console.error(`Math pipeline needs a Python with PyMuPDF; ${exe}: ${why}`);
+  console.error('Point PAPER_PPT_PYTHON at the interpreter used for this repo, e.g.');
+  console.error('  PAPER_PPT_PYTHON=.venv/Scripts/python.exe node assets/build-math-samples.js math-samples');
+  process.exit(1);
+}
+
 function python(args) {
-  const run = spawnSync(process.env.PAPER_PPT_PYTHON || 'python', args, {stdio: 'inherit'});
-  if (run.error) throw run.error;
-  if (run.status !== 0) throw new Error('Math pipeline failed');
+  const exe = pythonExe();
+  const run = spawnSync(exe, args, {stdio: 'inherit'});
+  if (run.error) throw new Error(`Cannot run "${exe}": ${run.error.message}. Set PAPER_PPT_PYTHON to a Python with pymupdf.`);
+  if (run.status !== 0) {
+    throw new Error(`Math pipeline failed: ${exe} ${path.basename(args[0])} ${args[1]} exited ${run.status}. `
+      + 'Check the traceback above; missing LaTeX or pymupdf in the wrong interpreter are the usual causes.');
+  }
 }
 
 async function main() {
+  preflight();
   const out = path.resolve(process.argv[2] || 'math-samples');
   fs.mkdirSync(out, {recursive: true});
   const script = path.join(__dirname, '../scripts/math_assets.py');
@@ -52,8 +81,13 @@ async function main() {
       equationContent(canvas, tokens, s);
     });
     const draft = path.join(out, `${style}-math.raw.pptx`);
+    const final = path.join(out, `${style}-math.pptx`);
     await writeDeck(deck, draft);
-    python([script, 'finalize', draft, '--manifest', manifest, '--out', path.join(out, `${style}-math.pptx`)]);
+    // math_assets.py refuses to overwrite on purpose, which made a second
+    // `npm run math-samples` fail on its own leftover output. These files are
+    // generated, so drop them first and keep the build repeatable.
+    fs.rmSync(final, {force: true});
+    python([script, 'finalize', draft, '--manifest', manifest, '--out', final]);
   }
 }
 if (require.main === module) main().catch(e => {console.error(e); process.exit(1);});

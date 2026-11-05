@@ -51,9 +51,9 @@ node docs/review/gallery.js && python paper-ppt/scripts/bridge.py render docs/re
 |---|---|---|
 | 文字溢出 | 3–15% 为 warn；>15% 为 `overflow_hard`（error） | 最伤观感的一类错误，且完全可估 |
 | 每条红词数 | > `limits.keywordsPerBullet`（按**连续红 run** 计数，不看颜色集合） | 一条里两个红词＝都没红 |
-| 红字连续长度 | > 6 个汉字（相邻红 run 先合并再数） | domestic STYLE.md 明写「红色不连续超过 6 个字」，以前只是文字 |
+| 红字连续长度 | > 6 个汉字（相邻红 run 先合并再数）；形状名为 `nav:*` 的导航项整段强调色视为状态色，豁免 | domestic STYLE.md 明写「红色不连续超过 6 个字」；目录高亮当前章是状态不是强调 |
 | 行首标点 | 段落或 `<a:br/>` 段以 `，。；` 开头 | 中文排版硬伤，手工断行时最容易踩 |
-| 每条字数 | 列表框内 > `limits.charsPerBulletZh` | 与 STYLE.md 的 28 字对齐 |
+| 每条长度 | 中文列表框内 > `limits.charsPerBulletZh`；英文 > `limits.linesPerBulletEn`（默认 2，按实际框宽量行数） | 中文与 STYLE.md 的 28 字对齐；英文没有等价字数，同一句在窄栏与通栏行数不同 |
 | 图号 | 重号（error）/ 跳号（整稿 ≥8 个图注才提示） | 图注靠手打，编号错没人拦 |
 
 溢出是**估算**（CJK 1 em、ASCII ≈0.5 em），只报 3% 以上的可疑项，不和像素较劲。

@@ -18,7 +18,10 @@ jobs:
       - name: Dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pillow pymupdf
+          # latex2mathml + mathml2omml are the optional native-equation pair from
+          # paper-ppt/requirements-math.txt. Without them two tests skip and the
+          # OMML branch is never exercised in CI.
+          python -m pip install pillow pymupdf latex2mathml mathml2omml
           npm ci --prefix paper-ppt
       - name: Unit tests (the command documented in README)
         env:

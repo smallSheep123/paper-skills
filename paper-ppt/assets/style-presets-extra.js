@@ -473,7 +473,7 @@ module.exports = function makePresets({sourceLine, pageNo}) {
       c.notes(s.notes);
     },
     section(c, t, s) {
-      c.text(s.number || '', {x: 0.9, y: 1.5, w: 4, h: 1.6, size: 96, color: t.color.ghost, heading: true, weight: '200'});
+      c.text(s.number || '', {x: 0.9, y: 1.42, w: 4, h: 1.95, size: 96, color: t.color.ghost, heading: true, weight: '200'});
       c.text(s.title, {x: 0.9, y: 3.2, w: 11.5, h: 1.4, size: t.size.section, color: t.color.text, heading: true, weight: '300'});
       pageNo(c, t, s.page); c.notes(s.notes);
     },
@@ -685,7 +685,7 @@ module.exports = function makePresets({sourceLine, pageNo}) {
       s.items.forEach((it, i) => {
         const on = i === s.current; const y = 1.55 + i * 0.9;
         c.ellipse({x: 2.1, y: y + 0.17, w: 0.45, h: 0.45, fill: on ? t.color.accent : (s.current != null && i < s.current ? t.color.faint : t.color.primary)});
-        c.text(it, {x: 2.9, y, w: 9, h: 0.8, size: 22, bold: on, color: on ? t.color.accent : (s.current != null && i !== s.current ? t.color.faint : t.color.text), valign: 'middle'});
+        c.text(it, {x: 2.9, y, w: 9, h: 0.8, size: 22, bold: on, color: on ? t.color.accent : (s.current != null && i !== s.current ? t.color.faint : t.color.text), valign: 'middle', name: 'nav:toc-item'});
       });
     },
     chapter(c, t, s) {

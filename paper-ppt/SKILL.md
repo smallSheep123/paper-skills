@@ -326,6 +326,9 @@ HTML + inline SVG 把坐标算出来再截图，连线永远落在盒边上，�
 
 - 页面尺寸 = 幻灯片上的实际尺寸（1 px = 0.01 in，1213×250 px ↔ 12.13×2.5 in）；
 - `--scale 2` 出 2 倍图，投影不糊；`--selector` 可只截某个分栏；
+- **默认会裁图**：视口高度几乎总比画面高，留白贴进页面后会让图显得很小，
+  所以默认裁到内容边界 + `--pad`（默认 8 CSS px）。需要严格等于视口尺寸时加 `--no-trim`，
+  JSON 报告里的 `trim.dead_band_pct` 告诉你裁掉了几成空白；
 - 视觉语言对齐当前预设：颜色用 token、1.2px 细线、4px 圆角、不加阴影；
 - 只有"改一两个箭头、加一个高亮框"这种一处两处的标注，才回到 pptx 原生形状。
 
@@ -364,6 +367,10 @@ python scripts/bridge.py render deck.$R.pptx --out renders/$R
 # 用视觉模型逐页看 renders/$R/slide-*.png 和 contact-sheet.png，在 review-log.json 末尾追加记录
 python scripts/check_review.py renders/$R/render.json review-log.json
 ```
+
+`lint_style.py` 有两条例外要知道：等宽字体的代码框、`[N]` 开头的参考文献框都不算要点列表；目录页把当前章
+标成强调色时，那几个文本框要命名成 `nav:<名字>`（PptxGenJS 的 `objectName`，PowerPoint 选择窗格里可见），
+lint 才把它当状态色而不是「红色连续 ≤ 6 字」。没命名的目录就是正文，九字章名照样报错。
 
 不需要的步骤跳过，但顺序不变。交付时把最后一轮的 `deck.rNN.pptx` 复制为 `deck.pptx`。审阅记录引用的参考图（例如风格样例图）要先复制到工作目录再引用，不要直接引用仓库里会被重新生成的文件。
 
