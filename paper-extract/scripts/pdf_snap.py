@@ -102,6 +102,17 @@ def _fitz():
         raise SystemExit('Need Poppler (pdftoppm/pdftotext/pdfinfo) or `pip install pymupdf`.') from exc
 
 
+def require_pdf(pdf: Path) -> Path:
+    """Fail with one readable line instead of a PyMuPDF traceback.
+
+    pymupdf raises its own FileNotFoundError (a RuntimeError subclass), so the
+    generic handler never saw it and a typo'd path printed a stack trace.
+    """
+    if not pdf.is_file():
+        raise ValueError(f'PDF not found: {pdf}')
+    return pdf
+
+
 def render_page(pdf: Path, page: int, dpi: int, out: Path) -> Path:
     out.parent.mkdir(parents=True, exist_ok=True)
     if shutil.which('pdftoppm'):
@@ -144,7 +155,7 @@ def contact_sheet(images: list[Path], out: Path, labels: list[str], cols: int = 
 
 
 def cmd_pages(a) -> None:
-    pdf, out = Path(a.pdf), Path(a.out)
+    pdf, out = require_pdf(Path(a.pdf)), Path(a.out)
     pages = parse_pages(a.pages, page_count(pdf))
     files = [render_page(pdf, p, a.dpi, out / f'p{p:02d}.png') for p in pages]
     contact_sheet(files, out / 'sheet.png', [f'p{p}' for p in pages])
@@ -152,7 +163,7 @@ def cmd_pages(a) -> None:
 
 
 def cmd_text(a) -> None:
-    pdf, out = Path(a.pdf), Path(a.out)
+    pdf, out = require_pdf(Path(a.pdf)), Path(a.out)
     pages = parse_pages(a.pages, page_count(pdf))
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(''.join(f'\n<!-- Page {p} -->\n\n{page_text(pdf, p)}' for p in pages), encoding='utf-8')
@@ -160,7 +171,7 @@ def cmd_text(a) -> None:
 
 
 def cmd_inventory(a) -> None:
-    pdf, out = Path(a.pdf), Path(a.out)
+    pdf, out = require_pdf(Path(a.pdf)), Path(a.out)
     n = page_count(pdf)
     items = find_captions([page_text(pdf, p) for p in range(1, n + 1)])
     lines = ['# 图表清单（自动初稿，需逐项看页面截图确认）', '',
@@ -218,7 +229,7 @@ def cmd_figure(a) -> None:
     """
     import json
     fitz = _fitz()
-    pdf, out = Path(a.pdf), Path(a.out)
+    pdf, out = require_pdf(Path(a.pdf)), Path(a.out)
     x0, y0, x1, y1 = parse_box(a.region)
     pad = float(a.pad)
     with fitz.open(pdf) as doc:
@@ -301,7 +312,7 @@ def cmd_figure(a) -> None:
 
 def cmd_crop(a) -> None:
     from PIL import Image
-    pdf, out = Path(a.pdf), Path(a.out)
+    pdf, out = require_pdf(Path(a.pdf)), Path(a.out)
     x0, y0, x1, y1 = parse_box(a.box)
     with tempfile.TemporaryDirectory() as tmp:
         page_png = render_page(pdf, a.page, a.dpi, Path(tmp) / 'page.png')
@@ -335,7 +346,9 @@ def main(argv: list[str] | None = None) -> int:
     a = ap.parse_args(argv)
     try:
         a.fn(a)
-    except (ValueError, subprocess.CalledProcessError) as exc:
+    except (ValueError, OSError, subprocess.CalledProcessError) as exc:
+        # OSError covers a missing PDF / missing Poppler binary: both used to
+        # surface as a traceback, which reads like a bug in the script itself.
         print(f'error: {exc}', file=sys.stderr)
         return 2
     return 0

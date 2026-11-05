@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import copy
+import contextlib
 import importlib.util
+import io
 import json
 import os
 import shutil
@@ -310,8 +312,11 @@ class NativeSourceTests(unittest.TestCase):
         self.assertEqual(pdf_snap.find_captions(['Figure 12a shows p95 latency.\nFig. 3 depicts it.']), [])
 
     def test_help_without_tools(self):
-        with self.assertRaises(SystemExit) as ctx:
-            pdf_snap.main(['--help'])
+        # --help writes the whole usage block to stdout; swallow it or the test
+        # run ends with a wall of argparse text that reads like a failure.
+        with contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaises(SystemExit) as ctx:
+                pdf_snap.main(['--help'])
         self.assertEqual(ctx.exception.code, 0)
 
 

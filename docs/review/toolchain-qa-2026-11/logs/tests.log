@@ -1,0 +1,6 @@
+test_skill_requires_intake_before_slides (test_tools.TemplatesAndFontsTest.test_skill_requires_intake_before_slides) ... ok
+
+----------------------------------------------------------------------
+Ran 72 tests in 6.563s
+
+OK (skipped=2)

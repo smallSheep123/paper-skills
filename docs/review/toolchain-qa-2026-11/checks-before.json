@@ -1,0 +1,192 @@
+{
+  "label": "before",
+  "samples_dir": "style-samples-before (built from d166c26 assets)",
+  "lint_script": "paper-ppt/scripts/lint_style.py @ d166c26",
+  "repo_commit": "d166c26 (baseline)",
+  "python": "C:\\Users\\11866\\.workbuddy\\binaries\\python\\envs\\default\\Scripts\\python.exe",
+  "totals": {
+    "check_pass": 0,
+    "check_errors": 53,
+    "lint_errors": 2,
+    "lint_warnings": 18
+  },
+  "styles": [
+    {
+      "style": "international",
+      "slides": 8,
+      "check_status": "fail",
+      "check_errors": 8,
+      "check_error_sample": [
+        "Slide 1: missing speaker notes",
+        "Slide 2: missing speaker notes",
+        "Slide 3: missing speaker notes",
+        "Slide 4: missing speaker notes",
+        "Slide 5: missing speaker notes",
+        "Slide 6: missing speaker notes",
+        "Slide 7: missing speaker notes",
+        "Slide 8: missing speaker notes"
+      ],
+      "lint_errors": 2,
+      "lint_warnings": 7,
+      "lint_findings": [
+        "p5 (0.60,0.38 10.23x0.75): text needs ~2 lines / 1.227in in a 0.75in box (1.64x)",
+        "p7 (0.60,0.38 10.23x0.75): text needs ~2 lines / 1.227in in a 0.75in box (1.64x)",
+        "p3 (1.00,2.60 11.30x1.60): text needs ~2 lines / 1.687in in a 1.6in box (1.05x)",
+        "p5 (8.85,1.65 3.88x4.20): bullet 30 chars > 26",
+        "p5 (8.85,1.65 3.88x4.20): bullet 36 chars > 26",
+        "p5 (8.85,1.65 3.88x4.20): bullet 29 chars > 26",
+        "p8 (1.00,1.75 11.30x4.60): bullet 49 chars > 26",
+        "p8 (1.00,1.75 11.30x4.60): bullet 39 chars > 26",
+        "p8 (1.00,1.75 11.30x4.60): bullet 50 chars > 26"
+      ]
+    },
+    {
+      "style": "domestic",
+      "slides": 8,
+      "check_status": "fail",
+      "check_errors": 8,
+      "check_error_sample": [
+        "Slide 1: missing speaker notes",
+        "Slide 2: missing speaker notes",
+        "Slide 3: missing speaker notes",
+        "Slide 4: missing speaker notes",
+        "Slide 5: missing speaker notes",
+        "Slide 6: missing speaker notes",
+        "Slide 7: missing speaker notes",
+        "Slide 8: missing speaker notes"
+      ],
+      "lint_errors": 0,
+      "lint_warnings": 0,
+      "lint_findings": []
+    },
+    {
+      "style": "keynote-minimal",
+      "slides": 6,
+      "check_status": "fail",
+      "check_errors": 6,
+      "check_error_sample": [
+        "Slide 1: missing speaker notes",
+        "Slide 2: missing speaker notes",
+        "Slide 3: missing speaker notes",
+        "Slide 4: missing speaker notes",
+        "Slide 5: missing speaker notes",
+        "Slide 6: missing speaker notes"
+      ],
+      "lint_errors": 0,
+      "lint_warnings": 0,
+      "lint_findings": []
+    },
+    {
+      "style": "systems-talk",
+      "slides": 6,
+      "check_status": "fail",
+      "check_errors": 6,
+      "check_error_sample": [
+        "Slide 1: missing speaker notes",
+        "Slide 2: missing speaker notes",
+        "Slide 3: missing speaker notes",
+        "Slide 4: missing speaker notes",
+        "Slide 5: missing speaker notes",
+        "Slide 6: missing speaker notes"
+      ],
+      "lint_errors": 0,
+      "lint_warnings": 4,
+      "lint_findings": [
+        "p4 (0.90,1.50 8.60x4.80): bullet 45 chars > 28",
+        "p4 (0.90,1.50 8.60x4.80): bullet 38 chars > 28",
+        "p4 (0.90,1.50 8.60x4.80): bullet 47 chars > 28",
+        "p4 (0.90,1.50 8.60x4.80): 5 paragraphs in one body frame (limit 3)"
+      ]
+    },
+    {
+      "style": "theory-beamer",
+      "slides": 5,
+      "check_status": "fail",
+      "check_errors": 5,
+      "check_error_sample": [
+        "Slide 1: missing speaker notes",
+        "Slide 2: missing speaker notes",
+        "Slide 3: missing speaker notes",
+        "Slide 4: missing speaker notes",
+        "Slide 5: missing speaker notes"
+      ],
+      "lint_errors": 0,
+      "lint_warnings": 0,
+      "lint_findings": []
+    },
+    {
+      "style": "dark-tech",
+      "slides": 5,
+      "check_status": "fail",
+      "check_errors": 5,
+      "check_error_sample": [
+        "Slide 1: missing speaker notes",
+        "Slide 2: missing speaker notes",
+        "Slide 3: missing speaker notes",
+        "Slide 4: missing speaker notes",
+        "Slide 5: missing speaker notes"
+      ],
+      "lint_errors": 0,
+      "lint_warnings": 1,
+      "lint_findings": [
+        "p2 (0.90,1.50 4.00x1.60): text needs ~1 lines / 1.84in in a 1.6in box (1.15x)"
+      ]
+    },
+    {
+      "style": "editorial",
+      "slides": 5,
+      "check_status": "fail",
+      "check_errors": 5,
+      "check_error_sample": [
+        "Slide 1: missing speaker notes",
+        "Slide 2: missing speaker notes",
+        "Slide 3: missing speaker notes",
+        "Slide 4: missing speaker notes",
+        "Slide 5: missing speaker notes"
+      ],
+      "lint_errors": 0,
+      "lint_warnings": 0,
+      "lint_findings": []
+    },
+    {
+      "style": "defense-cn",
+      "slides": 5,
+      "check_status": "fail",
+      "check_errors": 5,
+      "check_error_sample": [
+        "Slide 1: missing speaker notes",
+        "Slide 2: missing speaker notes",
+        "Slide 3: missing speaker notes",
+        "Slide 4: missing speaker notes",
+        "Slide 5: missing speaker notes"
+      ],
+      "lint_errors": 0,
+      "lint_warnings": 1,
+      "lint_findings": [
+        "p2 (2.90,3.35 9.00x0.80): red run of 9 汉字 「热点感知的任务放置」 — 红色连续不应超过 6 字"
+      ]
+    },
+    {
+      "style": "jp-gothic",
+      "slides": 5,
+      "check_status": "fail",
+      "check_errors": 5,
+      "check_error_sample": [
+        "Slide 1: missing speaker notes",
+        "Slide 2: missing speaker notes",
+        "Slide 3: missing speaker notes",
+        "Slide 4: missing speaker notes",
+        "Slide 5: missing speaker notes"
+      ],
+      "lint_errors": 0,
+      "lint_warnings": 5,
+      "lint_findings": [
+        "p3 (0.90,1.50 11.50x1.90): bullet 29 chars > 28",
+        "p3 (0.90,1.50 11.50x1.90): bullet 29 chars > 28",
+        "p5 (0.90,1.50 11.60x5.20): bullet 44 chars > 28",
+        "p5 (0.90,1.50 11.60x5.20): bullet 53 chars > 28",
+        "p5 (0.90,1.50 11.60x5.20): bullet 51 chars > 28"
+      ]
+    }
+  ]
+}

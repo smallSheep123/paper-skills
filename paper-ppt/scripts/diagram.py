@@ -14,6 +14,11 @@ Usage:
 The HTML should size itself (body { margin:0; width:900px; height:560px }).
 `--selector` clips to one element by resizing the window to that element's box,
 which is handy when one file holds several panels.
+
+By default the screenshot is trimmed to the drawn content plus `--pad` CSS px.
+A fixed window height is almost always taller than the drawing, and the leftover
+band becomes dead space once the PNG is placed in a slide (the diagram ends up
+small and off-centre). Pass `--no-trim` to keep the exact viewport.
 """
 from __future__ import annotations
 
@@ -124,6 +129,36 @@ def render(html: Path, out: Path, width: int, height: int, scale: float, chrome:
             'pixels': [round(width * scale), round(height * scale)], 'browser': chrome}
 
 
+def trim_margins(out: Path, pad_px: int, transparent: bool) -> dict:
+    """Crop uniform background margins so the drawing fills the image.
+
+    A fixed window height leaves the lower part blank whenever the HTML is
+    shorter than the viewport; that band reads as "the diagram is tiny" once
+    the PNG sits in a slide. Returns a small report for the JSON output.
+    """
+    try:
+        from PIL import Image, ImageChops
+    except ImportError:                   # Pillow is optional at runtime
+        return {'applied': False, 'reason': 'Pillow not installed'}
+    im = Image.open(out)
+    im = im.convert('RGBA') if im.mode not in ('RGB', 'RGBA') else im
+    if transparent or im.mode == 'RGBA':
+        bbox = im.getchannel('A').getbbox()
+    else:
+        bbox = ImageChops.difference(im, Image.new('RGB', im.size, im.getpixel((0, 0)))).getbbox()
+    if not bbox:
+        return {'applied': False, 'reason': 'nothing drawn'}
+    x0, y0, x1, y1 = bbox
+    box = (max(0, x0 - pad_px), max(0, y0 - pad_px), min(im.width, x1 + pad_px), min(im.height, y1 + pad_px))
+    if box == (0, 0, im.width, im.height):
+        return {'applied': False, 'reason': 'already tight'}
+    before = im.size
+    im.crop(box).save(out)
+    after = Image.open(out).size
+    return {'applied': True, 'from': list(before), 'to': list(after),
+            'dead_band_pct': round(100 * (1 - after[1] / before[1]))}
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('html', type=Path)
@@ -135,6 +170,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument('--browser')
     ap.add_argument('--timeout', type=int, default=120)
     ap.add_argument('--transparent', action='store_true', help='keep alpha (default: white background)')
+    ap.add_argument('--pad', type=float, default=8, help='padding kept around the drawing, in CSS px (default 8)')
+    ap.add_argument('--no-trim', action='store_true', help='keep the full viewport instead of cropping to the drawing')
     args = ap.parse_args(argv)
     try:
         chrome = browser(args.browser)
@@ -143,6 +180,11 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     report = render(args.html, args.out, args.width, args.height, args.scale, chrome,
                     args.selector, args.timeout, args.transparent)
+    if not args.no_trim:
+        report['trim'] = trim_margins(args.out, round(args.pad * args.scale), args.transparent)
+        size = report['trim'].get('to')
+        if size:
+            report['pixels'] = size
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0
 

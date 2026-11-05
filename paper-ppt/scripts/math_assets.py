@@ -116,8 +116,18 @@ def run(args, cwd):
         raise RuntimeError(f'{Path(args[0]).name} failed:\n{log[-4000:]}')
 
 
+def _fitz():
+    """PyMuPDF ships as `pymupdf` from 1.24 on; older installs only expose `fitz`."""
+    try:
+        import pymupdf
+        return pymupdf
+    except ImportError:
+        import fitz
+        return fitz
+
+
 def prepare(request, out):
-    import pymupdf as fitz  # Identical vector and raster metrics.
+    fitz = _fitz()  # Identical vector and raster metrics.
     specs = json.loads(Path(request).read_text(encoding='utf-8'))
     if not isinstance(specs, list) or not specs:
         raise ValueError('Request must be a nonempty array of math specifications')

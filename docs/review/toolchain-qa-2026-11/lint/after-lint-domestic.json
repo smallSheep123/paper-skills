@@ -1,0 +1,28 @@
+{
+  "preset": "domestic",
+  "deck": "D:\\Project\\ppt-skill\\paper-skills-latest\\paper-ppt\\style-samples\\domestic-sample.pptx",
+  "stats": {
+    "slides": 8,
+    "figures": [
+      2,
+      4
+    ],
+    "accents": [
+      {
+        "page": 4,
+        "red_runs": 2
+      },
+      {
+        "page": 5,
+        "red_runs": 3
+      },
+      {
+        "page": 6,
+        "red_runs": 2
+      }
+    ]
+  },
+  "errors": [],
+  "warnings": [],
+  "ok": true
+}

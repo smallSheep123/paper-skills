@@ -364,7 +364,12 @@ function pageNo(c, t, n) {
 const international = {
   // Title = one sentence (conclusion or question). Optional venue tag at top right.
   title(c, t, s) {
-    c.text(s.title, {x: t.grid.marginX, y: t.grid.titleY, w: t.slide.w - 2 * t.grid.marginX - (s.tag ? 1.9 : 0), h: t.grid.titleH, size: t.size.title, bold: true, color: t.color.text, valign: 'middle'});
+    // "Title = one sentence" means long English titles run to two lines. The
+    // fixed 0.75in box then reported a 1.6x overflow on every such page; grow the
+    // box symmetrically so the text keeps its optical centre.
+    const wraps = String(s.title || '').length > 46;
+    const box = wraps ? {y: t.grid.titleY - 0.245, h: 1.24} : {y: t.grid.titleY, h: t.grid.titleH};
+    c.text(s.title, {x: t.grid.marginX, y: box.y, w: t.slide.w - 2 * t.grid.marginX - (s.tag ? 1.9 : 0), h: box.h, size: t.size.title, bold: true, color: t.color.text, valign: 'middle'});
     if (s.tag) c.text(s.tag, {x: t.slide.w - t.grid.marginX - 1.8, y: t.grid.titleY + 0.05, w: 1.8, h: 0.3, size: t.size.source, color: t.color.muted, align: 'right'});
     if (s.subtitle) c.text(s.subtitle, {x: t.grid.marginX, y: t.grid.titleY + t.grid.titleH, w: 11.5, h: 0.4, size: t.size.subtitle, color: t.color.muted});
   },

@@ -32,6 +32,10 @@ import xml.etree.ElementTree as ET
 NS = {'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
       'p': 'http://schemas.openxmlformats.org/presentationml/2006/main'}
 EMU = 914400.0
+# Code frames are monospaced on purpose: a 50-character line is normal, and
+# counting it as a bullet made every legit code slide fail the style lint.
+MONO_FONT = re.compile(r'(consola|courier|monaco|menlo|mono|code)', re.I)
+
 LEADING_PUNCT = '。，、；：？！）】》」』”’…·,.;:?!)]}'
 TITLE_MAX_ZONE = 1.25          # shapes above this y are titles/headers
 CAPTION_RE = re.compile(r'^\s*(?:图|Figure|Fig\.?|表|Table)\s*(\d+)', re.I)
@@ -114,6 +118,7 @@ def paragraphs(tx, accent: str | None = None) -> list[dict]:
         ppr = para.find('a:pPr', NS)
         size = None
         colours = set()
+        fonts = set()
         text = []
         runs = []          # (text, is_red) in document order — needed to merge split red runs
         segments = ['']
@@ -128,6 +133,9 @@ def paragraphs(tx, accent: str | None = None) -> list[dict]:
             rpr = child.find('a:rPr', NS)
             if rpr is not None and rpr.get('sz'):
                 size = max(size or 0, int(rpr.get('sz')) / 100)
+            latin = rpr.find('a:latin', NS) if rpr is not None else None
+            if latin is not None and latin.get('typeface'):
+                fonts.add(latin.get('typeface'))
             colour = rpr.find('a:solidFill/a:srgbClr', NS) if rpr is not None else None
             if colour is not None:
                 colours.add(colour.get('val', '').upper())
@@ -159,7 +167,7 @@ def paragraphs(tx, accent: str | None = None) -> list[dict]:
             pct = ppr.find('a:lnSpc/a:spcPct', NS)
             if pct is not None and pct.get('val'):
                 spacing = int(pct.get('val')) / 100000
-        out.append({'text': ''.join(text), 'size': size, 'colours': colours,
+        out.append({'text': ''.join(text), 'size': size, 'colours': colours, 'fonts': fonts,
                     'space_before': space_before, 'spacing': spacing, 'segments': segments,
                     'red_runs': red_runs})
     return out
@@ -222,7 +230,14 @@ def audit(path: Path, preset: str, strict: bool = False) -> dict:
 
                 # "≤4 条 / 每条 ≤28 字" only applies to real list frames: several
                 # paragraphs in the body zone, not subtitles or one-line takeaways.
-                is_list = len(paras) >= 3 and y > TITLE_MAX_ZONE
+                mono_frame = sum(1 for p in paras
+                                 if any(MONO_FONT.search(f) for f in p['fonts'])) >= max(1, len(paras) - 1)
+                # Bibliography entries are long by nature: "[2] B. Author et al.
+                # Early exit networks. Venue 2024." is not a 28-character bullet.
+                bib_frame = sum(1 for p in paras
+                                if re.match(r'^\[\d+\]', p['text'].strip())) >= max(2, len(paras) - 1)
+                is_list = (len(paras) >= 3 and y > TITLE_MAX_ZONE
+                           and not mono_frame and not bib_frame)
                 for para in paras:
                     reds = len(para['red_runs'])
                     page_reds += reds

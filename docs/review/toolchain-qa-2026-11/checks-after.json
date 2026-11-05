@@ -1,0 +1,104 @@
+{
+  "label": "after",
+  "samples_dir": "style-samples",
+  "repo_commit": "716b17181e9a273babb3396f3090a60367527408",
+  "python": "C:\\Users\\11866\\.workbuddy\\binaries\\python\\envs\\default\\Scripts\\python.exe",
+  "totals": {
+    "check_pass": 9,
+    "check_errors": 0,
+    "lint_errors": 0,
+    "lint_warnings": 0
+  },
+  "styles": [
+    {
+      "style": "international",
+      "slides": 8,
+      "check_status": "pass",
+      "check_errors": 0,
+      "check_error_sample": [],
+      "lint_errors": 0,
+      "lint_warnings": 0,
+      "lint_findings": []
+    },
+    {
+      "style": "domestic",
+      "slides": 8,
+      "check_status": "pass",
+      "check_errors": 0,
+      "check_error_sample": [],
+      "lint_errors": 0,
+      "lint_warnings": 0,
+      "lint_findings": []
+    },
+    {
+      "style": "keynote-minimal",
+      "slides": 6,
+      "check_status": "pass",
+      "check_errors": 0,
+      "check_error_sample": [],
+      "lint_errors": 0,
+      "lint_warnings": 0,
+      "lint_findings": []
+    },
+    {
+      "style": "systems-talk",
+      "slides": 6,
+      "check_status": "pass",
+      "check_errors": 0,
+      "check_error_sample": [],
+      "lint_errors": 0,
+      "lint_warnings": 0,
+      "lint_findings": []
+    },
+    {
+      "style": "theory-beamer",
+      "slides": 5,
+      "check_status": "pass",
+      "check_errors": 0,
+      "check_error_sample": [],
+      "lint_errors": 0,
+      "lint_warnings": 0,
+      "lint_findings": []
+    },
+    {
+      "style": "dark-tech",
+      "slides": 5,
+      "check_status": "pass",
+      "check_errors": 0,
+      "check_error_sample": [],
+      "lint_errors": 0,
+      "lint_warnings": 0,
+      "lint_findings": []
+    },
+    {
+      "style": "editorial",
+      "slides": 5,
+      "check_status": "pass",
+      "check_errors": 0,
+      "check_error_sample": [],
+      "lint_errors": 0,
+      "lint_warnings": 0,
+      "lint_findings": []
+    },
+    {
+      "style": "defense-cn",
+      "slides": 5,
+      "check_status": "pass",
+      "check_errors": 0,
+      "check_error_sample": [],
+      "lint_errors": 0,
+      "lint_warnings": 0,
+      "lint_findings": []
+    },
+    {
+      "style": "jp-gothic",
+      "slides": 5,
+      "check_status": "pass",
+      "check_errors": 0,
+      "check_error_sample": [],
+      "lint_errors": 0,
+      "lint_warnings": 0,
+      "lint_findings": []
+    }
+  ]
+}

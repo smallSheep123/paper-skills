@@ -473,7 +473,7 @@ module.exports = function makePresets({sourceLine, pageNo}) {
       c.notes(s.notes);
     },
     section(c, t, s) {
-      c.text(s.number || '', {x: 0.9, y: 1.5, w: 4, h: 1.6, size: 96, color: t.color.ghost, heading: true, weight: '200'});
+      c.text(s.number || '', {x: 0.9, y: 1.42, w: 4, h: 1.95, size: 96, color: t.color.ghost, heading: true, weight: '200'});
       c.text(s.title, {x: 0.9, y: 3.2, w: 11.5, h: 1.4, size: t.size.section, color: t.color.text, heading: true, weight: '300'});
       pageNo(c, t, s.page); c.notes(s.notes);
     },

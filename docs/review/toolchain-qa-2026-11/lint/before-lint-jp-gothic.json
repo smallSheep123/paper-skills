@@ -1,0 +1,27 @@
+{
+  "preset": "jp-gothic",
+  "deck": "D:\\Project\\ppt-skill\\paper-skills-latest\\paper-ppt\\style-samples-before\\jp-gothic-sample.pptx",
+  "stats": {
+    "slides": 5,
+    "figures": [],
+    "accents": [
+      {
+        "page": 1,
+        "red_runs": 1
+      },
+      {
+        "page": 3,
+        "red_runs": 2
+      }
+    ]
+  },
+  "errors": [],
+  "warnings": [
+    "p3 (0.90,1.50 11.50x1.90): bullet 29 chars > 28",
+    "p3 (0.90,1.50 11.50x1.90): bullet 29 chars > 28",
+    "p5 (0.90,1.50 11.60x5.20): bullet 44 chars > 28",
+    "p5 (0.90,1.50 11.60x5.20): bullet 53 chars > 28",
+    "p5 (0.90,1.50 11.60x5.20): bullet 51 chars > 28"
+  ],
+  "ok": true
+}

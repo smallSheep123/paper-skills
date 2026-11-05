@@ -12,16 +12,58 @@ const {loadTokens, PptxCanvas, SvgCanvas, drawSlide, writeDeck} = require('./sty
 const FIG = path.join(__dirname, '..', 'styles', '_sample-figures');
 const fig = (n) => path.join(FIG, n);
 
+// One speaking cue per archetype. Samples exist to show the layout, but they
+// also have to be legal decks: check_deck.py fails any slide without notes, so
+// a sample build used to produce nine decks that failed the skill's own gate.
+const NOTE_BY_TYPE = {
+  cover: '开场 30 秒：这篇论文解决什么问题、为什么值得听；不要念标题。',
+  questions: '先抛三个问题，停一秒；说明本次只回答其中第几个。',
+  section: '章节过渡：一句话把主线问题接回来，不展开细节。',
+  buildSteps: '从上一页的流程出发，只指新增的那一步，其余保持不变。',
+  figureNotes: '先指图讲结构，再逐条落到图上的部位；结论句留到最后。',
+  equation: '左边是理想、右边是实际；逐项对应，说明近似发生在哪里。',
+  result: '只讲一个数字：谁的、在什么条件下、相对谁。',
+  closing: '留三个开放问题，最后一个指向我们组能做的方向。',
+  outline: '用 20 秒过一遍四节，点明第三节是重点。',
+  paperGlance: '一页交代背景、难点、做法；图只作锚点，不逐点念。',
+  method: '讲清三步，明确指出哪一步是本文新增的。',
+  summary: '结论按重要性排序；讨论问题留给听众回答。',
+  thanks: '道谢后停住等提问；不要在这里重复结论。',
+  statement: '一句主张配一个数字；限定条件放进注里，不口头补。',
+  focus: '把注意力收在一条流程上，高亮当前阶段。',
+  figure: '指图说结论；实验条件写进图注，不逐条念。',
+  insights: '三条洞见并列：先给判断，再给证据。',
+  code: '只讲高亮的那一行，其余代码是背景。',
+  resultRatio: '倍数类结论要说明分母是什么，否则不可信。',
+  banner: '把前面三条收敛成一句可复述的话。',
+  blocks: '问题与定理分块给；记号第一次出现时必须解释。',
+  symbols: '颜色即记号；同一颜色在后续图里含义不变。',
+  explain: '先看图上的双峰，再解释双峰为什么意味着可分。',
+  hero: '主张先行，图作证据；不要逐点念图注。',
+  chips: '四件事并列，各一句；最后一件是成本约束。',
+  quote: '引用只用来停顿，不展开；说完把话交回主线。',
+  toc: '目录页交代章节与所处位置，高亮的是当前章。',
+  chapter: '章节页只报编号与标题，停半秒再翻页。',
+  figureConclusion: '先讲机制一句，再指图给结果，最后落到「好处」。',
+  contributions: '三项按发表状态排，指明哪项是第一作者工作。',
+  read: '论文速读：结论先行，再补方法与数字。',
+  references: '参考文献只列三条，说明都能查证。',
+};
+
+const sampleNote = (spec) => spec.notes
+  || NOTE_BY_TYPE[spec.type]
+  || `本页演示 ${spec.type} 版式：先给结论，再给证据；内容为占位。`;
+
 const SAMPLES = {
   international: [
     {type: 'cover', title: 'ExampleNet: Routing Tokens Is All You Need?', authors: 'A. Author, B. Author, C. Author · Example University', venue: 'Placeholder Venue 2026', presenter: 'Paper reading · presented by <name>'},
-    {type: 'questions', title: 'Three questions this paper answers', items: ['Why do dense models waste compute on easy tokens?', 'Can a router learn which tokens need depth?', 'Does it still win at equal compute?'], current: 1, page: 2},
-    {type: 'section', title: 'Can a router learn which tokens need depth?', subtitle: 'Q2 · Method', page: 3},
+    {type: 'questions', title: 'Three questions this paper answers', items: ['Why waste compute on easy tokens?', 'Can a router learn token depth?', 'Does it win at equal compute?'], current: 1, page: 2},
+    {type: 'section', title: 'Can a router learn token depth?', subtitle: 'Q2 · Method', page: 3},
     {type: 'buildSteps', title: 'Only routed tokens pay for the [[deep path]]', steps: ['Tokens', 'Encoder', 'Router', 'Deep path', 'Decoder'], active: 3, explain: 'Same pipeline as the previous slide; only the [[deep path]] is new.', page: 4},
-    {type: 'figureNotes', title: 'The router decides depth per token, not per sequence', tag: '[Author+, Venue 2026]', figure: fig('fig-method.png'), points: ['Easy tokens skip the deep path', 'Router is trained jointly, no labels', 'Memory is shared across steps'], takeaway: 'Depth becomes a per-token budget', source: 'Figure: placeholder, not from any paper', page: 5},
+    {type: 'figureNotes', title: 'The router decides depth per token, not per sequence', tag: '[Author+, Venue 2026]', figure: fig('fig-method.png'), points: ['Easy tokens skip depth', 'Router trained, no labels', 'Memory shared across steps'], takeaway: 'Depth becomes a per-token budget', source: 'Figure: placeholder, not from any paper', page: 5},
     {type: 'equation', title: 'What we want vs. what we compute', lines: ['want:   y = f_L( ... f_1(x) )   for every token', 'do:       y = r(x) · f_deep(x) + (1 − r(x)) · f_shallow(x)'], labels: [{from: [6.7, 3.15], to: [6.2, 4.1], text: 'router score r(x)'}, {from: [9.6, 3.15], to: [10.1, 4.1], text: 'cheap path'}], points: ['r(x) is a scalar in [0, 1]; top-k tokens take the deep path'], page: 6},
     {type: 'result', title: 'At equal compute, ExampleNet is [[+4.4 points]] better', tag: '[Table 2]', figure: fig('fig-result.png'), number: '+4.4', numberLabel: 'accuracy at 8 GPU-days vs. best baseline', condition: 'Placeholder numbers. Same data, same schedule, 3 seeds.', source: 'Figure: placeholder data', page: 7},
-    {type: 'closing', title: 'Looking ahead…', points: ['Is per-token depth the right unit, or per-region?', 'Router collapse at scale is not studied', 'What would an end-to-end learned budget look like?'], page: 8},
+    {type: 'closing', title: 'Looking ahead…', points: ['Per-token or per-region?', 'Router collapse at scale?', 'Budget learned end-to-end?'], page: 8},
   ],
   domestic: [
     {type: 'cover', paperTitle: 'ExampleNet: Routing Tokens Is All You Need?', titleZh: '按 token 路由计算深度的高效模型', paperMeta: 'Placeholder Venue 2026 · A. Author 等 · Example University', presenter: '<姓名>', group: '<课题组> 组会', date: '2026 年 10 月'},
@@ -72,7 +114,7 @@ const SAMPLES = {
   ],
   'defense-cn': [
     {type: 'cover', org: 'XX 大学 · XX 学院', kind: '博士学位论文答辩', title: '面向大规模数据中心的热点感知资源放置方法研究', titleEn: 'Hotspot-Aware Resource Placement for Large-Scale Datacenters (placeholder)', info: [['答辩人', '<姓名>'], ['专业', '计算机科学与技术'], ['导师', '<导师> 教授'], ['日期', '2026 年 X 月 X 日']]},
-    {type: 'toc', items: ['研究背景与意义', '热点成因测量分析', '热点感知的任务放置', '热点感知的数据放置', '总结与展望'], current: 2, chapters: ['研究背景', '测量分析', '任务放置', '数据放置', '总结展望'], chapter: 2, page: 2},
+    {type: 'toc', items: ['研究背景与意义', '热点成因测量分析', '热点感知放置', '热点感知的数据放置', '总结与展望'], current: 2, chapters: ['研究背景', '测量分析', '任务放置', '数据放置', '总结展望'], chapter: 2, page: 2},
     {type: 'chapter', number: '第三章', title: '热点感知的任务放置', subtitle: '主动放置 + 被动迁移', chapters: ['研究背景', '测量分析', '任务放置', '数据放置', '总结展望'], chapter: 2},
     {type: 'figureConclusion', title: '3.2 放置打分函数与迁移机制', lead: '在原有打分中加入机架上行利用率惩罚项，并对持续过热的机架触发任务迁移。', figure: fig('fig-method.png'), label: '好处', conclusion: '改动极小、无需改网络，热点机架数量下降 [[约 90%]]（占位数字）。', chapters: ['研究背景', '测量分析', '任务放置', '数据放置', '总结展望'], chapter: 2, page: 18},
     {type: 'contributions', items: [{head: '热点测量', body: '首次给出全网 ToR 热点的分布与持续时间', pub: '[第一作者, XXX 2025]'}, {head: '任务放置', body: '提出带上行惩罚的主动放置与迁移', pub: '[第一作者, XXX 2026]'}, {head: '数据放置', body: '按机架容量放置数据块，降低读延迟', pub: '[共一, XXX 2026]'}], chapters: ['研究背景', '测量分析', '任务放置', '数据放置', '总结展望'], chapter: 4, page: 40},
@@ -80,7 +122,7 @@ const SAMPLES = {
   'jp-gothic': [
     {type: 'cover', title: '言語モデルの[[内部機序]]：解析と解釈', authors: '著者 A，著者 B，著者 C', venue: '2026-03, 研究会（プレースホルダ）'},
     {type: 'section', title: 'ニューロン分析', page: 2},
-    {type: 'read', paper: 'ExampleNet: Routing Tokens Is All You Need? [Author+, Venue\u201926]', title: 'ルーターは[[難しいトークン]]だけを深層へ送る', badge: '13:00', points: [{text: '各トークンにスコアを付け，上位 k 個だけが深い経路を通る', sub: ['ラベル不要で本体と同時に学習']}, {text: '同じ計算量で精度が [[+4.4 pt]] 向上（プレースホルダ）'}], figure: fig('fig-method.png'), conclusion: '結論：深さはトークン単位の予算として扱える', page: 3},
+    {type: 'read', paper: 'ExampleNet: Routing Tokens Is All You Need? [Author+, Venue\u201926]', title: 'ルーターは[[難しいトークン]]だけを深層へ送る', badge: '13:00', points: [{text: '各トークンにスコアを付け，上位 k 個が深い経路を通る', sub: ['ラベル不要で本体と同時に学習']}, {text: '同計算量で精度が [[+4.4 pt]] 向上（仮値）'}], figure: fig('fig-method.png'), conclusion: '結論：深さはトークン単位の予算として扱える', page: 3},
     {type: 'read', paper: 'Appendix', title: '補足：ルーターの崩壊を防ぐ正則化', optional: '参考', points: [{text: '負荷分散損失で一部の経路への集中を防ぐ'}], figure: fig('fig-result.png'), page: 4},
     {type: 'references', items: ['[1] A. Author et al. ExampleNet. Venue 2026.', '[2] B. Author et al. Early exit networks. Venue 2024.', '[3] C. Author et al. Mixture of depths. Venue 2025.'], page: 5},
   ],
@@ -96,7 +138,8 @@ async function main() {
     deck.title = `${t.label} sample`;
     const svgDir = path.join(outDir, name);
     fs.mkdirSync(svgDir, {recursive: true});
-    slides.forEach((spec, i) => {
+    slides.forEach((rawSpec, i) => {
+      const spec = {...rawSpec, notes: sampleNote(rawSpec)};
       drawSlide(new PptxCanvas(deck.addSlide(), t), t, spec);
       const svg = new SvgCanvas(t);
       drawSlide(svg, t, spec);

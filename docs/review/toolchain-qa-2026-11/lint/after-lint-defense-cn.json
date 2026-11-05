@@ -1,0 +1,21 @@
+{
+  "preset": "defense-cn",
+  "deck": "D:\\Project\\ppt-skill\\paper-skills-latest\\paper-ppt\\style-samples\\defense-cn-sample.pptx",
+  "stats": {
+    "slides": 5,
+    "figures": [],
+    "accents": [
+      {
+        "page": 2,
+        "red_runs": 1
+      },
+      {
+        "page": 4,
+        "red_runs": 1
+      }
+    ]
+  },
+  "errors": [],
+  "warnings": [],
+  "ok": true
+}

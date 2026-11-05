@@ -1,0 +1,36 @@
+{
+  "preset": "international",
+  "deck": "D:\\Project\\ppt-skill\\paper-skills-latest\\paper-ppt\\style-samples-before\\international-sample.pptx",
+  "stats": {
+    "slides": 8,
+    "figures": [],
+    "accents": [
+      {
+        "page": 2,
+        "red_runs": 1
+      },
+      {
+        "page": 4,
+        "red_runs": 2
+      },
+      {
+        "page": 7,
+        "red_runs": 2
+      }
+    ]
+  },
+  "errors": [
+    "p5 (0.60,0.38 10.23x0.75): text needs ~2 lines / 1.227in in a 0.75in box (1.64x)",
+    "p7 (0.60,0.38 10.23x0.75): text needs ~2 lines / 1.227in in a 0.75in box (1.64x)"
+  ],
+  "warnings": [
+    "p3 (1.00,2.60 11.30x1.60): text needs ~2 lines / 1.687in in a 1.6in box (1.05x)",
+    "p5 (8.85,1.65 3.88x4.20): bullet 30 chars > 26",
+    "p5 (8.85,1.65 3.88x4.20): bullet 36 chars > 26",
+    "p5 (8.85,1.65 3.88x4.20): bullet 29 chars > 26",
+    "p8 (1.00,1.75 11.30x4.60): bullet 49 chars > 26",
+    "p8 (1.00,1.75 11.30x4.60): bullet 39 chars > 26",
+    "p8 (1.00,1.75 11.30x4.60): bullet 50 chars > 26"
+  ],
+  "ok": false
+}

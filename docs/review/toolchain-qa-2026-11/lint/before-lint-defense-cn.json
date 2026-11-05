@@ -1,0 +1,23 @@
+{
+  "preset": "defense-cn",
+  "deck": "D:\\Project\\ppt-skill\\paper-skills-latest\\paper-ppt\\style-samples-before\\defense-cn-sample.pptx",
+  "stats": {
+    "slides": 5,
+    "figures": [],
+    "accents": [
+      {
+        "page": 2,
+        "red_runs": 1
+      },
+      {
+        "page": 4,
+        "red_runs": 1
+      }
+    ]
+  },
+  "errors": [],
+  "warnings": [
+    "p2 (2.90,3.35 9.00x0.80): red run of 9 汉字 「热点感知的任务放置」 — 红色连续不应超过 6 字"
+  ],
+  "ok": true
+}

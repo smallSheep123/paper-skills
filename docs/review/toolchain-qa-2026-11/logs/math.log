@@ -1,0 +1,10 @@
+$ node assets/build-math-samples.js math-samples   # python on PATH has no pymupdf
+Math pipeline needs a Python with pymupdf; python: it has no pymupdf (ModuleNotFoundError: No module named 'pymupdf')
+Point PAPER_PPT_PYTHON at the interpreter used for this repo, e.g.
+  PAPER_PPT_PYTHON=.venv/Scripts/python.exe node assets/build-math-samples.js math-samples
+
+$ PAPER_PPT_PYTHON=<venv>/python.exe node assets/build-math-samples.js math-samples
+{"fraction": "svg", "scripts": "svg", "matrix": "svg", "cases": "svg", "aligned": "svg", "brace": "svg"}
+Traceback (most recent call last):
+  File "D:\Project\ppt-skill\paper-skills-latest\paper-ppt\scripts\math_assets.py", line 353, in <module>
+    main()

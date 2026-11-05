@@ -1,0 +1,21 @@
+{
+  "preset": "jp-gothic",
+  "deck": "D:\\Project\\ppt-skill\\paper-skills-latest\\paper-ppt\\style-samples\\jp-gothic-sample.pptx",
+  "stats": {
+    "slides": 5,
+    "figures": [],
+    "accents": [
+      {
+        "page": 1,
+        "red_runs": 1
+      },
+      {
+        "page": 3,
+        "red_runs": 2
+      }
+    ]
+  },
+  "errors": [],
+  "warnings": [],
+  "ok": true
+}
