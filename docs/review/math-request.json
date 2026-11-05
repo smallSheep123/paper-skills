@@ -1,0 +1,9 @@
+[
+  {
+    "id": "cost",
+    "latex": "C_{\\text{total}} = U_{\\text{HE}} \\cdot T_{\\text{HE}} + U_{\\text{CDN}} \\cdot T_{\\text{CDN}} + C_{\\text{H}\\leftarrow\\text{C}}",
+    "fontSize": 26,
+    "color": "1F4E79",
+    "mode": "auto"
+  }
+]
