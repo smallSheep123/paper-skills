@@ -183,6 +183,9 @@ class PptxCanvas {
       align: o.align || 'left', valign: o.valign || 'top',
       margin: 0, lineSpacingMultiple: o.lineSpacing || 1.15,
       fit: 'none', autoFit: false,
+      // `nav:` names are how a deck tells lint that a shape is navigation, not body
+      // copy (see declared_nav in scripts/lint_style.py). Visible in the selection pane.
+      objectName: o.name,
     });
   }
   table(rows, o) {

@@ -685,7 +685,7 @@ module.exports = function makePresets({sourceLine, pageNo}) {
       s.items.forEach((it, i) => {
         const on = i === s.current; const y = 1.55 + i * 0.9;
         c.ellipse({x: 2.1, y: y + 0.17, w: 0.45, h: 0.45, fill: on ? t.color.accent : (s.current != null && i < s.current ? t.color.faint : t.color.primary)});
-        c.text(it, {x: 2.9, y, w: 9, h: 0.8, size: 22, bold: on, color: on ? t.color.accent : (s.current != null && i !== s.current ? t.color.faint : t.color.text), valign: 'middle'});
+        c.text(it, {x: 2.9, y, w: 9, h: 0.8, size: 22, bold: on, color: on ? t.color.accent : (s.current != null && i !== s.current ? t.color.faint : t.color.text), valign: 'middle', name: 'nav:toc-item'});
       });
     },
     chapter(c, t, s) {

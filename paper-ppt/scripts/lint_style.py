@@ -86,22 +86,20 @@ def text_width_em(text: str) -> float:
 
 
 CJK_CHAR = re.compile(r'[\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]')
-LATIN_WORD = re.compile(r"[A-Za-z0-9][A-Za-z0-9'’.,:/+-]*")
+# Shape names in the deck that mark navigation (a table of contents, a chapter rail).
+# PowerPoint shows them in the selection pane, so the intent is inspectable.
+NAV_NAME = 'nav:'
 
 
 def is_latin_paragraph(text: str) -> bool:
     """True when the paragraph reads as English rather than Chinese/Japanese.
 
-    Counting characters punishes English: "Easy tokens skip the deep path" is a
-    perfectly short bullet at 32 characters. English is measured in words.
+    The two languages need different budgets: Chinese is counted in characters
+    (no word boundaries), English in rendered lines (see paragraph_lines).
     """
     cjk = len(CJK_CHAR.findall(text))
     latin = len(re.findall(r'[A-Za-z]', text))
     return latin > 0 and cjk * 4 < latin
-
-
-def word_count(text: str) -> int:
-    return len(LATIN_WORD.findall(text))
 
 
 def shape_box(sp) -> tuple[float, float, float, float] | None:
@@ -214,38 +212,34 @@ def estimate(tx, w: float, h: float, default_size: float) -> dict:
             'overflow': height / avail_h if avail_h else 99.0}
 
 
-def navigation_rails(root) -> set[int]:
-    """Ids of shapes that form a navigation rail, such as a table of contents.
+def paragraph_lines(para: dict, avail_w: float, default_size: float,
+                    scale: float = 1.0) -> int:
+    """Lines one paragraph takes at the given width, same model as estimate()."""
+    size = (para['size'] or default_size) * scale
+    per_line = max(avail_w * 72 / max(size, 1), 1.0)
+    return sum(max(1, math.ceil(text_width_em(segment) / per_line))
+               for segment in para['segments'])
 
-    Presets draw a TOC as one text shape per chapter, stacked in a single column,
-    and mark the current chapter with the accent colour. That is a state mark, not
-    keyword emphasis, so those shapes are exempt from the 6-character red-run rule;
-    a red label standing on its own still is not.
+
+def declared_nav(root) -> set[int]:
+    """Ids of shapes the deck declares as navigation, such as a table of contents.
+
+    A TOC marks the current chapter with the accent colour, and a chapter name is
+    often longer than the 6-character keyword budget — 「热点感知的任务放置」 is nine.
+    That is a state mark, not emphasis, so those labels are exempt from the rule.
+
+    Deciding it from geometry ("a column of evenly spaced short labels") made the
+    verdict depend on spacing and could excuse a genuine red emphasis on a column
+    of KPI cards. The deck states the intent instead: name the shape `nav:<what>`
+    (visible in PowerPoint's selection pane) and a fully accent-coloured label
+    inside it reads as state.
     """
-    columns: dict[float, list[tuple[int, float]]] = {}
+    found: set[int] = set()
     for sp in root.iter(f"{{{NS['p']}}}sp"):
-        tx, box = sp.find('p:txBody', NS), shape_box(sp)
-        if tx is None or box is None:
-            continue
-        paras = paragraphs(tx)
-        if len(paras) != 1:
-            continue
-        text = paras[0]['text'].strip()
-        if not text or len(text) > 20 or box[1] <= TITLE_MAX_ZONE:
-            continue
-        columns.setdefault(round(box[0], 1), []).append((id(sp), box[1]))
-
-    rails: set[int] = set()
-    for group in columns.values():
-        if len(group) < 3:
-            continue
-        group.sort(key=lambda item: item[1])
-        gaps = [b[1] - a[1] for a, b in zip(group, group[1:])]
-        median = sorted(gaps)[len(gaps) // 2]
-        if median <= 0.3 or not all(0.5 * median <= g <= 1.8 * median for g in gaps):
-            continue                      # not an evenly spaced column: ignore
-        rails.update(item[0] for item in group)
-    return rails
+        nv = sp.find('p:nvSpPr/p:cNvPr', NS)
+        if nv is not None and (nv.get('name') or '').startswith(NAV_NAME):
+            found.add(id(sp))
+    return found
 
 
 def audit(path: Path, preset: str, strict: bool = False) -> dict:
@@ -264,7 +258,7 @@ def audit(path: Path, preset: str, strict: bool = False) -> dict:
         for index, name in enumerate(names, 1):
             root = ET.fromstring(z.read(name))
             page_reds = 0
-            rails = navigation_rails(root)
+            nav = declared_nav(root)
             for sp in root.iter(f"{{{NS['p']}}}sp"):
                 box = shape_box(sp)
                 tx = sp.find('p:txBody', NS)
@@ -295,8 +289,11 @@ def audit(path: Path, preset: str, strict: bool = False) -> dict:
 
                 # A TOC current chapter is highlighted with the accent colour, which is
                 # state, not emphasis — so the 6-character rule is exempt inside a
-                # navigation rail (see navigation_rails).
-                in_rail = id(sp) in rails
+                # shape the deck declares as navigation (see declared_nav).
+                in_rail = id(sp) in nav
+                left, _, right, _ = body_insets(tx)
+                avail_w = max(w - left - right, 0.2)
+                scale = autofit_scale(tx)[0]
                 for para in paras:
                     reds = len(para['red_runs'])
                     page_reds += reds
@@ -322,14 +319,16 @@ def audit(path: Path, preset: str, strict: bool = False) -> dict:
                         if cjk > 6 and not whole_accent:
                             add('red_length', f'{label}: red run of {cjk} 汉字 '
                                             f'「{run_text.strip()[:12]}」 — 红色连续不应超过 6 字')
-                    size = (para['size'] or tokens['size']['body']) * autofit_scale(tx)[0]
+                    size = (para['size'] or tokens['size']['body']) * scale
                     if is_list and is_latin_paragraph(text):
-                        # English is measured in words: 26 characters is a clause,
-                        # not a bullet, so counting characters punished every deck.
-                        words = word_count(text)
-                        en_limit = limits.get('wordsPerBulletEn', 8)
-                        if words > en_limit:
-                            add('chars', f'{label}: bullet {words} words > {en_limit} — 「{text[:28]}」')
+                        # English is measured in lines, not characters or words: the
+                        # same 9-word sentence is one line in a 11in frame and three
+                        # in a 5.6in column, so the width has to be in the rule.
+                        lines = paragraph_lines(para, avail_w, tokens['size']['body'], scale)
+                        en_limit = limits.get('linesPerBulletEn', 2)
+                        if lines > en_limit:
+                            add('chars', f'{label}: bullet {lines} lines > {en_limit} '
+                                         f'in {avail_w:.2f}in — 「{text[:28]}」')
                     elif is_list and len(text) > limits.get('charsPerBulletZh', 28):
                         add('chars', f'{label}: bullet {len(text)} chars > {limits.get("charsPerBulletZh", 28)}')
                     # Only caption-shaped text counts: a body sentence that mentions

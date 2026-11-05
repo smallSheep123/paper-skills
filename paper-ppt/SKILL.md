@@ -368,6 +368,10 @@ python scripts/bridge.py render deck.$R.pptx --out renders/$R
 python scripts/check_review.py renders/$R/render.json review-log.json
 ```
 
+`lint_style.py` 有两条例外要知道：等宽字体的代码框、`[N]` 开头的参考文献框都不算要点列表；目录页把当前章
+标成强调色时，那几个文本框要命名成 `nav:<名字>`（PptxGenJS 的 `objectName`，PowerPoint 选择窗格里可见），
+lint 才把它当状态色而不是「红色连续 ≤ 6 字」。没命名的目录就是正文，九字章名照样报错。
+
 不需要的步骤跳过，但顺序不变。交付时把最后一轮的 `deck.rNN.pptx` 复制为 `deck.pptx`。审阅记录引用的参考图（例如风格样例图）要先复制到工作目录再引用，不要直接引用仓库里会被重新生成的文件。
 
 `check_review.py` 要求五个阶段（source / design / pilot / slides / deck）都有通过记录，并且每条记录的 `inputs` 都带当前 sha256：

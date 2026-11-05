@@ -56,8 +56,8 @@ p3 为 0.172（章节页标题恢复成原句后，框按测量从 1.60 长到 1
 | 1 | 9 套样稿全部过不了自己的 `check_deck`（53 页缺演讲备注） | `build-style-samples.js` 新增 `NOTE_BY_TYPE`（32 类版式各一句口头提示）+ 每页 `notes()`；`spec.notes` 优先 |
 | 2 | lint 把代码页当要点列表（systems-talk p4，4 条） | 段落收集 `a:latin@typeface`，等宽字体框不算 list |
 | 3 | lint 把参考文献当要点列表（jp-gothic p5，3 条） | 过半段落以 `[N]` 开头时不算 list |
-| 4 | lint 对英文按**字符数**计数，正常英文要点全超限 | 英文改为**按词数**：`wordsPerBulletEn` 默认 8 词；中文仍按字数（`charsPerBulletZh`） |
-| 5 | 目录页「当前章」被当成红色强调（defense-cn p2） | 新增 `navigation_rails()`：同列 ≥3 个短标签、等距排列视为导航栏，栏内整段强调色＝状态色，豁免红色连续规则 |
+| 4 | lint 对英文按**字符数**计数，正常英文要点全超限 | 英文改为**按行数**：`paragraph_lines()` 用与溢出估算同一个模型，在**实际框宽**上量行数，`limits.linesPerBulletEn` 默认 2；中文仍按字数（`charsPerBulletZh`） |
+| 5 | 目录页「当前章」被当成红色强调（defense-cn p2） | 改为**声明式**：形状名以 `nav:` 开头（PptxGenJS `objectName`，PowerPoint 选择窗格里可见）即为导航，栏内整段强调色＝状态色，豁免红色连续规则。几何猜法已删 |
 | 6 | international 标题框装不下两行长标题（p5/p7 两条 hard error） | 用 `layout-kit.textLines()` 按**实际可用宽度**（含 tag 占的 1.9in）算行数，框对称扩到需要的高度；subtitle 挂到**框底**而不是 `titleY+titleH` |
 | 7 | international 章节页标题 2 行溢出 1.05x | 同一套测量方式（1.6 → 1.81in），subtitle 取 `max(4.25, 框底+0.05)` |
 | 8 | `diagram.py` 默认输出 61% 空白；RGBA 全不透明时不裁 | 默认裁到内容 + `--pad`（8 CSS px），`--no-trim` 保留旧行为，JSON 加 `trim.dead_band_pct`；alpha 全 255 时改按颜色差裁剪；顺手关掉文件句柄（Windows 会锁文件） |
@@ -76,7 +76,7 @@ p3 为 0.172（章节页标题恢复成原句后，框按测量从 1.60 长到 1
 **4.1「改文案绕过规则，反而改坏了内容」** — 已全部回退。
 
 - defense-cn 目录第 3 项恢复成「热点感知的任务放置」（不再为躲 6 字上限缩成「热点感知放置」），
-  改由第 5 条的**导航栏豁免**处理；
+  改由第 5 条的 **`nav:` 声明**处理；
 - international 6 条英文要点、章节页标题全部恢复原句（`Easy tokens skip the deep path`、
   `Is per-token depth the right unit, or per-region?`、`Can a router learn which tokens need depth?` 等）；
 - 只保留两处确实超长的内容收敛：jp-gothic 2 条日文（29 字，超过 28 字预算）、systems-talk 的中文要点。
@@ -108,34 +108,38 @@ p3 为 0.172（章节页标题恢复成原句后，框按测量从 1.60 长到 1
 
 ### 判断题（3 个）
 
-1. **「都不对，要分语言」→ 已按此实现**：英文按词数（默认 8 词，可用 `limits.wordsPerBulletEn` 覆盖），
+1. **「都不对，要分语言」→ 已按此实现，英文再进一步改成按行**：英文量行数（默认 ≤2 行，跟随实际框宽），
    中文仍按字数（`charsPerBulletZh`，各预设 26/28）；英文文案已全部改回原句。
-   实测：8 词的句子放行，9 词的要点报警（`test_english_bullet_is_measured_in_words`）。
 2. **「CI 里那 2 个测试从来没跑过」→ 已修**：`tests.yml` 加装 `latex2mathml mathml2omml`。
-   本机装上后：87 个用例 0 跳过，公式管线 `native 2 / svg 4`（此前 `native 0 / svg 6` 全回退）。
+   本机装上后：88 个用例 0 跳过，公式管线 `native 2 / svg 4`（此前 `native 0 / svg 6` 全回退）。
    这条路径本身逻辑没动，是**依赖缺失**导致从来没被验证。
 3. **「默认裁图算破坏性变更，但可以接受」→ 已在文档写明**：`paper-ppt/SKILL.md` 的 diagram 用法新增一条
    「默认会裁图 + `--no-trim` 保留原尺寸 + `trim.dead_band_pct`」，同时修掉 RGBA 问题。
 
-## 5. 我拿不准、希望你判的
+## 5. 两条判断题的落地（评审选定方案）
 
-1. **导航栏豁免的边界**：现在判据是「同 x（±0.05)列、≥3 个 ≤20 字的单段文本框、纵向间距在 0.5–1.8 倍中位数之间」，
-   栏内整段强调色视为状态。够窄，但如果有版式把「三个短标签 + 一个红色结论」排成一列，也会被放过。
-   要不要再把「栏内必须只有一个强调色元素」作为额外条件？
-2. **英文 8 词是否合适**：`Why do dense models waste compute on easy tokens?` 是 9 词，被我算作超限。
-   这是「一句正常英文要点」还是「该拆句」，我没有把握；阈值留在 tokens 里，改一个数就行。
-3. **`navigation_rails` 放在 lint 里是否越界**：它让 lint 需要看「页面上下文」而不只是单个文本框。
-   如果你认为 lint 应该保持「逐形状判定」，这条应该换成在 tokens 里声明「本页有目录栏」。
+1. **导航栏改成声明式，几何猜法删掉。** 原来的判据是「同一列 ≥3 个 ≤20 字短标签、纵向间距 0.5–1.8 倍中位数」，
+   依赖页面上下文，间距一调判定就翻转，而且竖排 3 张 KPI 卡里一条真正的 9 字红色强调会被误豁免。
+   现在只有一条判据：形状名以 `nav:` 开头。`presets` 里的 defense-cn 目录项命名为 `nav:toc-item`，
+   在 PowerPoint 的选择窗格里直接看得见；没命名的一列短标签就是正文，9 个红字照报
+   （`test_same_column_without_the_name_is_not_exempt`）。
+   代价是**自己手写目录页时容易忘**，所以 SKILL.md 里加了一句说明。
+2. **英文上限改成按行数。** 词数表达不了版式：同一条 9 词句子在 5.6in 要点栏是 2 行、在 11in 通栏是 1 行，
+   而 8 词对它一视同仁。现在用 `paragraph_lines(para, avail_w, body_size, autofit_scale)` 在**真实可用宽度**
+   （框宽减内边距）上算行数，超过 `limits.linesPerBulletEn`（默认 2）才报；
+   阈值仍可在 tokens 里覆盖，但这次它对应的是「一条要点最多两行」这个能看见的事实。
+3. **原先第 3 问（`navigation_rails` 是否越界）随第 1 条消解**：lint 回到逐形状判定，上下文不再参与。
 
-## 6. 新增测试（15 个）
+## 6. 新增测试（16 个）
 
 | 用例 | 断言 |
 |---|---|
-| `test_code_frame_is_not_a_bullet_list` | 4 行 45 字符等宽代码框不出 `chars`/`words` 警告 |
+| `test_code_frame_is_not_a_bullet_list` | 4 行 45 字符等宽代码框不出 `chars`/`lines` 警告 |
 | `test_bibliography_is_not_a_bullet_list` | 3 条 `[N]` 文献不出警告 |
-| `test_english_bullet_is_measured_in_words` | 8 词放行、9 词报警 |
+| `test_english_bullet_is_measured_in_lines` | 同一句：11in 框放行、3.2in 框报警；短句在窄框也放行 |
 | `test_chinese_bullet_still_measured_in_characters` | 中文仍按字数报警 |
-| `test_toc_current_chapter_is_a_state_mark` | 4 个等距标签 + 1 个强调色，不报红色连续 |
+| `test_declared_nav_label_is_a_state_mark` | 4 个 `nav:` 标签 + 1 个强调色，不报红色连续 |
+| `test_same_column_without_the_name_is_not_exempt` | 同样排布但**没命名** → 仍然报警（几何不再决定） |
 | `test_red_label_outside_a_rail_is_still_flagged` | 孤立红色标签仍然报警 |
 | `test_accent_phrase_inside_a_sentence_is_still_flagged` | 句中的强调短语仍然报警 |
 | `test_opaque_rgba_is_trimmed` | RGBA 但全不透明时按颜色裁剪（原来报 already tight） |

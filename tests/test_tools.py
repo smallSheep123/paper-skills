@@ -632,7 +632,8 @@ class StyleLintTests(unittest.TestCase):
     """Heuristics, not pixel truth: assert the rules fire, not the exact line count."""
 
     @staticmethod
-    def shape(runs, x=0.6, y=1.6, w=4.0, h=0.5, size=18, colour='262626', spacing=None, font=None):
+    def shape(runs, x=0.6, y=1.6, w=4.0, h=0.5, size=18, colour='262626', spacing=None, font=None,
+              name=None):
         if isinstance(runs, str):
             runs = [(runs, colour)]
         latin = f'<a:latin typeface="{font}"/>' if font else ''
@@ -642,9 +643,11 @@ class StyleLintTests(unittest.TestCase):
             for chunk, c in runs
         )
         ppr = f'<a:pPr><a:lnSpc><a:spcPct val="{int(spacing * 100000)}"/></a:lnSpc></a:pPr>' if spacing else ''
-        return ('<p:sp><p:spPr><a:xfrm><a:off x="%d" y="%d"/><a:ext cx="%d" cy="%d"/></a:xfrm></p:spPr>'
+        nv = (f'<p:nvSpPr><p:cNvPr id="2" name="{name}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>'
+              if name else '')
+        return ('<p:sp>%s<p:spPr><a:xfrm><a:off x="%d" y="%d"/><a:ext cx="%d" cy="%d"/></a:xfrm></p:spPr>'
                 '<p:txBody><a:bodyPr wrap="square"/><a:p>%s%s</a:p></p:txBody></p:sp>'
-                % (x * 914400, y * 914400, w * 914400, h * 914400, ppr, body))
+                % (nv, x * 914400, y * 914400, w * 914400, h * 914400, ppr, body))
 
     def deck(self, *shapes, per_slide=None):
         slides = per_slide or [shapes]
@@ -777,25 +780,30 @@ class StyleLintTests(unittest.TestCase):
         code = [self.paragraph('for (const t of tokens) r = router(t);   // 45 chars', font='Consolas')
                 for _ in range(4)]
         report = lint_style.audit(self.deck(self.frame(*code)), 'systems-talk')
-        self.assertFalse(any('words >' in w or 'chars >' in w for w in report['warnings']),
+        self.assertFalse(any('lines >' in w or 'chars >' in w for w in report['warnings']),
                          self.findings(report))
 
     def test_bibliography_is_not_a_bullet_list(self):
         bib = [self.paragraph('[%d] B. Author et al. Early exit networks for cheap inference. Venue 2024.' % i)
                for i in (1, 2, 3)]
         report = lint_style.audit(self.deck(self.frame(*bib)), 'jp-gothic')
-        self.assertFalse(any('chars >' in w or 'words >' in w for w in report['warnings']),
+        self.assertFalse(any('chars >' in w or 'lines >' in w for w in report['warnings']),
                          self.findings(report))
 
-    def test_english_bullet_is_measured_in_words(self):
-        # 45 characters but 8 words: a normal English bullet, not a violation.
-        ok = [self.paragraph('Easy tokens skip the deep path entirely.', font='Arial') for _ in range(3)]
-        self.assertFalse(any('words >' in w for w in
-                             lint_style.audit(self.deck(self.frame(*ok)), 'international')['warnings']))
-        long = [self.paragraph('Easy tokens skip the deep path in almost every single case.',
-                               font='Arial') for _ in range(3)]
-        report = lint_style.audit(self.deck(self.frame(*long)), 'international')
-        self.assertTrue(any('words >' in w for w in report['warnings']), self.findings(report))
+    def test_english_bullet_is_measured_in_lines(self):
+        # Width is the thing that matters: the same sentence is one line in a wide
+        # frame and three in a narrow one, so a word count cannot express the rule.
+        sentence = 'Easy tokens skip the deep path in almost every single case.'
+        wide = [self.paragraph(sentence, font='Arial') for _ in range(3)]
+        self.assertFalse(any('lines >' in w for w in lint_style.audit(
+            self.deck(self.frame(*wide, w=11.0)), 'international')['warnings']))
+        narrow = [self.paragraph(sentence, font='Arial') for _ in range(3)]
+        report = lint_style.audit(self.deck(self.frame(*narrow, w=3.2)), 'international')
+        self.assertTrue(any('lines >' in w for w in report['warnings']), self.findings(report))
+        # A short bullet stays legal even in the narrow column.
+        short = [self.paragraph('Easy tokens skip depth', font='Arial') for _ in range(3)]
+        self.assertFalse(any('lines >' in w for w in lint_style.audit(
+            self.deck(self.frame(*short, w=3.2)), 'international')['warnings']))
 
     def test_chinese_bullet_still_measured_in_characters(self):
         long = [self.paragraph('这是一条明显超过二十八个字上限的要点，用来触发字数警告的示例。')
@@ -803,16 +811,27 @@ class StyleLintTests(unittest.TestCase):
         report = lint_style.audit(self.deck(self.frame(*long)), 'domestic')
         self.assertTrue(any('chars >' in w for w in report['warnings']), self.findings(report))
 
-    def test_toc_current_chapter_is_a_state_mark(self):
-        # A TOC draws one shape per chapter in a column and highlights the current
-        # one with the accent: 9 CJK in accent is state, so the rule must not fire.
+    def test_declared_nav_label_is_a_state_mark(self):
+        # A TOC highlights the current chapter with the accent: 9 CJK of accent is
+        # state, not emphasis. The deck says so by naming the shape `nav:...`.
+        accent = lint_style.load_tokens('defense-cn')['color']['accent']
+        items = ['研究背景与意义', '热点感知的任务放置', '热点感知的数据放置', '总结与展望']
+        shapes = [self.shape(text, x=2.9, y=1.55 + i * 0.9, w=9.0, h=0.8, size=22,
+                             colour=accent if i == 1 else '6B6B6B', name='nav:toc-item')
+                  for i, text in enumerate(items)]
+        report = lint_style.audit(self.deck(*shapes), 'defense-cn')
+        self.assertFalse(any('红色连续' in w for w in report['warnings']), self.findings(report))
+
+    def test_same_column_without_the_name_is_not_exempt(self):
+        # Geometry no longer decides: an evenly spaced column of short labels that
+        # was never declared as navigation is body copy, and 9 red CJK is emphasis.
         accent = lint_style.load_tokens('defense-cn')['color']['accent']
         items = ['研究背景与意义', '热点感知的任务放置', '热点感知的数据放置', '总结与展望']
         shapes = [self.shape(text, x=2.9, y=1.55 + i * 0.9, w=9.0, h=0.8, size=22,
                              colour=accent if i == 1 else '6B6B6B')
                   for i, text in enumerate(items)]
         report = lint_style.audit(self.deck(*shapes), 'defense-cn')
-        self.assertFalse(any('红色连续' in w for w in report['warnings']), self.findings(report))
+        self.assertTrue(any('红色连续' in w for w in report['warnings']), self.findings(report))
 
     def test_red_label_outside_a_rail_is_still_flagged(self):
         accent = lint_style.load_tokens('defense-cn')['color']['accent']
