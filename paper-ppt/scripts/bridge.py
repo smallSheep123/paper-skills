@@ -137,7 +137,10 @@ def pdf_to_png(pdf: Path, output: Path, dpi: int, pdftoppm: str | None, timeout:
         pages = sorted(output.glob('slide-*.png'), key=lambda p: int(p.stem.rsplit('-', 1)[1]))
         return pages, 'pdftoppm'
     try:
-        import fitz  # noqa: PLC0415 - optional dependency, probed on demand
+        try:
+            import pymupdf as fitz  # noqa: PLC0415 - optional dependency, probed on demand
+        except ImportError:
+            import fitz  # PyMuPDF <= 1.23
     except ImportError as exc:
         raise RuntimeError('Neither pdftoppm nor PyMuPDF is available; install Poppler or `pip install pymupdf`') from exc
     failure = None

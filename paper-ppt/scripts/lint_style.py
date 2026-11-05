@@ -85,6 +85,25 @@ def text_width_em(text: str) -> float:
     return width
 
 
+CJK_CHAR = re.compile(r'[\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]')
+LATIN_WORD = re.compile(r"[A-Za-z0-9][A-Za-z0-9'’.,:/+-]*")
+
+
+def is_latin_paragraph(text: str) -> bool:
+    """True when the paragraph reads as English rather than Chinese/Japanese.
+
+    Counting characters punishes English: "Easy tokens skip the deep path" is a
+    perfectly short bullet at 32 characters. English is measured in words.
+    """
+    cjk = len(CJK_CHAR.findall(text))
+    latin = len(re.findall(r'[A-Za-z]', text))
+    return latin > 0 and cjk * 4 < latin
+
+
+def word_count(text: str) -> int:
+    return len(LATIN_WORD.findall(text))
+
+
 def shape_box(sp) -> tuple[float, float, float, float] | None:
     xfrm = sp.find('.//a:xfrm', NS)
     if xfrm is None:
@@ -195,6 +214,40 @@ def estimate(tx, w: float, h: float, default_size: float) -> dict:
             'overflow': height / avail_h if avail_h else 99.0}
 
 
+def navigation_rails(root) -> set[int]:
+    """Ids of shapes that form a navigation rail, such as a table of contents.
+
+    Presets draw a TOC as one text shape per chapter, stacked in a single column,
+    and mark the current chapter with the accent colour. That is a state mark, not
+    keyword emphasis, so those shapes are exempt from the 6-character red-run rule;
+    a red label standing on its own still is not.
+    """
+    columns: dict[float, list[tuple[int, float]]] = {}
+    for sp in root.iter(f"{{{NS['p']}}}sp"):
+        tx, box = sp.find('p:txBody', NS), shape_box(sp)
+        if tx is None or box is None:
+            continue
+        paras = paragraphs(tx)
+        if len(paras) != 1:
+            continue
+        text = paras[0]['text'].strip()
+        if not text or len(text) > 20 or box[1] <= TITLE_MAX_ZONE:
+            continue
+        columns.setdefault(round(box[0], 1), []).append((id(sp), box[1]))
+
+    rails: set[int] = set()
+    for group in columns.values():
+        if len(group) < 3:
+            continue
+        group.sort(key=lambda item: item[1])
+        gaps = [b[1] - a[1] for a, b in zip(group, group[1:])]
+        median = sorted(gaps)[len(gaps) // 2]
+        if median <= 0.3 or not all(0.5 * median <= g <= 1.8 * median for g in gaps):
+            continue                      # not an evenly spaced column: ignore
+        rails.update(item[0] for item in group)
+    return rails
+
+
 def audit(path: Path, preset: str, strict: bool = False) -> dict:
     tokens = load_tokens(preset)
     accent = tokens['color']['accent'].upper()
@@ -211,6 +264,7 @@ def audit(path: Path, preset: str, strict: bool = False) -> dict:
         for index, name in enumerate(names, 1):
             root = ET.fromstring(z.read(name))
             page_reds = 0
+            rails = navigation_rails(root)
             for sp in root.iter(f"{{{NS['p']}}}sp"):
                 box = shape_box(sp)
                 tx = sp.find('p:txBody', NS)
@@ -238,6 +292,11 @@ def audit(path: Path, preset: str, strict: bool = False) -> dict:
                                 if re.match(r'^\[\d+\]', p['text'].strip())) >= max(2, len(paras) - 1)
                 is_list = (len(paras) >= 3 and y > TITLE_MAX_ZONE
                            and not mono_frame and not bib_frame)
+
+                # A TOC current chapter is highlighted with the accent colour, which is
+                # state, not emphasis — so the 6-character rule is exempt inside a
+                # navigation rail (see navigation_rails).
+                in_rail = id(sp) in rails
                 for para in paras:
                     reds = len(para['red_runs'])
                     page_reds += reds
@@ -253,14 +312,25 @@ def audit(path: Path, preset: str, strict: bool = False) -> dict:
                             add('leading_punct', f'{label}: line starts with "{segment[0]}" — 手动断行落在标点上')
                     if reds > limits.get('keywordsPerBullet', 1):
                         add('red_runs', f'{label}: {reds} red runs in one paragraph — 「{text[:18]}」')
+                    # Only a red *phrase inside* body text is the keyword emphasis this
+                    # rule is about; an accent label on a navigation rail is state.
+                    whole_accent = in_rail and len(para['red_runs']) == 1 \
+                        and para['red_runs'][0].strip() == text
                     for run_text in para['red_runs']:
                         # 「6 个字」指的是汉字个数：数字/英文标注（deadline、35%）不占字数
                         cjk = sum(1 for ch in run_text.strip() if '\u4e00' <= ch <= '\u9fff')
-                        if cjk > 6:
+                        if cjk > 6 and not whole_accent:
                             add('red_length', f'{label}: red run of {cjk} 汉字 '
                                             f'「{run_text.strip()[:12]}」 — 红色连续不应超过 6 字')
                     size = (para['size'] or tokens['size']['body']) * autofit_scale(tx)[0]
-                    if is_list and len(text) > limits.get('charsPerBulletZh', 28):
+                    if is_list and is_latin_paragraph(text):
+                        # English is measured in words: 26 characters is a clause,
+                        # not a bullet, so counting characters punished every deck.
+                        words = word_count(text)
+                        en_limit = limits.get('wordsPerBulletEn', 8)
+                        if words > en_limit:
+                            add('chars', f'{label}: bullet {words} words > {en_limit} — 「{text[:28]}」')
+                    elif is_list and len(text) > limits.get('charsPerBulletZh', 28):
                         add('chars', f'{label}: bullet {len(text)} chars > {limits.get("charsPerBulletZh", 28)}')
                     # Only caption-shaped text counts: a body sentence that mentions
                     # 「如图 3 所示」is a reference, not the caption of figure 3.

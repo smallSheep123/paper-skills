@@ -140,12 +140,17 @@ def trim_margins(out: Path, pad_px: int, transparent: bool) -> dict:
         from PIL import Image, ImageChops
     except ImportError:                   # Pillow is optional at runtime
         return {'applied': False, 'reason': 'Pillow not installed'}
-    im = Image.open(out)
-    im = im.convert('RGBA') if im.mode not in ('RGB', 'RGBA') else im
-    if transparent or im.mode == 'RGBA':
+    with Image.open(out) as source:        # closed: Windows keeps the file locked otherwise
+        im = source.copy() if source.mode in ('RGB', 'RGBA') else source.convert('RGBA' if transparent else 'RGB')
+    rgb = im.convert('RGB')
+    # Only trust alpha when the screenshot actually used it. An RGBA image that is
+    # fully opaque (what --transparent produces when the page has a solid
+    # background) has a bbox equal to the whole canvas, so the dead band survived.
+    if im.mode == 'RGBA' and im.getchannel('A').getextrema()[0] < 255:
         bbox = im.getchannel('A').getbbox()
     else:
-        bbox = ImageChops.difference(im, Image.new('RGB', im.size, im.getpixel((0, 0)))).getbbox()
+        background = Image.new('RGB', rgb.size, rgb.getpixel((0, 0)))
+        bbox = ImageChops.difference(rgb, background).getbbox()
     if not bbox:
         return {'applied': False, 'reason': 'nothing drawn'}
     x0, y0, x1, y1 = bbox
@@ -154,7 +159,7 @@ def trim_margins(out: Path, pad_px: int, transparent: bool) -> dict:
         return {'applied': False, 'reason': 'already tight'}
     before = im.size
     im.crop(box).save(out)
-    after = Image.open(out).size
+    after = (box[2] - box[0], box[3] - box[1])
     return {'applied': True, 'from': list(before), 'to': list(after),
             'dead_band_pct': round(100 * (1 - after[1] / before[1]))}
 

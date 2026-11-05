@@ -20,18 +20,23 @@ function pythonExe() {
 }
 
 // Fail before the deck is half-built, and say which interpreter was used: the
-// usual cause is `python` on PATH being a different install without pymupdf.
+// usual cause is `python` on PATH being a different install without PyMuPDF.
+// math_assets.py also accepts the pre-1.24 module name `fitz`, so the probe does.
+function importsModule(exe, module) {
+  const probe = spawnSync(exe, ['-c', `import ${module}`], {encoding: 'utf8'});
+  return {ok: !probe.error && probe.status === 0, error: probe.error, stderr: probe.stderr};
+}
+
 function preflight() {
   const exe = pythonExe();
-  const probe = spawnSync(exe, ['-c', 'import pymupdf'], {encoding: 'utf8'});
-  if (probe.error || probe.status !== 0) {
-    const why = probe.error ? `cannot execute it (${probe.error.code || probe.error.message})`
-      : `it has no pymupdf (${(probe.stderr || '').trim().split('\n').pop()})`;
-    console.error(`Math pipeline needs a Python with pymupdf; ${exe}: ${why}`);
-    console.error('Point PAPER_PPT_PYTHON at the interpreter used for this repo, e.g.');
-    console.error('  PAPER_PPT_PYTHON=.venv/Scripts/python.exe node assets/build-math-samples.js math-samples');
-    process.exit(1);
-  }
+  const modern = importsModule(exe, 'pymupdf');
+  if (modern.ok || importsModule(exe, 'fitz').ok) return;
+  const why = modern.error ? `cannot execute it (${modern.error.code || modern.error.message})`
+    : `it has neither pymupdf nor fitz (${(modern.stderr || '').trim().split('\n').pop()})`;
+  console.error(`Math pipeline needs a Python with PyMuPDF; ${exe}: ${why}`);
+  console.error('Point PAPER_PPT_PYTHON at the interpreter used for this repo, e.g.');
+  console.error('  PAPER_PPT_PYTHON=.venv/Scripts/python.exe node assets/build-math-samples.js math-samples');
+  process.exit(1);
 }
 
 function python(args) {

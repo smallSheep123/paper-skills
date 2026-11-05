@@ -95,8 +95,14 @@ def page_count(pdf: Path) -> int:
 
 
 def _fitz():
+    """PyMuPDF exposes `pymupdf` from 1.24 on; older installs only have `fitz`."""
     try:
-        import fitz  # PyMuPDF
+        import pymupdf as fitz
+        return fitz
+    except ImportError:
+        pass
+    try:
+        import fitz  # PyMuPDF <= 1.23
         return fitz
     except ImportError as exc:
         raise SystemExit('Need Poppler (pdftoppm/pdftotext/pdfinfo) or `pip install pymupdf`.') from exc
@@ -192,7 +198,7 @@ def ink_bbox_by_pixels(page, clip, dpi: int = 96, threshold: int = 246):
     Vector and text bboxes are unreliable for rotated labels and for figures
     pasted as images, so the final extent is measured from a small render.
     """
-    import fitz
+    fitz = _fitz()
     pix = page.get_pixmap(dpi=dpi, clip=clip, alpha=False, colorspace=fitz.csGRAY)
     width, height, stride = pix.width, pix.height, pix.stride
     data = pix.samples

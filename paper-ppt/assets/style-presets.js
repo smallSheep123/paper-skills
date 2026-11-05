@@ -364,14 +364,21 @@ function pageNo(c, t, n) {
 const international = {
   // Title = one sentence (conclusion or question). Optional venue tag at top right.
   title(c, t, s) {
-    // "Title = one sentence" means long English titles run to two lines. The
-    // fixed 0.75in box then reported a 1.6x overflow on every such page; grow the
-    // box symmetrically so the text keeps its optical centre.
-    const wraps = String(s.title || '').length > 46;
-    const box = wraps ? {y: t.grid.titleY - 0.245, h: 1.24} : {y: t.grid.titleY, h: t.grid.titleH};
-    c.text(s.title, {x: t.grid.marginX, y: box.y, w: t.slide.w - 2 * t.grid.marginX - (s.tag ? 1.9 : 0), h: box.h, size: t.size.title, bold: true, color: t.color.text, valign: 'middle'});
+    // "Title = one sentence" means long English titles run to two lines, and the
+    // declared 0.75in box then reports a 1.6x overflow on every such page. Measure
+    // with the layout kit instead of a magic character count: the tag top right
+    // takes 1.9in of width, so the same title wraps at a different length. Grow the
+    // box symmetrically (the text keeps its optical centre) and hang the subtitle
+    // off the box bottom, not off the nominal title height, or the two collide.
+    const w = t.slide.w - 2 * t.grid.marginX - (s.tag ? 1.9 : 0);
+    const lines = K.textLines(s.title, t.size.title, w - 0.2);   // 0.2in = l/r body insets
+    // 1.38 = the canvas' 1.15 line spacing × the 1.2 line box lint_style.py assumes;
+    // 0.12 covers the 0.05in top/bottom insets plus rounding.
+    const h = Math.max(t.grid.titleH, lines * t.size.title * 1.38 / 72 + 0.12);
+    const y = t.grid.titleY - (h - t.grid.titleH) / 2;
+    c.text(s.title, {x: t.grid.marginX, y, w, h, size: t.size.title, bold: true, color: t.color.text, valign: 'middle'});
     if (s.tag) c.text(s.tag, {x: t.slide.w - t.grid.marginX - 1.8, y: t.grid.titleY + 0.05, w: 1.8, h: 0.3, size: t.size.source, color: t.color.muted, align: 'right'});
-    if (s.subtitle) c.text(s.subtitle, {x: t.grid.marginX, y: t.grid.titleY + t.grid.titleH, w: 11.5, h: 0.4, size: t.size.subtitle, color: t.color.muted});
+    if (s.subtitle) c.text(s.subtitle, {x: t.grid.marginX, y: y + h, w: 11.5, h: 0.4, size: t.size.subtitle, color: t.color.muted});
   },
   frame(c, t, s) { this.title(c, t, s); sourceLine(c, t, s.source); pageNo(c, t, s.page); c.notes(s.notes); },
 
@@ -396,8 +403,14 @@ const international = {
 
   // Big single question / section page. No bullets.
   section(c, t, s) {
-    c.text(s.title, {x: 1.0, y: 2.6, w: 11.3, h: 1.6, size: t.size.section, bold: true, color: s.accent ? t.color.accent : t.color.text, align: 'center', valign: 'middle'});
-    if (s.subtitle) c.text(s.subtitle, {x: 1.0, y: 4.25, w: 11.3, h: 0.6, size: t.size.subtitle, color: t.color.muted, align: 'center'});
+    // Same measure-don't-guess rule as the title: a 44pt question-shaped section
+    // heading wraps, and the 1.6in box only fits one line at that size.
+    const w = 11.3;
+    const lines = K.textLines(s.title, t.size.section, w - 0.2);
+    const h = Math.max(1.6, lines * t.size.section * 1.38 / 72 + 0.12);
+    const y = 2.6 - (h - 1.6) / 2;
+    c.text(s.title, {x: 1.0, y, w, h, size: t.size.section, bold: true, color: s.accent ? t.color.accent : t.color.text, align: 'center', valign: 'middle'});
+    if (s.subtitle) c.text(s.subtitle, {x: 1.0, y: Math.max(4.25, y + h + 0.05), w: 11.3, h: 0.6, size: t.size.subtitle, color: t.color.muted, align: 'center'});
     pageNo(c, t, s.page); c.notes(s.notes);
   },
 

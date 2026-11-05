@@ -38,6 +38,7 @@ mineru_models = load('mineru_models', ROOT / 'paper-extract/scripts/mineru_model
 mineru_extract = load('mineru_extract', ROOT / 'paper-extract/scripts/mineru_extract.py')
 pdf_snap = load('pdf_snap', ROOT / 'paper-extract/scripts/pdf_snap.py')
 lint_style = load('lint_style', ROOT / 'paper-ppt/scripts/lint_style.py')
+diagram = load('diagram', ROOT / 'paper-ppt/scripts/diagram.py')
 
 
 class ReviewTests(unittest.TestCase):
@@ -631,12 +632,13 @@ class StyleLintTests(unittest.TestCase):
     """Heuristics, not pixel truth: assert the rules fire, not the exact line count."""
 
     @staticmethod
-    def shape(runs, x=0.6, y=1.6, w=4.0, h=0.5, size=18, colour='262626', spacing=None):
+    def shape(runs, x=0.6, y=1.6, w=4.0, h=0.5, size=18, colour='262626', spacing=None, font=None):
         if isinstance(runs, str):
             runs = [(runs, colour)]
+        latin = f'<a:latin typeface="{font}"/>' if font else ''
         body = ''.join(
             f'<a:r><a:rPr lang="zh-CN" sz="{size * 100}"><a:solidFill><a:srgbClr val="{c}"/>'
-            f'</a:solidFill></a:rPr><a:t>{chunk}</a:t></a:r>'
+            f'</a:solidFill>{latin}</a:rPr><a:t>{chunk}</a:t></a:r>'
             for chunk, c in runs
         )
         ppr = f'<a:pPr><a:lnSpc><a:spcPct val="{int(spacing * 100000)}"/></a:lnSpc></a:pPr>' if spacing else ''
@@ -755,3 +757,216 @@ class StyleLintTests(unittest.TestCase):
         path = self.deck(frame)
         self.assertTrue(lint_style.audit(path, 'domestic')['ok'])
         self.assertFalse(lint_style.audit(path, 'domestic', strict=True)['ok'])
+
+    # ---- frames of several paragraphs: list / code / bibliography / state ----
+
+    @staticmethod
+    def paragraph(text, size=18, colour='262626', font=None):
+        latin = f'<a:latin typeface="{font}"/>' if font else ''
+        return (f'<a:p><a:r><a:rPr lang="zh-CN" sz="{size * 100}"><a:solidFill>'
+                f'<a:srgbClr val="{colour}"/></a:solidFill>{latin}</a:rPr>'
+                f'<a:t>{text}</a:t></a:r></a:p>')
+
+    def frame(self, *paras, x=0.6, y=2.0, w=7.0, h=3.2):
+        return ('<p:sp><p:spPr><a:xfrm><a:off x="%d" y="%d"/><a:ext cx="%d" cy="%d"/></a:xfrm>'
+                '</p:spPr><p:txBody><a:bodyPr/>%s</p:txBody></p:sp>'
+                % (x * 914400, y * 914400, w * 914400, h * 914400, ''.join(paras)))
+
+    def test_code_frame_is_not_a_bullet_list(self):
+        # 45-character code lines are normal; counting them made every code slide fail.
+        code = [self.paragraph('for (const t of tokens) r = router(t);   // 45 chars', font='Consolas')
+                for _ in range(4)]
+        report = lint_style.audit(self.deck(self.frame(*code)), 'systems-talk')
+        self.assertFalse(any('words >' in w or 'chars >' in w for w in report['warnings']),
+                         self.findings(report))
+
+    def test_bibliography_is_not_a_bullet_list(self):
+        bib = [self.paragraph('[%d] B. Author et al. Early exit networks for cheap inference. Venue 2024.' % i)
+               for i in (1, 2, 3)]
+        report = lint_style.audit(self.deck(self.frame(*bib)), 'jp-gothic')
+        self.assertFalse(any('chars >' in w or 'words >' in w for w in report['warnings']),
+                         self.findings(report))
+
+    def test_english_bullet_is_measured_in_words(self):
+        # 45 characters but 8 words: a normal English bullet, not a violation.
+        ok = [self.paragraph('Easy tokens skip the deep path entirely.', font='Arial') for _ in range(3)]
+        self.assertFalse(any('words >' in w for w in
+                             lint_style.audit(self.deck(self.frame(*ok)), 'international')['warnings']))
+        long = [self.paragraph('Easy tokens skip the deep path in almost every single case.',
+                               font='Arial') for _ in range(3)]
+        report = lint_style.audit(self.deck(self.frame(*long)), 'international')
+        self.assertTrue(any('words >' in w for w in report['warnings']), self.findings(report))
+
+    def test_chinese_bullet_still_measured_in_characters(self):
+        long = [self.paragraph('这是一条明显超过二十八个字上限的要点，用来触发字数警告的示例。')
+                for _ in range(3)]
+        report = lint_style.audit(self.deck(self.frame(*long)), 'domestic')
+        self.assertTrue(any('chars >' in w for w in report['warnings']), self.findings(report))
+
+    def test_toc_current_chapter_is_a_state_mark(self):
+        # A TOC draws one shape per chapter in a column and highlights the current
+        # one with the accent: 9 CJK in accent is state, so the rule must not fire.
+        accent = lint_style.load_tokens('defense-cn')['color']['accent']
+        items = ['研究背景与意义', '热点感知的任务放置', '热点感知的数据放置', '总结与展望']
+        shapes = [self.shape(text, x=2.9, y=1.55 + i * 0.9, w=9.0, h=0.8, size=22,
+                             colour=accent if i == 1 else '6B6B6B')
+                  for i, text in enumerate(items)]
+        report = lint_style.audit(self.deck(*shapes), 'defense-cn')
+        self.assertFalse(any('红色连续' in w for w in report['warnings']), self.findings(report))
+
+    def test_red_label_outside_a_rail_is_still_flagged(self):
+        accent = lint_style.load_tokens('defense-cn')['color']['accent']
+        report = lint_style.audit(self.deck(self.shape('保证任何情况下都能看', x=2.9, y=1.6, w=9.0, h=0.8,
+                                                      size=22, colour=accent)), 'defense-cn')
+        self.assertTrue(any('红色连续' in w for w in report['warnings']), self.findings(report))
+
+    def test_accent_phrase_inside_a_sentence_is_still_flagged(self):
+        # Same colour, but inside a body sentence rather than a label list: emphasis.
+        accent = lint_style.load_tokens('defense-cn')['color']['accent']
+        mixed = [self.paragraph('这一节讨论的是延迟与精度之间那个不太好说的取舍，'), self.paragraph('本章讨论')]
+        mixed.append('<a:p><a:r><a:rPr lang="zh-CN" sz="1800"><a:solidFill>'
+                     f'<a:srgbClr val="{accent}"/></a:solidFill></a:rPr>'
+                     '<a:t>保证任何情况下都能看</a:t></a:r></a:p>')
+        report = lint_style.audit(self.deck(self.frame(*mixed)), 'defense-cn')
+        self.assertTrue(any('红色连续' in w for w in report['warnings']), self.findings(report))
+
+
+class DiagramTrimTests(unittest.TestCase):
+    """trim_margins must crop the dead band whether or not alpha is in play."""
+
+    def setUp(self):
+        try:
+            from PIL import Image          # noqa: F401
+        except ImportError:
+            raise unittest.SkipTest('Pillow is required for diagram.py trims')
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.dir = Path(self.temp.name)
+
+    def _draw(self, path: Path, mode: str, background):
+        from PIL import Image, ImageDraw
+        im = Image.new(mode, (400, 300), background)
+        ImageDraw.Draw(im).rectangle([20, 20, 120, 80], fill=(20, 40, 90) + ((255,) if mode == 'RGBA' else ()))
+        im.save(path)
+        return path
+
+    def test_opaque_rgba_is_trimmed(self):
+        # --transparent on a solid page yields RGBA with alpha 255 everywhere;
+        # the alpha bbox is the whole canvas, so this used to report "already tight".
+        path = self._draw(self.dir / 'opaque.png', 'RGBA', (255, 255, 255, 255))
+        report = diagram.trim_margins(path, 0, transparent=True)
+        self.assertTrue(report['applied'], report)
+        self.assertLess(report['to'][1], 300)
+
+    def test_transparent_background_is_trimmed_by_alpha(self):
+        path = self._draw(self.dir / 'alpha.png', 'RGBA', (255, 255, 255, 0))
+        report = diagram.trim_margins(path, 0, transparent=True)
+        self.assertTrue(report['applied'], report)
+        self.assertEqual(report['to'], [101, 61])   # PIL rectangles include both corners
+
+    def test_blank_image_reports_nothing_drawn(self):
+        from PIL import Image
+        path = self.dir / 'blank.png'
+        Image.new('RGB', (200, 200), (255, 255, 255)).save(path)
+        self.assertEqual(diagram.trim_margins(path, 0, transparent=False)['reason'], 'nothing drawn')
+
+
+class PdfSnapPathTests(unittest.TestCase):
+    def test_missing_pdf_raises_value_error(self):
+        # pymupdf's FileNotFoundError subclasses RuntimeError, not OSError: the
+        # old generic handler never caught it and printed a traceback.
+        with self.assertRaises(ValueError):
+            pdf_snap.require_pdf(Path('does-not-exist.pdf'))
+
+    def test_existing_pdf_passes_through(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pdf = Path(tmp) / 'a.pdf'
+            pdf.write_bytes(b'%PDF-1.4\n')
+            self.assertEqual(pdf_snap.require_pdf(pdf), pdf)
+
+    def test_cli_reports_one_line_and_exits_2(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                code = pdf_snap.main(['pages', str(Path(tmp) / 'nope.pdf'), '--out', str(Path(tmp) / 'o')])
+            self.assertEqual(code, 2)
+            self.assertIn('PDF not found', err.getvalue())
+            self.assertNotIn('Traceback', err.getvalue())
+
+
+class InternationalTitleBoxTests(unittest.TestCase):
+    """The title box must be measured, and the subtitle must follow its bottom."""
+
+    NODE = r"""
+const PptxGenJS = require('pptxgenjs');
+const S = require(process.argv[1]);
+const t = S.loadTokens('international');
+const deck = new PptxGenJS();
+deck.layout = t.slide.layout;
+const specs = [
+  {title: 'At equal compute ExampleNet is four point four points better', tag: '[Author+, Venue 2026]',
+   subtitle: 'Q2 · Method'},
+  {title: 'Short title', subtitle: 'Q1 · Intro'},
+];
+for (const spec of specs) {
+  const canvas = new S.PptxCanvas(deck.addSlide(), t);
+  S.PRESETS.international.title(canvas, t, spec);
+}
+S.writeDeck(deck, process.argv[2]).then(() => console.log('ok'));
+"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.node = shutil.which('node')
+        if not cls.node:
+            raise unittest.SkipTest('node is required for the JS presets')
+        probe = subprocess.run([cls.node, '-e', 'require("pptxgenjs")'],
+                               cwd=ROOT / 'paper-ppt', capture_output=True)
+        if probe.returncode:
+            raise unittest.SkipTest('install paper-ppt dependencies first')
+
+    def boxes(self, path: Path):
+        """[(text, x, y, w, h)] for every text shape, in inches."""
+        out = []
+        with zipfile.ZipFile(path) as z:
+            for name in sorted(n for n in z.namelist() if n.startswith('ppt/slides/slide')):
+                root = ET.fromstring(z.read(name))
+                for sp in root.iter('{http://schemas.openxmlformats.org/presentationml/2006/main}sp'):
+                    tx = sp.find('{http://schemas.openxmlformats.org/presentationml/2006/main}txBody')
+                    if tx is None:
+                        continue
+                    text = ''.join(t.text or '' for t in tx.iter(
+                        '{http://schemas.openxmlformats.org/drawingml/2006/main}t'))
+                    off = sp.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}off')
+                    ext = sp.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}ext')
+                    out.append((text, int(off.get('x')) / 914400, int(off.get('y')) / 914400,
+                                int(ext.get('cx')) / 914400, int(ext.get('cy')) / 914400))
+        return out
+
+    def build(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        deck = Path(tmp.name) / 'title.pptx'
+        subprocess.run([self.node, '-e', self.NODE, str(ROOT / 'paper-ppt/assets/style-presets.js'), str(deck)],
+                       cwd=ROOT / 'paper-ppt', check=True, capture_output=True)
+        return self.boxes(deck)
+
+    def test_long_title_grows_the_box(self):
+        shapes = self.build()
+        long_title = next(s for s in shapes if s[0].startswith('At equal compute'))
+        short_title = next(s for s in shapes if s[0] == 'Short title')
+        self.assertGreater(long_title[4], 0.75)       # grew past the nominal height
+        self.assertAlmostEqual(short_title[4], 0.75, places=3)  # short titles untouched
+        # Symmetric growth: the optical centre stays where the preset put it.
+        self.assertAlmostEqual(long_title[2] + long_title[4] / 2, 0.38 + 0.75 / 2, places=3)
+
+    def test_subtitle_sits_below_the_grown_box(self):
+        shapes = self.build()
+        long_title = next(s for s in shapes if s[0].startswith('At equal compute'))
+        subtitles = [s for s in shapes if s[0] in ('Q2 · Method', 'Q1 · Intro')]
+        self.assertEqual(len(subtitles), 2)
+        for sub in subtitles:
+            title = long_title if sub[0] == 'Q2 · Method' else next(
+                s for s in shapes if s[0] == 'Short title')
+            self.assertGreaterEqual(sub[2] + 0.01, title[2] + title[4],
+                                    'subtitle overlaps the title box: %r' % (shapes,))

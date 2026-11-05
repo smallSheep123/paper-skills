@@ -57,13 +57,13 @@ const sampleNote = (spec) => spec.notes
 const SAMPLES = {
   international: [
     {type: 'cover', title: 'ExampleNet: Routing Tokens Is All You Need?', authors: 'A. Author, B. Author, C. Author · Example University', venue: 'Placeholder Venue 2026', presenter: 'Paper reading · presented by <name>'},
-    {type: 'questions', title: 'Three questions this paper answers', items: ['Why waste compute on easy tokens?', 'Can a router learn token depth?', 'Does it win at equal compute?'], current: 1, page: 2},
-    {type: 'section', title: 'Can a router learn token depth?', subtitle: 'Q2 · Method', page: 3},
+    {type: 'questions', title: 'Three questions this paper answers', items: ['Why do dense models waste compute on easy tokens?', 'Can a router learn which tokens need depth?', 'Does it still win at equal compute?'], current: 1, page: 2},
+    {type: 'section', title: 'Can a router learn which tokens need depth?', subtitle: 'Q2 · Method', page: 3},
     {type: 'buildSteps', title: 'Only routed tokens pay for the [[deep path]]', steps: ['Tokens', 'Encoder', 'Router', 'Deep path', 'Decoder'], active: 3, explain: 'Same pipeline as the previous slide; only the [[deep path]] is new.', page: 4},
-    {type: 'figureNotes', title: 'The router decides depth per token, not per sequence', tag: '[Author+, Venue 2026]', figure: fig('fig-method.png'), points: ['Easy tokens skip depth', 'Router trained, no labels', 'Memory shared across steps'], takeaway: 'Depth becomes a per-token budget', source: 'Figure: placeholder, not from any paper', page: 5},
+    {type: 'figureNotes', title: 'The router decides depth per token, not per sequence', tag: '[Author+, Venue 2026]', figure: fig('fig-method.png'), points: ['Easy tokens skip the deep path', 'Router is trained jointly, no labels', 'Memory is shared across steps'], takeaway: 'Depth becomes a per-token budget', source: 'Figure: placeholder, not from any paper', page: 5},
     {type: 'equation', title: 'What we want vs. what we compute', lines: ['want:   y = f_L( ... f_1(x) )   for every token', 'do:       y = r(x) · f_deep(x) + (1 − r(x)) · f_shallow(x)'], labels: [{from: [6.7, 3.15], to: [6.2, 4.1], text: 'router score r(x)'}, {from: [9.6, 3.15], to: [10.1, 4.1], text: 'cheap path'}], points: ['r(x) is a scalar in [0, 1]; top-k tokens take the deep path'], page: 6},
     {type: 'result', title: 'At equal compute, ExampleNet is [[+4.4 points]] better', tag: '[Table 2]', figure: fig('fig-result.png'), number: '+4.4', numberLabel: 'accuracy at 8 GPU-days vs. best baseline', condition: 'Placeholder numbers. Same data, same schedule, 3 seeds.', source: 'Figure: placeholder data', page: 7},
-    {type: 'closing', title: 'Looking ahead…', points: ['Per-token or per-region?', 'Router collapse at scale?', 'Budget learned end-to-end?'], page: 8},
+    {type: 'closing', title: 'Looking ahead…', points: ['Is per-token depth the right unit, or per-region?', 'Router collapse at scale is not studied', 'What would an end-to-end learned budget look like?'], page: 8},
   ],
   domestic: [
     {type: 'cover', paperTitle: 'ExampleNet: Routing Tokens Is All You Need?', titleZh: '按 token 路由计算深度的高效模型', paperMeta: 'Placeholder Venue 2026 · A. Author 等 · Example University', presenter: '<姓名>', group: '<课题组> 组会', date: '2026 年 10 月'},
@@ -114,7 +114,7 @@ const SAMPLES = {
   ],
   'defense-cn': [
     {type: 'cover', org: 'XX 大学 · XX 学院', kind: '博士学位论文答辩', title: '面向大规模数据中心的热点感知资源放置方法研究', titleEn: 'Hotspot-Aware Resource Placement for Large-Scale Datacenters (placeholder)', info: [['答辩人', '<姓名>'], ['专业', '计算机科学与技术'], ['导师', '<导师> 教授'], ['日期', '2026 年 X 月 X 日']]},
-    {type: 'toc', items: ['研究背景与意义', '热点成因测量分析', '热点感知放置', '热点感知的数据放置', '总结与展望'], current: 2, chapters: ['研究背景', '测量分析', '任务放置', '数据放置', '总结展望'], chapter: 2, page: 2},
+    {type: 'toc', items: ['研究背景与意义', '热点成因测量分析', '热点感知的任务放置', '热点感知的数据放置', '总结与展望'], current: 2, chapters: ['研究背景', '测量分析', '任务放置', '数据放置', '总结展望'], chapter: 2, page: 2},
     {type: 'chapter', number: '第三章', title: '热点感知的任务放置', subtitle: '主动放置 + 被动迁移', chapters: ['研究背景', '测量分析', '任务放置', '数据放置', '总结展望'], chapter: 2},
     {type: 'figureConclusion', title: '3.2 放置打分函数与迁移机制', lead: '在原有打分中加入机架上行利用率惩罚项，并对持续过热的机架触发任务迁移。', figure: fig('fig-method.png'), label: '好处', conclusion: '改动极小、无需改网络，热点机架数量下降 [[约 90%]]（占位数字）。', chapters: ['研究背景', '测量分析', '任务放置', '数据放置', '总结展望'], chapter: 2, page: 18},
     {type: 'contributions', items: [{head: '热点测量', body: '首次给出全网 ToR 热点的分布与持续时间', pub: '[第一作者, XXX 2025]'}, {head: '任务放置', body: '提出带上行惩罚的主动放置与迁移', pub: '[第一作者, XXX 2026]'}, {head: '数据放置', body: '按机架容量放置数据块，降低读延迟', pub: '[共一, XXX 2026]'}], chapters: ['研究背景', '测量分析', '任务放置', '数据放置', '总结展望'], chapter: 4, page: 40},

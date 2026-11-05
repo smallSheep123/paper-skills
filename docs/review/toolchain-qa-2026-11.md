@@ -1,34 +1,35 @@
-# 分支说明：全流程自测（Windows）与十处修复
+# 分支说明：全流程自测（Windows）与修复清单
 
-> 分支 `fix/qa-toolchain-2026-11`，基线 `main @ d166c26`，一个提交 `1618f7e`。
-> 目的：把 skill 的**每个入口**在本机真跑一遍（生成样稿、生成模板、裁图、公式、PDF 截图、两个检查器、单测），
-> 记录跑不动、跑出来不对、报错看不懂的地方，然后只修「明确的缺陷」，不改设计取向。
-> 这份文档是给第二位评审者看的：先看结论和第 3 节的逐条证据，第 5 节是我拿不准、希望你来判的三件事。
-> 所有数字都能用第 2 节的命令复现；原始输出在 `docs/review/toolchain-qa-2026-11/`。
+> 分支 `fix/qa-toolchain-2026-11`，基于 `main @ d166c26`。
+> 做法：把 skill 的**每个入口**在本机真跑一遍（9 套样稿、9 套模板、公式、裁图、PDF 截图、两个检查器、单测），
+> 记录跑不动、跑出来不对、报错看不懂的地方，然后只修「明确的缺陷」。
+> 这份文档是给评审者看的：第 1 节是结论，第 2 节是复现命令，第 3 节逐条讲改了什么，
+> **第 4 节把第一轮评审的每条意见对应到具体改动**，第 5 节是我拿不准的地方。
+> 原始 JSON / 日志不入库（会过时、且带本机路径），需要时用第 2 节的命令现场生成。
 
 ## 1. 结论
 
-| | 修复前（`d166c26`） | 修复后（本分支） |
+| | 修复前（`d166c26`） | 本分支 |
 |---|---|---|
-| 9 套官方样稿 `check_deck.py` | 0/9 通过，**53 条 error**（每页都是 `missing speaker notes`） | **9/9 通过，0 error** |
+| 9 套官方样稿 `check_deck.py` | **0/9 通过，53 条 error**（每页 `missing speaker notes`） | **9/9 通过，0 error** |
 | 9 套官方样稿 `lint_style.py --preset <自身>` | **2 error + 18 warning** | **0 error + 0 warning** |
-| `python -m unittest discover -s tests` | 通过，但结尾被 `--help` 的 usage 刷屏 | 72 passed / 2 skipped，输出干净 |
-| `npm run math-samples` | 缺依赖时只报 `Math pipeline failed`；**同目录跑第二次必失败** | 缺依赖报「哪个 python、缺什么、怎么指」；可重复跑 |
-| `diagram.py` 输出 | 2400×1240，**61% 的高度是空白** | 2392×488（内容 + 8px 留白），空白带 0 |
-| `pdf_snap.py` 缺文件 | 裸 traceback | `error: PDF not found: nope.pdf`，退出码 2 |
+| 单元测试 | 72 个（2 个跳过，输出被 `--help` usage 刷屏） | **87 个全过，0 跳过**，输出干净 |
+| `npm run math-samples` | 缺依赖只报 `Math pipeline failed`；**同目录第二次必失败** | 报「哪个 python、缺什么、怎么指」；连跑 3 次通过；`native 2 / svg 4` |
+| `diagram.py` 输出 | 2400×1240，**61% 高度是空白** | 2392×488（内容 + 8px），空白带 0 |
+| `pdf_snap.py` 缺文件 | 裸 traceback | `error: PDF not found: ...`，退出码 2 |
 
-一句话：**样稿本身过不了自己的闸门**，这是最该修的一条；其余九条是「能跑但别扭」的摩擦。
+一句话：**样稿本身过不了自己的闸门**，这是最该修的一条；其余是「能跑但别扭」和两条规则误报。
 
 ## 2. 怎么复现
 
 ```bash
-# 环境：Windows 11 · Node 22.22 · Python 3.13（PyMuPDF 2.1、Pillow）
+# 环境：Windows 11 · Node 22.22 · Python 3.13（PyMuPDF 2.1、Pillow、latex2mathml、mathml2omml）
 cd paper-skills && npm ci --prefix paper-ppt
 
-# 单测（README 里写的那条）
+# 单测（README 里写的那条命令）
 python -m unittest discover -s tests -v
 
-# 样稿：9 套 × 5–8 页
+# 9 套样稿 → 两个检查器
 node paper-ppt/assets/build-style-samples.js paper-ppt/style-samples
 for s in international domestic keynote-minimal systems-talk theory-beamer \
          dark-tech editorial defense-cn jp-gothic; do
@@ -36,128 +37,131 @@ for s in international domestic keynote-minimal systems-talk theory-beamer \
   python paper-ppt/scripts/lint_style.py paper-ppt/style-samples/$s-sample.pptx --preset $s
 done
 
-# 修复前的对照（不需要切分支，直接取基线资产重建一套样稿）
+# 修复前对照：不需要切分支，取基线资产重建一套样稿 + 用基线 lint
 git checkout d166c26 -- paper-ppt/assets/build-style-samples.js \
-    paper-ppt/assets/style-presets.js paper-ppt/assets/style-presets-extra.js
+    paper-ppt/assets/style-presets.js paper-ppt/assets/style-presets-extra.js \
+    paper-ppt/scripts/lint_style.py
 node paper-ppt/assets/build-style-samples.js paper-ppt/style-samples-before
-# 逐套跑 check_deck + lint（lint 也要用基线的：git show d166c26:paper-ppt/scripts/lint_style.py）
+# 跑完记得还原
 git checkout HEAD -- paper-ppt/assets paper-ppt/scripts
 ```
 
-`checks-before.json` / `checks-after.json` 就是上面两条循环的机器可读结果，`lint/before-*.json`、`lint/after-*.json` 是逐套的原始 lint 报告。
+修完的逐页像素核验（同 150 dpi，与基线渲染对比）：`international` p1/p2/p4–p8 平均差 **0.000/255**，
+p3 为 0.172（章节页标题恢复成原句后，框按测量从 1.60 长到 1.81in，中心不动）；`defense-cn` 5 页全部 0.000。
 
-## 3. 十个问题（+ 两条顺带修补）
+## 3. 改了什么
 
-### 3.1 官方样稿全部过不了自己的 `check_deck`（最严重）
+| # | 问题 | 改动 |
+|---|---|---|
+| 1 | 9 套样稿全部过不了自己的 `check_deck`（53 页缺演讲备注） | `build-style-samples.js` 新增 `NOTE_BY_TYPE`（32 类版式各一句口头提示）+ 每页 `notes()`；`spec.notes` 优先 |
+| 2 | lint 把代码页当要点列表（systems-talk p4，4 条） | 段落收集 `a:latin@typeface`，等宽字体框不算 list |
+| 3 | lint 把参考文献当要点列表（jp-gothic p5，3 条） | 过半段落以 `[N]` 开头时不算 list |
+| 4 | lint 对英文按**字符数**计数，正常英文要点全超限 | 英文改为**按词数**：`wordsPerBulletEn` 默认 8 词；中文仍按字数（`charsPerBulletZh`） |
+| 5 | 目录页「当前章」被当成红色强调（defense-cn p2） | 新增 `navigation_rails()`：同列 ≥3 个短标签、等距排列视为导航栏，栏内整段强调色＝状态色，豁免红色连续规则 |
+| 6 | international 标题框装不下两行长标题（p5/p7 两条 hard error） | 用 `layout-kit.textLines()` 按**实际可用宽度**（含 tag 占的 1.9in）算行数，框对称扩到需要的高度；subtitle 挂到**框底**而不是 `titleY+titleH` |
+| 7 | international 章节页标题 2 行溢出 1.05x | 同一套测量方式（1.6 → 1.81in），subtitle 取 `max(4.25, 框底+0.05)` |
+| 8 | `diagram.py` 默认输出 61% 空白；RGBA 全不透明时不裁 | 默认裁到内容 + `--pad`（8 CSS px），`--no-trim` 保留旧行为，JSON 加 `trim.dead_band_pct`；alpha 全 255 时改按颜色差裁剪；顺手关掉文件句柄（Windows 会锁文件） |
+| 9 | `npm run math-samples` 报错看不懂 | `preflight()` 先探 `pymupdf`，再探 `fitz`（对齐 `math_assets.py` 的回退），失败打印实际解释器 + `PAPER_PPT_PYTHON` 用法 |
+| 10 | `math_assets.py` 只认新版 PyMuPDF | `_fitz()`：`pymupdf` → `fitz`（≤1.23）。`pdf_snap.py`、`bridge.py` 也统一成这个顺序，顺带消掉 PyMuPDF 的 FutureWarning |
+| 11 | `npm run math-samples` 只能跑一次 | `finalize` 拒绝覆盖是对的，但样稿是生成物：构建脚本先删自己的旧产物，连跑 3 次通过 |
+| 12 | `pdf_snap.py` 缺文件抛裸 traceback | `require_pdf()` 前置校验；`main()` 捕获 `OSError`（pymupdf 的 `FileNotFoundError` 继承 `RuntimeError`，原来漏掉） |
+| 13 | 测试日志被 `--help` 的 usage 刷屏 | `--help` 用例重定向 stdout |
+| 14 | 两条规则改动没有测试 | 新增 15 个用例，见第 6 节 |
+| 15 | CI 里 OMML 分支从来跑不到 | `tests.yml` 加装 `latex2mathml mathml2omml`（`requirements-math.txt` 里本来就有），2 个跳过变成真跑 |
 
-**现象**：9 套样稿、53 页，页页报 `missing speaker notes`。`check_deck.py` 把「没有演讲备注」当 error 级，而 `build-style-samples.js` 从不写备注 —— 仓库指向的「范例」本身不合规。
+## 4. 第一轮评审意见 → 处理
 
-**改动**：新增 `NOTE_BY_TYPE`（32 类版式各一句口头提示，例如 `result: 只讲一个数字：谁的、在什么条件下、相对谁。`）与 `sampleNote()`，每页 `notes()` 落盘；`spec.notes` 仍优先，不覆盖作者意图。
+### 必须改（4 条）
 
-**代价**：样稿多了 53 句话，都是提示语不是内容，评审时可以只扫一遍口吻。
+**4.1「改文案绕过规则，反而改坏了内容」** — 已全部回退。
 
-### 3.2 lint 把代码页当要点列表（4 条误报）
+- defense-cn 目录第 3 项恢复成「热点感知的任务放置」（不再为躲 6 字上限缩成「热点感知放置」），
+  改由第 5 条的**导航栏豁免**处理；
+- international 6 条英文要点、章节页标题全部恢复原句（`Easy tokens skip the deep path`、
+  `Is per-token depth the right unit, or per-region?`、`Can a router learn which tokens need depth?` 等）；
+- 只保留两处确实超长的内容收敛：jp-gothic 2 条日文（29 字，超过 28 字预算）、systems-talk 的中文要点。
+  这两处是「内容真的长」，不是规则误判。
+- 结果：恢复文案后 `lint` 仍是 0 findings，且 international 7/8 页与基线**像素完全相同**。
 
-**证据**：systems-talk p4，代码行 45/38/47 字符，加一条「5 paragraphs in one body frame」。
-**改动**：`paragraphs()` 收集 run 的 `a:latin@typeface`；一个文本框里「绝大多数段落是等宽字体」时不算 list。`MONO_FONT = (consola|courier|monaco|menlo|mono|code)`。
-**代价**：如果谁把正文设成 Consolas，这条规则会放过它。我认为可以接受 —— 正文用等宽本身就不是这套预设的用法。
+**4.2「international 标题框的启发式有 bug」** — 已按建议重写。
 
-### 3.3 lint 把参考文献当要点列表（3 条误报）
+- 删掉「46 字符」这个常数，改用 `layout-kit` 的 `textLines(title, size, 实际可用宽度)`：
+  宽度先减掉 tag 占的 1.9in，再减左右内边距 0.2in；
+- 高度 `= 行数 × 字号 × 1.38 / 72 + 0.12in`（1.38 = 画布 1.15 行距 × lint 假设的 1.2 行盒，0.12 是上下内边距 + 取整）；
+- 框**对称扩**（`y = titleY - (h - titleH) / 2`），文字光学中心保持在 0.755in；
+- subtitle 从 `titleY + titleH` 改成 `y + h`（框底），长标题 + subtitle 不再叠；
+- 章节页（44pt）用同一套办法。两张示意图见 `images/title-box-measure.png`。
 
-**证据**：jp-gothic p5，`[2] B. Author et al. Early exit networks. Venue 2024.` 44–53 字符。
-**改动**：文本框里「过半段落以 `[N]` 开头」时不算 list。
-**代价**：`[1]` 开头的正文段落会被一起豁免，实际极少。
+**4.3「改了门禁规则却没有测试」** — 补了 15 个用例（第 6 节）。
 
-### 3.4 international 标题框装不下两行长标题（2 条 hard error）
+**4.4「原始输出里有本机路径、而且会过时」** — 已从仓库删除全部 `checks-*.json` / `lint/*.json` / `logs/*`。
+仓库只留本文和两张图；需要原始数据按第 2 节现场跑（`check_deck`、`lint --json` 都是固定命令）。
 
-**证据**：p5/p7 报 `text needs ~2 lines / 1.227in in a 0.75in box (1.64x)`；渲染确认确实是两行。
-**改动**：标题字符数 > 46 时把框按两行展开（`y - 0.245`，`h 1.24`），**对称扩**，文字光学中心不动。
-**验证**：p7 修复前后**像素完全相同**（平均差 0.000/255）——这条改的是「声明」，渲染器本来就这么画，只是声明与事实不符。逐页差值见下表。
+### 可以顺手修（3 条）
 
-| 页 | p1 | p2 | p3 | p4 | p5 | p6 | p7 | p8 |
-|---|---|---|---|---|---|---|---|---|
-| 平均差 /255 | 0.000 | 1.531 | 8.562 | 0.000 | 2.090 | 0.000 | **0.000** | 2.425 |
+- **RGBA 全不透明不裁**：改为先看 alpha 最小值，`< 255` 才按 alpha 裁，否则按颜色差裁。新增 3 个用例覆盖
+  （不透明 RGBA / 真透明 / 空白图）。
+- **preflight 只认 pymupdf**：现在 `pymupdf` → `fitz` 都试，和 `math_assets.py` 一致；报错文案改成
+  `it has neither pymupdf nor fitz`。另外 `pdf_snap.py`、`bridge.py` 的 `import fitz` 也统一成先 `pymupdf`。
+- **`build-templates.js` 弄脏工作区**：本轮**不改**，已开 issue 跟踪（会覆盖已跟踪的 9 套 `template.pptx`
+  和 `template-preview/`）。
 
-p2/p3/p5/p8 的差异来自 3.6 的文案收敛，不是版式。
+### 判断题（3 个）
 
-### 3.5 dark-tech 章节号 96pt 塞进 1.6in 框（1 条 warning）
+1. **「都不对，要分语言」→ 已按此实现**：英文按词数（默认 8 词，可用 `limits.wordsPerBulletEn` 覆盖），
+   中文仍按字数（`charsPerBulletZh`，各预设 26/28）；英文文案已全部改回原句。
+   实测：8 词的句子放行，9 词的要点报警（`test_english_bullet_is_measured_in_words`）。
+2. **「CI 里那 2 个测试从来没跑过」→ 已修**：`tests.yml` 加装 `latex2mathml mathml2omml`。
+   本机装上后：87 个用例 0 跳过，公式管线 `native 2 / svg 4`（此前 `native 0 / svg 6` 全回退）。
+   这条路径本身逻辑没动，是**依赖缺失**导致从来没被验证。
+3. **「默认裁图算破坏性变更，但可以接受」→ 已在文档写明**：`paper-ppt/SKILL.md` 的 diagram 用法新增一条
+   「默认会裁图 + `--no-trim` 保留原尺寸 + `trim.dead_band_pct`」，同时修掉 RGBA 问题。
 
-**证据**：p2 报 `1.15x`。**改动**：框 `1.6 → 1.95in`，`y 1.5 → 1.42`，同样对称扩。
+## 5. 我拿不准、希望你判的
 
-### 3.6 九处占位文案超出「每条 ≤28 字」预算
+1. **导航栏豁免的边界**：现在判据是「同 x（±0.05)列、≥3 个 ≤20 字的单段文本框、纵向间距在 0.5–1.8 倍中位数之间」，
+   栏内整段强调色视为状态。够窄，但如果有版式把「三个短标签 + 一个红色结论」排成一列，也会被放过。
+   要不要再把「栏内必须只有一个强调色元素」作为额外条件？
+2. **英文 8 词是否合适**：`Why do dense models waste compute on easy tokens?` 是 9 词，被我算作超限。
+   这是「一句正常英文要点」还是「该拆句」，我没有把握；阈值留在 tokens 里，改一个数就行。
+3. **`navigation_rails` 放在 lint 里是否越界**：它让 lint 需要看「页面上下文」而不只是单个文本框。
+   如果你认为 lint 应该保持「逐形状判定」，这条应该换成在 tokens 里声明「本页有目录栏」。
 
-**证据**：international 6 条（30/36/29/49/39/50 字）、jp-gothic 2 条（29 字）。
-**改动**：只改样稿文案，**没有放宽规则** —— 这些文案是「示范如何写要点」的，本身超限就是在示范错的东西。
-**这是我拿不准的一处，见 5.1。**
+## 6. 新增测试（15 个）
 
-### 3.7 `diagram.py` 默认输出 61% 空白
+| 用例 | 断言 |
+|---|---|
+| `test_code_frame_is_not_a_bullet_list` | 4 行 45 字符等宽代码框不出 `chars`/`words` 警告 |
+| `test_bibliography_is_not_a_bullet_list` | 3 条 `[N]` 文献不出警告 |
+| `test_english_bullet_is_measured_in_words` | 8 词放行、9 词报警 |
+| `test_chinese_bullet_still_measured_in_characters` | 中文仍按字数报警 |
+| `test_toc_current_chapter_is_a_state_mark` | 4 个等距标签 + 1 个强调色，不报红色连续 |
+| `test_red_label_outside_a_rail_is_still_flagged` | 孤立红色标签仍然报警 |
+| `test_accent_phrase_inside_a_sentence_is_still_flagged` | 句中的强调短语仍然报警 |
+| `test_opaque_rgba_is_trimmed` | RGBA 但全不透明时按颜色裁剪（原来报 already tight） |
+| `test_transparent_background_is_trimmed_by_alpha` | 真透明背景按 alpha 裁剪，尺寸 101×61 |
+| `test_blank_image_reports_nothing_drawn` | 空白图不动，reason=nothing drawn |
+| `PdfSnapPathTests` ×3 | 缺文件抛 `ValueError`；存在则透传；CLI 一行错误 + 退出码 2、无 traceback |
+| `InternationalTitleBoxTests` ×2 | 长标题框 > 0.75in 且中心不变；短标题保持 0.75in；subtitle 落在框底之下（不重叠） |
 
-**证据**：`assets/diagram-example.html` 固定 1200×620 视口，内容只占上面 39%；贴进 16:9 页面后图显得小且偏上。
-**改动**：默认裁到内容 + `--pad`（8 CSS px），`--no-trim` 关掉，JSON 报告加 `trim.dead_band_pct`。
-**风险**：如果有下游脚本依赖「输出尺寸 = 视口尺寸」，行为变了。见 5.3。
-
-对比图：`docs/review/toolchain-qa-2026-11/images/diagram-trim-before-after.png`
-
-### 3.8 `npm run math-samples` 报错看不懂
-
-**现象**：`Math pipeline failed`，不说哪个解释器、缺什么。
-**改动**：新增 `preflight()`，先 `python -c "import pymupdf"`，失败时说清三件事：
-
-```
-Math pipeline needs a Python with pymupdf; python: it has no pymupdf (ModuleNotFoundError: No module named 'pymupdf')
-Point PAPER_PPT_PYTHON at the interpreter used for this repo, e.g.
-  PAPER_PPT_PYTHON=.venv/Scripts/python.exe node assets/build-math-samples.js math-samples
-```
-
-### 3.9 `math_assets.py` 只认新版 PyMuPDF
-
-**改动**：`import pymupdf as fitz` → `_fitz()`，先 `pymupdf` 再回退 `fitz`（≤1.23）。顺带：JSON 里 `native: 0 / svg: 6` 说明本机走的是**全 SVG 回退**，因为 `latex2mathml` + `mathml2omml` 没装 —— 这条路径本次**没有验证到**，见 5.2。
-
-### 3.10 `npm run math-samples` 只能跑一次
-
-**现象**：同目录第二次跑必挂：`ValueError: Final output must be a new file, different from the source`。
-**根因**：`math_assets.py finalize` 拒绝覆盖（对 CLI 是对的），但样稿构建的输出是生成物，不应要求先手删。
-**改动**：构建脚本在 `finalize` 前删掉自己的旧产物；连跑 3 次验证通过。
-
-### 3.11 顺带两条小的
-
-- `pdf_snap.py`：pymupdf 的 `FileNotFoundError` 继承 `RuntimeError` 而非 `OSError`，所以缺文件时抛出裸 traceback。新增 `require_pdf()` 前置校验，并把 `OSError` 加进 `main()` 的捕获列表。
-- `tests/test_tools.py::test_help_without_tools`：`--help` 把整屏 usage 打到 stdout，测试日志结尾像报错。用 `contextlib.redirect_stdout` 吞掉。
-
-## 4. 我没动、但看到的
-
-1. **`node assets/build-templates.js` 会改写已跟踪文件**：`styles/*/template.pptx` 全部重写（内容变化、体积减半），`template-preview/` 下多出一批未跟踪的 SVG。跑完 `git status` 是脏的，误提交就会把仓库里的模板换掉。建议：输出目录 gitignore 化，或脚本加 `--check` 只校验不写。
-2. **lint 输出格式不统一**：`lint_style.py` 是「人读文本 + 末行 JSON」，`check_deck.py` 是纯 JSON。CI 里要解析得写两种。
-3. **`check_deck` 把备注缺失定为 error**：想只查结构的场景（比如纯几何回归）没有办法跳过。
-4. **`build-style-samples.js` 的 `svg_preview.py`** 只有在 `npm run samples` 里才被调用，单独跑 node 脚本时 SVG 预览目录是空的 —— 不报错，容易以为漏了。
-
-## 5. 希望评审判断的三件事
-
-### 5.1 样稿文案超限：改文案，还是放宽规则？
-
-我选了改文案（3.6）。理由是样稿的功能是「示范」，超限示范会教坏下游；但另一面是：这等于承认「28 字」这条规则对英文要点偏严 —— international 的 49/50 字两条是完整的观点句，压到 28 字会丢信息。如果你认为规则该按语言分档（例如 CJK 28、英文 60），那 3.6 应该回退成规则改动。
-
-### 5.2 原生 OMML 公式路径没有验证
-
-本机缺 `latex2mathml` / `mathml2omml`，6 个公式全部走 SVG 回退，`native: 0`。也就是说「LaTeX → 原生公式」这条路在 Windows + 现行依赖下**没有证据**。要么把两个包加进 CI 依赖并跑一次 `--mode native`，要么在文档里明确「默认 SVG，native 需自备依赖」。
-
-### 5.3 `diagram.py` 默认裁图是否算破坏性变更？
-
-我倾向「默认裁是对的」（否则每次都要手写 `--pad`），但它确实改了默认输出尺寸。如果仓库已有下游按视口尺寸排版图片，应改成默认不裁 + `--trim` 开启。我没有找到下游调用，但你可能知道我看不到的用法。
-
-## 6. 产物清单
+## 7. 产物
 
 ```
-docs/review/toolchain-qa-2026-11.md              本文
-docs/review/toolchain-qa-2026-11/checks-before.json   修复前 9 套 check_deck 结果（含逐条 error）
-docs/review/toolchain-qa-2026-11/checks-after.json    修复后（同结构）
-docs/review/toolchain-qa-2026-11/checks-*.md          人读汇总表
-docs/review/toolchain-qa-2026-11/lint/before-*.json   基线 lint 逐套原始报告
-docs/review/toolchain-qa-2026-11/lint/after-*.json    修复后逐套原始报告
-docs/review/toolchain-qa-2026-11/logs/tests.log       unittest 输出
-docs/review/toolchain-qa-2026-11/logs/math.log        公式管线：缺依赖报错 + 成功运行
-docs/review/toolchain-qa-2026-11/images/diagram-trim-before-after.png       裁图前后
-docs/review/toolchain-qa-2026-11/images/international-title-before-after.png  标题框前后
+docs/review/toolchain-qa-2026-11.md                本文
+docs/review/toolchain-qa-2026-11/images/diagram-trim-before-after.png   裁图前后（2400×1240 → 2392×488）
+docs/review/toolchain-qa-2026-11/images/title-box-measure.png           标题框怎么算（含 subtitle 落点）
 ```
 
-另外六套本地新增风格的回归（不在本仓库内）：60 页 lint `0E/0W`，说明等宽 / 文献两条豁免没有把正常版式放过。
+改动的代码：`paper-ppt/assets/{build-style-samples,build-math-samples,style-presets}.js`、
+`paper-ppt/scripts/{lint_style,diagram,math_assets,bridge}.py`、`paper-extract/scripts/pdf_snap.py`、
+`tests/test_tools.py`、`.github/workflows/tests.yml`、`paper-ppt/SKILL.md`。
+
+## 8. 没动、但值得知道
+
+1. `node paper-ppt/assets/build-templates.js` 会重写已跟踪的 9 套 `template.pptx`（内容变化、体积减半）并
+   在 `template-preview/` 留下未跟踪 SVG。跑完工作树是脏的，误提交会换掉仓库里的模板 —— 已开 issue。
+2. `lint_style.py` 输出是「人读文本 + 末行 JSON」，`check_deck.py` 是纯 JSON，CI 里要写两种解析。
+3. `check_deck` 把备注缺失定为 error，想只查几何的场景没有开关。
+4. dark-tech 章节号框与标题框在坐标上重叠 0.17in（96pt 数字顶对齐，字形不会压到标题）。
+   本机用 LibreOffice 渲染 p2 核过：`02` 与 `Architecture` 各自成行，没有压字。
+   international 章节页（p3）同样渲过：两行标题 + 下方 subtitle，不重叠。
