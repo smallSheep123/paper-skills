@@ -1,8 +1,8 @@
 # 风格预设（Style Presets）
 
-九套可直接调用的风格预设，与 `references/` 中的设计原则配合使用。
+十五套可直接调用的风格预设，与 `references/` 中的设计原则配合使用。
 
-另有 [Academic Evidence](academic-evidence/STYLE.md) 可选风格说明与中英文论文案例。它记录本次设计判断，不注册固定模板，也不修改以下九套预设的审美规则。公共图片、公式、导出和校验工具可以被所有风格复用。
+另有 [Academic Evidence](academic-evidence/STYLE.md) 可选风格说明与中英文论文案例。它记录本次设计判断，不注册固定模板，也不修改以下十五套预设的审美规则。公共图片、公式、导出和校验工具可以被所有风格复用。
 
 | 预设 | 一句话 | 示例 |
 |---|---|---|
@@ -15,8 +15,14 @@
 | [Editorial](editorial/STYLE.md) | 插画杂志风：暖白底、衬线斜体标题、一页一图、概念色圆点 | ![](editorial/samples/overview.png) |
 | [Defense CN](defense-cn/STYLE.md) | 国内答辩：校色标题带、编号标题、章节箭头导航、提纲回显、创新点卡片 | ![](defense-cn/samples/overview.png) |
 | [JP Gothic](jp-gothic/STYLE.md) | 日韩技术发表：粗黑体、黑竖条标题、论文出处行、时间徽章、黑色结论横幅 | ![](jp-gothic/samples/overview.png) |
+| [Graphite](graphite/STYLE.md) | 高对比系统讲座：深色满版、通栏细线、全大写主张、唯一红强调 | ![](graphite/samples/overview.png) |
+| [Violet](violet/STYLE.md) | 国内组会 / 中期：满版紫页眉带、紫底白字块标题、居中「图 N：」图注 | ![](violet/samples/overview.png) |
+| [Band Grid](bandgrid/STYLE.md) | 中文论文分享：蓝色页眉带、PART 分区、横向标签块、橙色重点档 | ![](bandgrid/samples/overview.png) |
+| [Folio](folio/STYLE.md) | 编辑式留白：超大留白、靛蓝短横线、浅灰卡片、满版结论页 | ![](folio/samples/overview.png) |
+| [Nocturne](nocturne/STYLE.md) | 深色石板与暖金：全稿深色、暖金唯一强调、淡蓝次级数据 | ![](nocturne/samples/overview.png) |
+| [Mosaic](mosaic/STYLE.md) | Bento 卡片：青绿＋品红、圆角卡片网格、四色 callout | ![](mosaic/samples/overview.png) |
 
-后 7 套的来源与选择依据见 [slide-style-atlas.md](../references/slide-style-atlas.md)（105 套真实 deck 的字体、版式、内容分布与画风统计）。
+前 7 套的来源与选择依据见 [slide-style-atlas.md](../references/slide-style-atlas.md)（105 套真实 deck 的字体、版式、内容分布与画风统计）；graphite / violet / bandgrid / folio / nocturne / mosaic 六套来自单独的公开课件与 Typst 主题蒸馏，逐套的色值证据与来源截图在各目录 [`refs/ATTRIBUTION.md`](graphite/refs/ATTRIBUTION.md)。
 
 ## 字体与基础模板
 
@@ -31,6 +37,12 @@
 | `editorial` | Palatino Linotype | Source Han Serif SC | [template.pptx](editorial/template.pptx) |
 | `defense-cn` | Arial | Microsoft YaHei | [template.pptx](defense-cn/template.pptx) |
 | `jp-gothic` | Noto Sans JP | Noto Sans JP | [template.pptx](jp-gothic/template.pptx) |
+| `graphite` | Arial | Microsoft YaHei | [template.pptx](graphite/template.pptx) |
+| `violet` | Arial | Microsoft YaHei | [template.pptx](violet/template.pptx) |
+| `bandgrid` | Arial | Microsoft YaHei | [template.pptx](bandgrid/template.pptx) |
+| `folio` | Arial | Microsoft YaHei | [template.pptx](folio/template.pptx) |
+| `nocturne` | Arial | Microsoft YaHei | [template.pptx](nocturne/template.pptx) |
+| `mosaic` | Arial | Microsoft YaHei | [template.pptx](mosaic/template.pptx) |
 
 完整字体清单、开源替代和放映环境策略见 [fonts.md](../references/fonts.md)；`python scripts/check_fonts.py` 检查本机缺哪些字体；`node assets/build-templates.js` 重新生成全部模板。
 
@@ -40,6 +52,7 @@
 <style>/
 ├── STYLE.md      字体、字号、配色语义、网格、页面原型、推荐页序、硬性约束
 ├── tokens.json   机器可读的设计 token（style-presets.js 读取）
+├── prototypes.js 仅 style-kit 六套：页面原型，就近放在自己的 token 旁边
 ├── refs/         蒸馏来源的真实 slides 截图（低分辨率，注明出处）
 ├── samples/      用预设生成的示例页（虚构占位论文）
 ├── template.pptx 基础模板：带占位说明的原型页，演讲备注写明每页该放什么
@@ -48,9 +61,9 @@
 
 代码：
 
-- `assets/style-presets.js`：`loadTokens()`、`drawSlide()`、International / Domestic 原型；`assets/style-presets-extra.js`：其余 7 套原型；
+- `assets/style-presets.js`：`loadTokens()`、`drawSlide()`、International / Domestic 原型；`assets/style-presets-extra.js`：7 套原型；`assets/style-presets-stylekit.js`：把 `styles/<name>/prototypes.js` 里的 6 套原型挂进 `PRESETS`；
 - 行内标记：`[[x]]` 强调色、`**x**` 加粗、`{{n:x}}` 第 n 个概念色（`tokens.color.sym`）；同一套绘制调用可输出 PPTX（`PptxCanvas`）或 SVG 预览（`SvgCanvas`）；
-- `assets/build-style-samples.js`：生成九套示例 deck 与 SVG 预览（`npm run samples`，无需 TeX）；
+- `assets/build-style-samples.js`：生成十五套示例 deck 与 SVG 预览（`npm run samples`，无需 TeX），`style-samples/<preset>/` 下的 PNG 由它产出；
 - `assets/build-math-samples.js`：可选的 Academic Evidence 中英文公式示例（`npm run math-samples`，需要公式依赖）；
 - `scripts/svg_preview.py`：SVG → PNG + 总览图，用于没有 LibreOffice 时快速看图。
 
@@ -66,7 +79,7 @@
 ## 新增一套预设
 
 1. 复制 `international/` 为新目录，改 `tokens.json` 的 `name`；
-2. 在 `style-presets-extra.js` 返回的对象中注册同名原型集合（可复用已有原型）；
+2. 注册原型：要么在 `style-presets-extra.js` 返回的对象里加同名原型集合（可复用已有原型），要么照 `graphite/` 的做法把原型放在 `styles/<name>/prototypes.js` 并在 `style-presets-stylekit.js` 的名字表里加一行；
 3. 在 `build-style-samples.js` 中加示例，运行 `npm run samples` 并检查 `samples/`；
 4. `refs/` 只放低分辨率截图并注明来源。
 

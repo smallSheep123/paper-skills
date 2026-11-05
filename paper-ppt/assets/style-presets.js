@@ -889,7 +889,15 @@ const domestic = {
   },
 };
 
-const PRESETS = {international, domestic, ...require('./style-presets-extra')({sourceLine, pageNo})};
+// The six style-kit presets keep their prototypes next to their tokens and
+// STYLE.md (`styles/<name>/prototypes.js`) instead of piling into this file:
+// 2.7k lines in one module was already the reason `style-presets-extra` exists.
+const PRESETS = {
+  international,
+  domestic,
+  ...require('./style-presets-extra')({sourceLine, pageNo}),
+  ...require('./style-presets-stylekit')({sourceLine, pageNo}),
+};
 
 function drawSlide(canvas, tokens, spec) {
   const preset = PRESETS[tokens.name];

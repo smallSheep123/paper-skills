@@ -48,11 +48,163 @@ const NOTE_BY_TYPE = {
   contributions: '三项按发表状态排，指明哪项是第一作者工作。',
   read: '论文速读：结论先行，再补方法与数字。',
   references: '参考文献只列三条，说明都能查证。',
+  claim: '主张页：一句可核验的主张 + 2–3 个同源数字，出处写清楚。',
+  twoCol: '左栏给主张、右栏给流程；两栏读的是同一个论证，不要各说各的。',
+  part: '分区页只报编号与标题，一句话说清本节要回答的问题。',
+  bands: '三条横条按「现状 → 代价 → 关键观察」排；最后一条才是重点，别平均使力。',
+  table: '表格只回答一个问题：多花的代价换回了什么；本文行加重，表下写实验条件。',
 };
 
 const sampleNote = (spec) => spec.notes
   || NOTE_BY_TYPE[spec.type]
   || `本页演示 ${spec.type} 版式：先给结论，再给证据；内容为占位。`;
+
+// The six style-kit presets (graphite / violet / bandgrid / folio / nocturne /
+// mosaic) were distilled against one placeholder paper, SPARQ, so that only the
+// layout language differs between them. Kept in one object here: six copies of
+// the same numbers is how sample decks start contradicting each other.
+const KIT = {
+  en: {
+    kicker: 'OSDI 2026 · PAPER READING',
+    title: 'SPARQ: Speculative\nPrefetching for\nVector Index Scans',
+    subtitle: 'A query batch already reveals which lists come next — score the current one while the next one is still in flight.',
+    authors: 'L. CHEN · M. ITO · R. GUPTA',
+    affil: 'UC Berkeley · Microsoft Research',
+    meta: '汇报人 张×× · 2026.11',
+    outline: ['Why vector scans stall', 'Design: prefetch inside the batch', 'Evaluation on SIFT1B', 'Limits and discussion'],
+    section1: {index: 1, word: 'Motivation', line: 'IVF 扫描的瓶颈不在算力，而在随机读的等待。'},
+    section2: {index: 2, word: 'Design', line: '把「下一个要读的簇」提前到当前簇还在打分的时候。'},
+  },
+  zh: {
+    title: 'SPARQ：为向量索引扫描做投机预取',
+    subtitle: '一批查询本身就暴露了「下一批要读哪个簇」——当前簇还在打分时，下一簇已经在路上。',
+    outline: [
+      {t: '背景与动机', note: '向量检索为什么会被 I/O 卡住'},
+      {t: '设计与实现', note: '把预取塞进查询批次内部'},
+      {t: '实验结果', note: '延迟、吞吐与内存的三方权衡'},
+      {t: '局限与讨论', note: '什么负载下这套方法会失效'},
+    ],
+    motive: {
+      claim: '每次查询要摸 40 个候选簇，其中 61% 的时间在等 SSD。',
+      bullets: [
+        '倒排索引把向量切成 4096 簇，查询只扫最近 40 个',
+        '簇内连续读、簇间随机读，延迟死在 40 次跳转上',
+        '批次内部的下一个簇号，在打分之前就已确定',
+      ],
+      stages: [
+        {t: '40 个候选簇', d: 'nprobe = 40，约占全库 1%'},
+        {t: '簇间随机读', d: '4 KB 粒度，队列深度不足'},
+        {t: '算力空转等待', d: 'SIMD 打分被 I/O 拖住'},
+      ],
+      hot: 1,
+    },
+    method: {
+      claim: '把「下一个要读的簇」提前到当前簇还在打分的时候。',
+      bullets: [
+        '预取：打分前算出下一批簇号，提前下发读',
+        '剪枝：复用 PQ 距离表，淘汰簇立刻释放',
+        '回填：DMA 与 SIMD 打分重叠，队列深度 8',
+      ],
+      stages: [
+        {t: '预取候选簇', d: '提前下发读请求'},
+        {t: '打分与剪枝', d: '淘汰簇立即释放'},
+        {t: '异步回填', d: '与打分重叠'},
+      ],
+      hot: 0,
+    },
+    result: {
+      claim: '同一召回率下，p95 延迟从 128 ms 降到 53 ms。',
+      big: '2.4×', bigLabel: 'p95 延迟下降倍数',
+      bigNote: 'SIFT1B，recall@10 = 0.95，nprobe = 40，单节点 32 核。\n对照为同召回率下的最优配置。',
+      caption: '图 3：同一召回率下的 p95 延迟（论文 Table 2 重绘）',
+    },
+    table: {
+      cols: ['系统', 'p95 (ms)', 'QPS', 'recall@10', '内存 (GB)'],
+      widths: [3.5, 2.1, 1.9, 2.1, 2.05],
+      rows: [
+        {cells: ['IVF-Flat', '128', '780', '0.95', '32.0']},
+        {cells: ['DiskANN', '96', '1040', '0.95', '46.0']},
+        {cells: ['SPARQ（本文）', '53', '1260', '0.95', '34.5'], ours: true},
+      ],
+      note: '测试集 SIFT1B，单节点 32 核 / 256 GB，nprobe 各自调到相同 recall@10 的最优值。',
+    },
+    summaryBlocks: [
+      {label: '主要贡献', items: ['把随机读识别为向量检索的真瓶颈，而不是距离计算', '利用批次内部的簇号可预测性，预取覆盖 78% 的随机读']},
+      {label: '局限与边界', items: ['单批次查询数 < 8 时预取窗口不足，收益降到 1.2×', '依赖 SSD 队列深度 ≥ 4，机械盘与远端存储未验证']},
+      {label: '讨论', items: ['能否把同样的预取思路用到图索引（DiskANN）的邻居扩展上？']},
+    ],
+    thanks: 'SPARQ · OSDI 2026 · 汇报人：张××',
+  },
+};
+
+const KIT_STATEMENT = {
+  claim: '每次查询要摸 40 个候选簇，其中 61% 的时间在等 SSD。',
+  claimNote: '倒排文件索引把向量切成 4096 个簇，查询只扫最近的 40 个。簇内是连续读，簇间是随机读——延迟就死在这 40 次跳转上。',
+  metrics: [
+    {v: '128 ms', k: 'p95 延迟（SIFT1B，nprobe = 40）', hot: true},
+    {v: '61%', k: '请求时间花在等待随机读上'},
+    {v: '40 / 4096', k: '每查询访问的簇数 / 全库簇数，簇间是随机读'},
+  ],
+};
+
+const KIT_RESULT_EN = {
+  big: '2.4×', bigLabel: 'p95 延迟下降倍数',
+  bigNote: 'SIFT1B，recall@10 = 0.95，nprobe = 40，单节点 32 核。\n对照为同召回率下的最优配置。',
+  axis: 'P95 QUERY LATENCY (MS) — LOWER IS BETTER',
+  data: [
+    {label: 'IVF-Flat', value: 128},
+    {label: 'DiskANN', value: 96},
+    {label: 'SPARQ', value: 53, ours: true},
+  ],
+  caption: '图 3　同一召回率下的 p95 延迟（论文 Table 2 重绘，仅用论文标注值）',
+};
+
+// The three "second round" presets (folio / nocturne / mosaic) narrow the four
+// summary blocks to four cards: contribution, evidence, boundary, next step.
+const KIT_SUMMARY_CARDS = [
+  {label: '背景与贡献', text: KIT.zh.summaryBlocks[0].items[0]},
+  {label: '已验证', text: KIT.zh.summaryBlocks[0].items[1]},
+  {label: '局限与边界', text: KIT.zh.summaryBlocks[1].items[0]},
+  {label: '讨论 / 下一步', text: KIT.zh.summaryBlocks[2].items[0]},
+];
+const KIT_SUMMARY_ITEMS = [
+  KIT.zh.summaryBlocks[0].items[0],
+  KIT.zh.summaryBlocks[1].items[0],
+  KIT.zh.summaryBlocks[2].items[0],
+];
+
+// folio / nocturne / mosaic run one page sequence over the same content; only
+// the cover kicker and two figure notes differ, because their tokens spend the
+// accent differently (nocturne keeps gold to six CJK characters or fewer).
+function kitNarrowSample(name) {
+  const z = KIT.zh;
+  const kicker = name === 'nocturne' ? 'SYSTEMS TALK / OSDI 2026' : '论文分享 · 系统组周会';
+  const pages = [
+    {type: 'cover', kicker, title: z.title, subtitle: z.subtitle,
+      meta: '汇报人：张××　2026.11.04', authors: 'L. Chen · M. Ito · R. Gupta',
+      takeaway: '批次内部的簇号可预测，预取能把 p95 延迟压到 53 ms。',
+      chip1: '论文分享', chip2: '系统组周会', chip3: '2026', page: 1},
+    {type: 'outline', kicker: 'AGENDA', title: '汇报提纲', items: z.outline, page: 2},
+    {type: 'section', index: 1, title: '动机', note: KIT.en.section1.line, page: 3},
+    {type: 'claim', kicker: 'MOTIVATION', title: '一、瓶颈不在算力，而在 40 次随机跳转',
+      claim: KIT_STATEMENT.claim, claimNote: KIT_STATEMENT.claimNote, metrics: KIT_STATEMENT.metrics,
+      source: '来源：论文 §2.1 与 Fig. 2；SIFT1B / nprobe = 40 实测', page: 4},
+    {type: 'section', index: 2, title: '设计', note: KIT.en.section2.line, page: 5},
+    {type: 'method', kicker: 'DESIGN', title: '二、方法：预取、剪枝、回填三步重叠',
+      claim: z.method.claim, bullets: z.method.bullets, stages: z.method.stages, hot: z.method.hot,
+      takeaway: '关键不是把 I/O 做快，而是让 I/O 和计算落在同一段时间里。', page: 6},
+    {type: 'result', kicker: 'EVALUATION', title: '三、结果：同等召回率下 p95 降到 53 ms',
+      big: z.result.big, bigLabel: z.result.bigLabel, bigNote: z.result.bigNote,
+      data: KIT_RESULT_EN.data, caption: z.result.caption, source: 'Table 2 · §5.2', page: 7},
+    {type: 'table', kicker: 'EVALUATION', title: '三、结果：多花 2.5 GB 内存换 75 ms',
+      cols: z.table.cols, widths: z.table.widths, rows: z.table.rows, tableNote: z.table.note, page: 8},
+    {type: 'summary', kicker: 'CONCLUSION', title: '四、小结：贡献、边界与待验证的问题',
+      cards: KIT_SUMMARY_CARDS, items: KIT_SUMMARY_ITEMS, page: 9},
+    {type: 'thanks', title: '谢谢，欢迎讨论', line: '预取窗口与 SSD 队列深度的关系',
+      contact: z.thanks, page: 10},
+  ];
+  return pages;
+}
 
 const SAMPLES = {
   international: [
@@ -126,6 +278,96 @@ const SAMPLES = {
     {type: 'read', paper: 'Appendix', title: '補足：ルーターの崩壊を防ぐ正則化', optional: '参考', points: [{text: '負荷分散損失で一部の経路への集中を防ぐ'}], figure: fig('fig-result.png'), page: 4},
     {type: 'references', items: ['[1] A. Author et al. ExampleNet. Venue 2026.', '[2] B. Author et al. Early exit networks. Venue 2024.', '[3] C. Author et al. Mixture of depths. Venue 2025.'], page: 5},
   ],
+  // ---- the six style-kit presets ------------------------------------------
+  graphite: [
+    {type: 'cover', kicker: KIT.en.kicker, title: KIT.en.title, subtitle: KIT.en.subtitle,
+      authors: KIT.en.authors, affil: KIT.en.affil, meta: KIT.en.meta, page: 1},
+    {type: 'outline', kicker: 'AGENDA', title: 'This talk in four lines', items: KIT.en.outline, page: 2},
+    {type: 'section', index: 1, word: KIT.en.section1.word, line: KIT.en.section1.line, page: 3},
+    {type: 'statement', kicker: 'MOTIVATION', title: 'Every query pays for 40 random hops',
+      claim: KIT_STATEMENT.claim, claimNote: KIT_STATEMENT.claimNote, metrics: KIT_STATEMENT.metrics,
+      source: '§2.1 · Fig. 2', page: 4},
+    {type: 'section', index: 2, word: KIT.en.section2.word, line: KIT.en.section2.line, page: 5},
+    {type: 'method', kicker: 'DESIGN', title: 'Overlap the next fetch with the current score',
+      stages: KIT.zh.method.stages, hot: 0, takeaway: '关键不是把 I/O 做快，而是让 I/O 和计算落在同一段时间里。',
+      timeNote: 'I/O 与计算错位半个簇：每个簇的等待被下一个簇的计算吸收。', page: 6},
+    {type: 'result', kicker: 'EVALUATION', title: '2.4× lower p95 at the same recall',
+      ...KIT_RESULT_EN, source: 'Table 2 · §5.2', page: 7},
+    {type: 'table', kicker: 'EVALUATION', title: 'The extra 2.5 GB buys 75 ms',
+      cols: KIT.zh.table.cols, widths: [3.9, 2.05, 1.9, 2.0, 1.95], rows: KIT.zh.table.rows,
+      tableNote: KIT.zh.table.note, page: 8},
+    {type: 'summary', kicker: 'CONCLUSION', title: 'Three things to remember',
+      items: ['随机读是向量检索的真瓶颈，不是距离计算。', '批次内部的簇号可预测，预取窗口覆盖 78% 的随机读。',
+        '同等召回率下 p95 压到 53 ms，内存只多 8%。'], page: 9},
+    {type: 'thanks', title: 'Thank you', line: 'Questions · 讨论', contact: KIT.zh.thanks, page: 10},
+  ],
+  violet: [
+    {type: 'cover', kicker: '论文分享 · 系统组周会', date: '2026.11.04', title: KIT.zh.title,
+      subtitle: KIT.zh.subtitle,
+      meta: [{k: '汇报人', v: '张××'}, {k: '导师', v: '×× 教授'}, {k: '单位', v: '×× 大学 计算机学院 · 系统组'}],
+      foot: '论文：SPARQ (OSDI 2026) · L. Chen, M. Ito, R. Gupta', page: 1},
+    {type: 'outline', title: '汇报提纲', headRight: '张×× · 2026.11.04 · 2/10', items: KIT.zh.outline, page: 2},
+    {type: 'section', index: 1, title: '背景与动机', note: '向量检索为什么会被 I/O 卡住', page: 3},
+    {type: 'twoCol', title: '一、问题：40 次随机跳转吃掉六成时间', headRight: '张×× · 2026.11.04 · 4/10',
+      blockLabel: '问题在哪', claim: KIT.zh.motive.claim, bullets: KIT.zh.motive.bullets,
+      stages: KIT.zh.motive.stages, hot: KIT.zh.motive.hot, note: '来源：论文 §2.1，Fig. 2', page: 4},
+    {type: 'section', index: 2, title: '设计与实现', note: '把预取塞进查询批次内部', page: 5},
+    {type: 'twoCol', title: '二、方法：预取、剪枝、回填三步重叠', headRight: '张×× · 2026.11.04 · 6/10',
+      blockLabel: '怎么做的', claim: KIT.zh.method.claim, bullets: KIT.zh.method.bullets,
+      stages: KIT.zh.method.stages, hot: KIT.zh.method.hot, note: '来源：论文 §3.2，Fig. 4', page: 6},
+    {type: 'result', title: '三、结果：同等召回率下 p95 降到 53 ms', headRight: '张×× · 2026.11.04 · 7/10',
+      claim: KIT.zh.result.claim, big: KIT.zh.result.big, bigLabel: KIT.zh.result.bigLabel,
+      bigNote: KIT.zh.result.bigNote, data: KIT_RESULT_EN.data, caption: KIT.zh.result.caption, page: 7},
+    {type: 'table', title: '三、结果：多花 2.5 GB 内存换 75 ms', headRight: '张×× · 2026.11.04 · 8/10',
+      blockLabel: '代价与收益', cols: KIT.zh.table.cols, widths: KIT.zh.table.widths,
+      rows: KIT.zh.table.rows, tableNote: KIT.zh.table.note, page: 8},
+    {type: 'summary', title: '四、小结：三条结论与一个问题', headRight: '张×× · 2026.11.04 · 9/10',
+      blocks: KIT.zh.summaryBlocks, page: 9},
+    {type: 'thanks', contact: KIT.zh.thanks, page: 10},
+  ],
+  bandgrid: [
+    {type: 'cover', kicker: '论文分享 · 系统组周会', date: '2026.11.04', title: KIT.zh.title,
+      subtitle: KIT.zh.subtitle, venue: 'OSDI 2026 · 会议论文（12 页，含附录）',
+      authors: 'L. Chen（一作）· M. Ito · R. Gupta　UC Berkeley / MSR',
+      takeaway: '批次内部的簇号可预测，预取能把 p95 延迟压到 53 ms。',
+      foot: '汇报人：张××　·　2026 年 11 月 4 日', page: 1},
+    {type: 'outline', title: '汇报提纲：一篇论文的四次转折', headRight: '张×× · 4/10',
+      items: [
+        {label: 'PART 1', text: '背景与动机：向量检索为什么会被 I/O 卡住'},
+        {label: 'PART 2', text: '设计与实现：把预取塞进查询批次内部'},
+        {label: 'PART 3', text: '实验结果：延迟、吞吐与内存的三方权衡'},
+        {label: 'PART 4', text: '局限与讨论：什么负载下这套方法会失效'},
+      ], hint: '每一节结束回到这张提纲，标出当前进度。', page: 2},
+    {type: 'part', index: 1, title: '背景与动机', note: '（本节回答：瓶颈到底在算力还是在 I/O）', page: 3},
+    {type: 'bands', title: '一、瓶颈不在算力，而在 40 次随机跳转', headRight: '张×× · 4/10',
+      rows: [
+        {label: '扫描方式', text: '倒排索引把向量切成 4096 个簇，查询只扫最近 40 个；簇内连续读，簇间随机读。'},
+        {label: '代价', text: '40 次跳转里，61% 的请求时间花在等待 4 KB 随机读返回。'},
+        {label: '关键观察', text: '下一个要读的簇号，在打分开始之前就已经确定——它来自同一批查询。', accent: true},
+      ], aside: '来源：论文 §2.1 与 Fig. 2；数字为 SIFT1B、nprobe = 40 下的实测。', page: 4},
+    {type: 'part', index: 2, title: '设计与实现', note: '（本节回答：怎么让 I/O 和计算同时发生）', page: 5},
+    {type: 'method', title: '二、方法：预取、剪枝、回填三步重叠', headRight: '张×× · 6/10',
+      stages: KIT.zh.method.stages, hot: 0,
+      takeaway: '关键不是把 I/O 做快，而是让 I/O 和计算落在同一段时间里。',
+      aside: '预取窗口 = 下一批簇号出现的时间差；窗口覆盖 78% 的随机读。', page: 6},
+    {type: 'result', title: '三、结果：同等召回率下 p95 降到 53 ms', headRight: '张×× · 7/10',
+      big: KIT.zh.result.big, bigLabel: KIT.zh.result.bigLabel, bigNote: KIT.zh.result.bigNote,
+      data: KIT_RESULT_EN.data, caption: KIT.zh.result.caption, page: 7},
+    {type: 'table', title: '三、结果：多花 2.5 GB 内存换 75 ms', headRight: '张×× · 8/10',
+      cols: KIT.zh.table.cols, widths: KIT.zh.table.widths, rows: KIT.zh.table.rows,
+      tableNote: KIT.zh.table.note, page: 8},
+    {type: 'summary', title: '四、小结：一条结论，三个待验证的问题', headRight: '张×× · 9/10',
+      conclusion: '随机读是向量检索的真瓶颈；把预取塞进批次内部，能在同等召回率下把 p95 压到 53 ms。',
+      questions: [
+        '单批次查询数少于 8 时预取窗口不足，收益降到 1.2×——小批量场景怎么办？',
+        '同样的思路能否迁移到图索引（DiskANN）的邻居扩展？',
+        '依赖 SSD 队列深度 ≥ 4，远端存储与机械盘未验证。',
+      ], page: 9},
+    {type: 'thanks', contact: KIT.zh.thanks, page: 10},
+  ],
+  folio: kitNarrowSample('folio'),
+  nocturne: kitNarrowSample('nocturne'),
+  mosaic: kitNarrowSample('mosaic'),
 };
 
 async function main() {

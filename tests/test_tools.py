@@ -602,7 +602,8 @@ if __name__ == '__main__':
 
 class TemplatesAndFontsTest(unittest.TestCase):
     PRESETS = ['international', 'domestic', 'keynote-minimal', 'systems-talk', 'theory-beamer',
-               'dark-tech', 'editorial', 'defense-cn', 'jp-gothic']
+               'dark-tech', 'editorial', 'defense-cn', 'jp-gothic',
+               'graphite', 'violet', 'bandgrid', 'folio', 'nocturne', 'mosaic']
 
     def test_every_preset_has_template_and_font_section(self):
         root = Path(__file__).resolve().parent.parent / 'paper-ppt' / 'styles'
