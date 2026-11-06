@@ -379,6 +379,19 @@ const {PptxCanvas,loadTokens,drawSlide,writeDeck}=require(process.argv[1]);
             self.assertIn('C30037', bare, 'graphite accent not applied to the marked run')
             self.assertIn('页脚由调用方给', given, 'a supplied footer was dropped')
 
+    def test_published_templates_match_their_presets(self):
+        """`--check` rebuilds every template in a temp dir and diffs the tracked copies.
+
+        The 15 styles/<name>/template.pptx are build artifacts. When a preset moves
+        and nobody republishes, the shipped "fill-in base template" quietly describes
+        an older design — which is exactly what had happened before this check existed.
+        """
+        script = str(ROOT / 'paper-ppt/assets/build-templates.js')
+        result = subprocess.run([self.node, script, '--check'], capture_output=True,
+                                text=True, cwd=str(ROOT / 'paper-ppt'))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('templates match the code', result.stdout)
+
     def test_image_contain_api_and_notes(self):
         from PIL import Image
         with tempfile.TemporaryDirectory() as td:

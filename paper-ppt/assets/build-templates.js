@@ -1,5 +1,16 @@
 // Build a fill-in base template (template.pptx) for every style preset.
-//   node assets/build-templates.js [outRoot]      (default: styles/)
+//
+//   node assets/build-templates.js            -> paper-ppt/template-build/ (ignored by git)
+//   node assets/build-templates.js --check    -> build to a temp dir, diff against styles/, exit 1 on drift
+//   node assets/build-templates.js --publish  -> overwrite the tracked styles/<name>/template.pptx
+//
+// Writing into styles/ by default used to leave 15 tracked binaries dirty after a
+// command that changed nothing anyone meant to change — and the rebuilt file differs
+// from the committed one, so a stray `git commit -a` silently replaced the published
+// templates. Now the default lands somewhere gitignored, `--check` is what tells you
+// the code and the templates have drifted apart, and `--publish` is the one command
+// that is allowed to touch them.
+//
 // Writes <outRoot>/<style>/template.pptx and <outRoot>/<style>/template-preview/NN-<type>.svg
 //
 // Each template page keeps the preset's real layout but replaces sample text with
@@ -7,9 +18,12 @@
 // page's content contract from references/page-content-guide.md.
 // Templates are a starting point for humans or AI; paper-ppt still redesigns per paper.
 
+const crypto = require('node:crypto');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const pptxgen = require('pptxgenjs');
+const JSZip = require('jszip');
 const {loadTokens, PptxCanvas, SvgCanvas, drawSlide, writeDeck} = require('./style-presets');
 const {SAMPLES} = require('./build-style-samples');
 
@@ -28,7 +42,7 @@ const PH = {
     label: '结论', head: '【要点 {n}】', body: '【一句话解释】', pub: '[对应成果]', footer: '【课题组】组会 · 【汇报人】', takeaway: '【一句话 takeaway】',
     number_section: '0X', prefix: 'X、', explain: '【这一页新增了什么】', annotation: '【看图要点】', statement: '【一句陈述 + [[关键数字]]】', claim: '【结论副标题】',
     quote: '【一句引语或设计目标】', by: '【出处】', kicker: '【PART X】', callout: '【代码关键行的含义】', paper: '【论文标题 [作者+, 会议\'年]】', badge: '00:00', optional: '参考',
-    ratio: 'X×', ratioLabel: '【相对基线的提升】', better: '越低越好 ↓', link: '【开源链接】', note: '【符号说明】', ref: '[{n}] 【作者. 标题. 会议 年份.】',
+    ratio: 'X×', ratioLabel: '【相对基线的提升】', better: '越低越好 ↓', link: '【开源链接】', note: '【符号说明】', ref: '[{n}] 【作者. 标题. 会议 年份.】', chip: '【标签】',
     infoValue: '【填写】',
   },
   en: {
@@ -38,7 +52,7 @@ const PH = {
     condition: '<Conditions: data, seeds, hardware>', head: '<Point {n}>', body: '<one-line explanation>', takeaway: '<One-line takeaway>', footer: '<Talk title · Speaker>',
     explain: '<What is new on this slide>', annotation: '<What to notice in the figure>', statement: '<One statement with the [[key number]]>', claim: '<Claim subtitle>',
     quote: '<A quote or design goal>', by: '<Attribution>', kicker: 'PART X', callout: '<What the highlighted line does>', ratio: 'X×', ratioLabel: '<improvement over baseline>',
-    better: 'lower is better ↓', link: '<code / project link>', note: '<Symbol legend note>', ref: '[{n}] <Author. Title. Venue Year.>', conclusion: '<Conclusion with [[key number]]>',
+    better: 'lower is better ↓', link: '<code / project link>', note: '<Symbol legend note>', ref: '[{n}] <Author. Title. Venue Year.>', conclusion: '<Conclusion with [[key number]]>', chip: '<Label>',
     lead: '<Lead: what this slide does>', label: 'Takeaway', number_section: '0X', paper: '<Paper title [Author+, Venue\'YY]>', badge: '00:00', optional: 'Optional', pub: '[Publication]',
     infoValue: '<fill in>', titleEn: '<English title>', org: '<University · School>', kind: '<Defense / Proposal>', chapter: 'Ch. {n}', discussion: '<Discussion question {n}>',
     conclusionItem: '<Conclusion {n}>', goal: '<Goal>', challenge: '<Challenge>', solution: '<Approach in one line>', paperTitle: '<Paper title>', titleZh: '<Subtitle>',
@@ -64,6 +78,16 @@ function fillString(lang, key, value, n, spec) {
   if (KEEP.has(key)) return value;
   if (spec.type === 'references' && key === 'item') return ph(lang, 'ref', n);
   if (key === 'title' && spec.type === 'cover') return ph(lang, 'coverTitle');
+  // A cover reuses field names that mean something else elsewhere: the kicker is the
+  // venue line, meta is who presents it, affil is the affiliation. Without this they
+  // fell through to the generic point placeholder — a cover template that said
+  // 『PART X』 above the title and 『Point 1』 where the date belongs.
+  if (/^chip\d?$/.test(key)) return ph(lang, 'chip');
+  if (spec.type === 'cover') {
+    if (key === 'kicker') return ph(lang, 'venue');
+    if (key === 'meta') return ph(lang, 'presenter');
+    if (key === 'affil') return ph(lang, 'authors');
+  }
   if (key === 'title' && ['section', 'chapter'].includes(spec.type)) return ph(lang, 'sectionTitle');
   if (key === 'number' && /^\d+$/.test(value)) return value;
   if (key === 'number' || key === 'kind') return spec.type === 'cover' && key === 'kind' ? ph(lang, 'kind') : (key === 'number' && ['section', 'chapter'].includes(spec.type) ? (lang === 'zh' && spec.type === 'chapter' ? '第X章' : '0X') : ph(lang, key));
@@ -122,8 +146,42 @@ const CONTRACT = {
   thanks: '致谢 / Q&A：可与总结或讨论页合并。',
 };
 
-async function main() {
-  const outRoot = path.resolve(process.argv[2] || path.join(__dirname, '..', 'styles'));
+// A page's identity: every shape's name, geometry and text, in document order.
+// Zip timestamps and PowerPoint's own ids are left out on purpose — two builds of
+// the same code must match, one moved shape must not.
+function slideDigest(xml) {
+  const parts = [];
+  for (const m of xml.matchAll(/<p:cNvPr[^>]*?name="([^"]*)"/g)) parts.push(`n:${m[1]}`);
+  for (const m of xml.matchAll(/<a:off x="(-?\d+)" y="(-?\d+)"/g)) parts.push(`o:${m[1]},${m[2]}`);
+  for (const m of xml.matchAll(/<a:ext cx="(\d+)" cy="(\d+)"/g)) parts.push(`e:${m[1]},${m[2]}`);
+  for (const m of xml.matchAll(/<a:t>([^<]*)<\/a:t>/g)) parts.push(`t:${m[1]}`);
+  return crypto.createHash('sha256').update(parts.join('\n')).digest('hex').slice(0, 12);
+}
+
+async function pageDigests(file) {
+  const zip = await JSZip.loadAsync(fs.readFileSync(file));
+  const slides = Object.keys(zip.files)
+    .filter((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n))
+    .sort((a, b) => Number(a.match(/(\d+)/)[1]) - Number(b.match(/(\d+)/)[1]));
+  const digests = [];
+  for (const name of slides) digests.push(slideDigest(await zip.file(name).async('string')));
+  return digests;
+}
+
+// Which pages differ between two builds, by index; [] means identical.
+function pageDiff(a, b) {
+  if (!a || !b) return ['missing'];
+  const out = [];
+  const n = Math.max(a.length, b.length);
+  for (let i = 0; i < n; i += 1) if (a[i] !== b[i]) out.push(`${i + 1}${a[i] ? '' : '(absent)'}`);
+  return out;
+}
+
+// `writeSvg` is off when publishing: the tracked artifact is template.pptx plus the
+// one overview.png per preset, and dropping 100+ untracked .svg files into styles/
+// was half of what made the old command look like it had done something.
+async function build(outRoot, {writeSvg = true} = {}) {
+  const built = [];
   for (const [name, slides] of Object.entries(SAMPLES)) {
     const lang = LANG[name] || 'en';
     const t = loadTokens(name);
@@ -138,14 +196,75 @@ async function main() {
       const slide = deck.addSlide();
       drawSlide(new PptxCanvas(slide, t), t, filled);
       slide.addNotes(`[${spec.type}] ${CONTRACT[spec.type] || ''}\n详见 references/page-content-guide.md`);
-      const svg = new SvgCanvas(t);
-      drawSlide(svg, t, filled);
-      fs.writeFileSync(path.join(prev, `${String(i + 1).padStart(2, '0')}-${spec.type}.svg`), svg.toSVG());
+      if (writeSvg) {
+        const svg = new SvgCanvas(t);
+        drawSlide(svg, t, filled);
+        fs.writeFileSync(path.join(prev, `${String(i + 1).padStart(2, '0')}-${spec.type}.svg`), svg.toSVG());
+      }
     });
     const file = path.join(dir, 'template.pptx');
     await writeDeck(deck, file);
-    console.log(`wrote ${file} (${slides.length} slides)`);
+    built.push({name, file, slides: slides.length});
   }
+  return built;
+}
+
+const STYLES = path.join(__dirname, '..', 'styles');
+
+async function main() {
+  const args = process.argv.slice(2);
+  const flag = (f) => args.includes(f);
+  const outArg = args.find((a) => !a.startsWith('--'));
+
+  if (flag('--check')) {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'templates-'));
+    const fresh = await build(tmp);
+    const drifted = [];
+    for (const {name, file, slides} of fresh) {
+      const tracked = path.join(STYLES, name, 'template.pptx');
+      if (!fs.existsSync(tracked)) { drifted.push(`${name}: no tracked template`); continue; }
+      const diff = pageDiff(await pageDigests(tracked), await pageDigests(file));
+      if (diff.length) drifted.push(`${name}: ${slides} slides, page(s) ${diff.join(', ')} differ`);
+    }
+    fs.rmSync(tmp, {recursive: true, force: true});
+    if (drifted.length) {
+      console.error('template drift://n  ' + drifted.join('\n  '));
+      console.error('\nRun `node assets/build-templates.js --publish`, check the previews, and commit.');
+      process.exitCode = 1;
+      return;
+    }
+    console.log(`templates match the code (${fresh.length} presets)`);
+    return;
+  }
+
+  if (flag('--publish')) {
+    // Build aside, then copy only what actually changed: pptxgenjs stamps a new
+    // timestamp on every zip entry, so writing all 15 every time turns a one-preset
+    // change into a 15-file binary diff nobody can review.
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'templates-'));
+    const fresh = await build(tmp, {writeSvg: true});
+    const changed = [];
+    for (const {name, file} of fresh) {
+      const tracked = path.join(STYLES, name, 'template.pptx');
+      if (fs.existsSync(tracked) && !pageDiff(await pageDigests(tracked), await pageDigests(file)).length) continue;
+      fs.copyFileSync(file, tracked);
+      changed.push(name);
+    }
+    fs.rmSync(tmp, {recursive: true, force: true});
+    console.log(changed.length
+      ? `published ${changed.join(', ')}`
+      : 'nothing to publish: the tracked templates already match the code');
+    if (changed.length) {
+      console.log('\nRegenerate styles/<name>/template-preview/overview.png for the ones above '
+        + '(render the pptx with scripts/bridge.py, then montage) — --publish does not touch it.');
+    }
+    return;
+  }
+
+  const outRoot = path.resolve(outArg || path.join(__dirname, '..', 'template-build'));
+  const built = await build(outRoot);
+  for (const {file, slides} of built) console.log(`wrote ${file} (${slides} slides)`);
+  console.log('\nNothing tracked was touched. `--check` compares against styles/, `--publish` writes them.');
 }
 
 if (require.main === module) main().catch((e) => { console.error(e); process.exit(1); });

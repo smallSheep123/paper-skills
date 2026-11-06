@@ -15,6 +15,7 @@ smoke-render*/
 *.pdf
 slide-*.png
 style-samples/
+paper-ppt/template-build/
 
 # downloaded CJK fonts (scripts/get_fonts.py)
 paper-ppt/fonts/cjk/

@@ -23,6 +23,10 @@ jobs:
           # OMML branch is never exercised in CI.
           python -m pip install pillow pymupdf latex2mathml mathml2omml
           npm ci --prefix paper-ppt
+      - name: Templates still match their presets
+        # The tracked styles/<name>/template.pptx are build artifacts. Without this
+        # step nothing notices when the presets move and the templates do not.
+        run: node paper-ppt/assets/build-templates.js --check
       - name: Unit tests (the command documented in README)
         env:
           NODE_PATH: ${{ github.workspace }}/paper-ppt/node_modules
