@@ -339,6 +339,46 @@ class JavaScriptTests(unittest.TestCase):
         result = subprocess.run([self.node, '-e', code, helper], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_stylekit_markup_works_and_footer_is_not_hardcoded(self):
+        """The six style-kit presets draw `[[x]]` as an accent run, like the rest.
+
+        Two things this pins down. The inline markup lives in PptxCanvas.text, so
+        every preset gets it — a deck moved from domestic to, say, folio must not
+        start printing the brackets literally.
+
+        And a page with no `footLeft` gets no footer. The presets used to fall back
+        to 'SPARQ · OSDI 2026', the sample paper's name, so every deck built from
+        them wore someone else's title on every page.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            pptx = Path(td) / 'kit.pptx'
+            presets = str(ROOT / 'paper-ppt/assets/style-presets.js')
+            code = """const pptxgen=require('pptxgenjs');
+const {PptxCanvas,loadTokens,drawSlide,writeDeck}=require(process.argv[1]);
+(async()=>{
+ const deck=new pptxgen();
+ const t1=loadTokens('graphite');
+ drawSlide(new PptxCanvas(deck.addSlide(),t1),t1,{type:'statement',kicker:'PROBE',
+   claim:'只有 [[强调]] 这两个字',claimNote:'note',metrics:[{v:'1',k:'a'}],page:1});
+ const t2=loadTokens('folio');
+ drawSlide(new PptxCanvas(deck.addSlide(),t2),t2,{type:'claim',kicker:'PROBE',title:'T',
+   claim:'只有 [[强调]] 这两个字',claimNote:'note',metrics:[{v:'1',k:'a'}],
+   footLeft:'页脚由调用方给',page:2});
+ await writeDeck(deck,process.argv[2]);
+})().catch(e=>{console.error(e);process.exitCode=1});"""
+            result = subprocess.run([self.node, '-e', code, presets, str(pptx)],
+                                    capture_output=True, text=True, cwd=str(ROOT / 'paper-ppt'))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            with zipfile.ZipFile(pptx) as z:
+                bare = z.read('ppt/slides/slide1.xml').decode('utf8')
+                given = z.read('ppt/slides/slide2.xml').decode('utf8')
+            for xml in (bare, given):
+                self.assertNotIn('[[', xml, 'brackets printed literally')
+                self.assertIn('<a:t>强调</a:t>', xml, 'marked word became its own run')
+                self.assertNotIn('SPARQ', xml, 'a sample paper leaked into the preset')
+            self.assertIn('C30037', bare, 'graphite accent not applied to the marked run')
+            self.assertIn('页脚由调用方给', given, 'a supplied footer was dropped')
+
     def test_image_contain_api_and_notes(self):
         from PIL import Image
         with tempfile.TemporaryDirectory() as td:
@@ -602,7 +642,8 @@ if __name__ == '__main__':
 
 class TemplatesAndFontsTest(unittest.TestCase):
     PRESETS = ['international', 'domestic', 'keynote-minimal', 'systems-talk', 'theory-beamer',
-               'dark-tech', 'editorial', 'defense-cn', 'jp-gothic']
+               'dark-tech', 'editorial', 'defense-cn', 'jp-gothic',
+               'graphite', 'violet', 'bandgrid', 'folio', 'nocturne', 'mosaic']
 
     def test_every_preset_has_template_and_font_section(self):
         root = Path(__file__).resolve().parent.parent / 'paper-ppt' / 'styles'

@@ -192,22 +192,33 @@ description: AI 主导的论文汇报 PPT 工作流：开工前先访谈用户�
 | `defense-cn` | 国内答辩、开题、中期、基金汇报：校色标题带、章节导航、创新点卡片 |
 | `jp-gothic` | 日文 / 韩文报告，或日系高密度论文分享 |
 
-另有 [Academic Evidence](styles/academic-evidence/STYLE.md)：本次论文汇报形成的可选风格说明与中英文案例，强调证据和就近解释。它不是覆盖其他九套预设的通用规范，也不注册固定页面模板。
+再从 6 套「风格包」预设中选（公开课件与 Typst 主题的单独蒸馏，逐套的色值证据见各目录 `refs/`）：
+
+| 预设 | 场景 |
+|---|---|
+| `graphite` | 英文组会 / 会议 talk / 系统与体系结构：深色满版、全大写主张、唯一红 |
+| `violet` | 国内组会、中期、开题、答辩：满版紫页眉带、紫底白字块标题 |
+| `bandgrid` | 中文论文精读、文献综述、长汇报：蓝色页眉带、PART 分区、横向标签块 |
+| `folio` | 论文精读、方法与理论、想让观众「读」的汇报：超大留白、靛蓝短横线 |
+| `nocturne` | 晚间组会、系统与性能类、暗光投影：全稿深色石板、暖金唯一强调 |
+| `mosaic` | 内容点多、需要拆成块的综述与中期：Bento 圆角卡片、四色 callout |
+
+另有 [Academic Evidence](styles/academic-evidence/STYLE.md)：本次论文汇报形成的可选风格说明与中英文案例，强调证据和就近解释。它不是覆盖其他十五套预设的通用规范，也不注册固定页面模板。
 
 优先选与用户参考、场景和内容密度匹配的一套；不确定时采用可逆候选并在样页中验证。选定方言/预设或案例风格写入 `design-brief.md`。
 
 **三层怎么叠加（冲突时按这个顺序）：**
 
 1. 用户明确要求；
-2. **预设**（9 套，`international` / `domestic` 本身也是预设）：决定字体、配色、网格和页面原型，**字体以预设 `tokens.json` 为准**；
+2. **预设**（15 套，`international` / `domestic` 本身也是预设）：决定字体、配色、网格和页面原型，**字体以预设 `tokens.json` 为准**；
 3. **方言**：只叠加文案习惯，不改视觉。例如中文汇报选 `systems-talk` 时，仍可以用“一、二、三”标题前缀、提纲页、出处标签、结尾讨论问题；
 4. **Academic Clean / Rich**：只决定密度和演示感，不覆盖预设的字体和配色。
 
 每次只选一套预设，选定理由和叠加的方言规则写进 `design-brief.md`。
 
-所有预设都可直接调用（[styles/](styles/README.md)）：`tokens.json` 定义字体、字号、配色语义和网格，`assets/style-presets.js` 与 `style-presets-extra.js` 提供页面原型，`assets/layout-kit.js` 提供共用的构图原语（按宽高比放图并回传紧致矩形、引线标注、圈点与编号徽章、分栏、列头、竖直分隔线）。**九套预设都已补齐覆盖概述 / 方法 / 结果 / 对比 / 收尾五类页型的版式**，每套的版式骨架各不相同，见 [references/layout-atlas.md](references/layout-atlas.md) 的「预设 → 版式骨架」对照表；不要只用 `head` 加一张图就当作该预设的设计。没有合适原型的页型照预设 token 自由绘制，可参考 `lab/annotated-v2/` 的构图。
+所有预设都可直接调用（[styles/](styles/README.md)）：`tokens.json` 定义字体、字号、配色语义和网格，`assets/style-presets.js`、`style-presets-extra.js` 与 `style-presets-stylekit.js`（后者的原型在 `styles/<preset>/prototypes.js`）提供页面原型，`assets/layout-kit.js` 提供共用的构图原语（按宽高比放图并回传紧致矩形、引线标注、圈点与编号徽章、分栏、列头、竖直分隔线）。**十五套预设都已补齐覆盖概述 / 方法 / 结果 / 对比 / 收尾五类页型的版式**，每套的版式骨架各不相同，见 [references/layout-atlas.md](references/layout-atlas.md) 的「预设 → 版式骨架」对照表；不要只用 `head` 加一张图就当作该预设的设计。没有合适原型的页型照预设 token 自由绘制，可参考 `lab/annotated-v2/` 的构图。
 
-**先按内容选版式，再按风格取颜色**：同一页型在九套预设里对应不同的构图（例如「对比」页，`international` 是带高亮模块的流水线、`systems-talk` 是整宽数据表、`dark-tech` 是左右数值对照、`defense-cn` 是双案例图卡、`jp-gothic` 是变更前后双栏表）。换预设必须换构图，只换 `tokens.json` 的颜色和字体等于没换风格。
+**先按内容选版式，再按风格取颜色**：同一页型在十五套预设里对应不同的构图（例如「对比」页，`international` 是带高亮模块的流水线、`systems-talk` 是整宽数据表、`dark-tech` 是左右数值对照、`defense-cn` 是双案例图卡、`jp-gothic` 是变更前后双栏表）。换预设必须换构图，只换 `tokens.json` 的颜色和字体等于没换风格。
 
 自由绘制时用画布接口，不要直接调 PptxGenJS：
 
