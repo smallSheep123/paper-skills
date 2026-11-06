@@ -7,6 +7,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import shutil
 from pathlib import Path
 import subprocess
@@ -737,6 +738,26 @@ class TemplatesAndFontsTest(unittest.TestCase):
             self.assertTrue((root / p / 'template.pptx').stat().st_size > 10000, p)
             self.assertTrue((root / p / 'template-preview' / 'overview.png').exists(), p)
             self.assertIn('## 字体与基础模板', (root / p / 'STYLE.md').read_text(encoding='utf-8'), p)
+
+    def test_template_alt_text_does_not_leak_a_path(self):
+        """Image alt text must not be the absolute path pptxgenjs falls back to.
+
+        An empty `altText` makes pptxgenjs write `descr="<path>"`, so the published
+        templates carried one machine's `D:\\Project\\...\\_sample-figures\\fig.png`
+        into a public repo — and made the same code produce a different slide XML on
+        Linux, which is what the drift check then reported as a template that had
+        fallen behind. The fallback is now the file name.
+        """
+        root = Path(__file__).resolve().parent.parent / 'paper-ppt' / 'styles'
+        for p in self.PRESETS:
+            with zipfile.ZipFile(root / p / 'template.pptx') as z:
+                for name in z.namelist():
+                    if not re.match(r'ppt/slides/slide\d+\.xml$', name):
+                        continue
+                    for descr in re.findall(rb'descr="([^"]*)"', z.read(name)):
+                        text = descr.decode('utf8')
+                        self.assertNotIn('\\', text, f'{p}/{name}: alt text is a path')
+                        self.assertNotIn('/', text, f'{p}/{name}: alt text is a path')
 
     def test_check_fonts_json(self):
         import json as _json
