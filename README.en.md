@@ -7,9 +7,10 @@
 <p align="center">
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-2E86DE"></a>
   <img alt="Skills" src="https://img.shields.io/badge/skills-paper--extract%20%7C%20paper--ppt-8E44AD">
-  <img alt="Presets" src="https://img.shields.io/badge/style%20presets-9-E4572E">
+  <img alt="Presets" src="https://img.shields.io/badge/style%20presets-15-E4572E">
   <img alt="Atlas" src="https://img.shields.io/badge/distilled%20from-105%20real%20decks-27AE60">
   <img alt="Output" src="https://img.shields.io/badge/output-editable%20PPTX-555">
+  <a href="https://github.com/smallSheep123/paper-skills/actions/workflows/tests.yml"><img alt="tests" src="https://github.com/smallSheep123/paper-skills/actions/workflows/tests.yml/badge.svg"></a>
 </p>
 
 <p align="center">
@@ -21,7 +22,7 @@
   <a href="#-get-started-in-three-steps">Get started</a> ·
   <a href="#-what-to-say-to-the-ai">What to say</a> ·
   <a href="#-what-goes-on-each-slide-content-distillation">Content distillation</a> ·
-  <a href="#-9-style-presets">Style presets</a> ·
+  <a href="#-15-style-presets">Style presets</a> ·
   <a href="#-workflow">Workflow</a> ·
   <a href="#-local-toolchain-optional">Local toolchain</a> ·
   <a href="#-faq">FAQ</a>
@@ -34,7 +35,7 @@
 | | |
 |---|---|
 | 🎯 **Clear story** | The AI first understands the paper and settles on a storyline, then decides what each slide says; every number and claim traces back to the paper |
-| 🎨 **Looks professional** | 9 style presets distilled from 105 real academic decks (top systems venues, ML tutorials, top-university courses, Chinese thesis defenses, Japanese/Korean tech talks) |
+| 🎨 **Looks professional** | 15 style presets: 9 distilled from 105 real academic decks (top systems venues, ML tutorials, top-university courses, Chinese thesis defenses, Japanese/Korean tech talks), 6 from public course slides and Typst themes |
 | 👀 **Actually checked** | Every batch of slides is rendered to images; the AI looks at them, finds problems and fixes them, instead of handing over whatever it generated |
 | 🗣 **Asks first** | Before starting it asks about the occasion, length, audience and style; after reading the paper it shows you the outline, and after the sample slides it checks in again, so you never discover a wrong direction only at the end |
 | ✏️ **Stays editable** | Output is an editable PPTX: text, annotations and hand-drawn diagrams can all be changed; every slide comes with Chinese/English speaker notes |
@@ -193,7 +194,7 @@ Slide counts include PDF pages exported from animation build steps. Habits share
 
 ---
 
-## 🎨 9 style presets
+## 🎨 15 style presets
 
 Preset = fonts / font sizes / color semantics / grid + a set of slide archetypes. It is a starting point, not a template: the AI reworks compositions and splits slides to fit the paper's content.
 
@@ -213,6 +214,16 @@ Preset = fonts / font sizes / color semantics / grid + a set of slide archetypes
 <td align="center"><img src="paper-ppt/styles/editorial/samples/04-chips.png"><br><a href="paper-ppt/styles/editorial/STYLE.md"><b>editorial</b></a><br><sub>Illustrated magazine style: serif italics, one image per slide</sub></td>
 <td align="center"><img src="paper-ppt/styles/jp-gothic/samples/03-read.png"><br><a href="paper-ppt/styles/jp-gothic/STYLE.md"><b>jp-gothic</b></a><br><sub>Japanese/Korean tech talks: paper citation line, black conclusion banner</sub></td>
 </tr>
+<tr>
+<td align="center"><img src="paper-ppt/styles/graphite/samples/04-statement.png"><br><a href="paper-ppt/styles/graphite/STYLE.md"><b>graphite</b></a><br><sub>High-contrast systems lecture: full-bleed dark, all-caps claims, a single red</sub></td>
+<td align="center"><img src="paper-ppt/styles/violet/samples/04-twoCol.png"><br><a href="paper-ppt/styles/violet/STYLE.md"><b>violet</b></a><br><sub>Chinese lab meeting / mid-term review: violet header band, white-on-violet title blocks</sub></td>
+<td align="center"><img src="paper-ppt/styles/bandgrid/samples/04-bands.png"><br><a href="paper-ppt/styles/bandgrid/STYLE.md"><b>bandgrid</b></a><br><sub>Chinese close reading: blue header band, PART sections, horizontal label blocks</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="paper-ppt/styles/folio/samples/04-claim.png"><br><a href="paper-ppt/styles/folio/STYLE.md"><b>folio</b></a><br><sub>Editorial whitespace: generous margins, short indigo rule, full-bleed conclusion</sub></td>
+<td align="center"><img src="paper-ppt/styles/nocturne/samples/04-claim.png"><br><a href="paper-ppt/styles/nocturne/STYLE.md"><b>nocturne</b></a><br><sub>Dark slate: dark throughout, warm gold as the only accent</sub></td>
+<td align="center"><img src="paper-ppt/styles/mosaic/samples/04-claim.png"><br><a href="paper-ppt/styles/mosaic/STYLE.md"><b>mosaic</b></a><br><sub>Bento cards: rounded card grid, four-colour callouts</sub></td>
+</tr>
 </table>
 
 **How to choose**
@@ -227,6 +238,12 @@ Preset = fonts / font sizes / color semantics / grid + a set of slide archetypes
 | HCI, visualization, graphics, popular science | `editorial` |
 | Defenses, proposals, mid-term reviews, grant reports | `defense-cn` |
 | Japanese / Korean, or dense Japanese-style talks | `jp-gothic` |
+| English systems / architecture talks that want high contrast | `graphite` |
+| Chinese lab meetings, proposals, mid-term reviews with a header band | `violet` |
+| Chinese close reading, literature reviews, long talks | `bandgrid` |
+| Method- and theory-heavy talks meant to be read | `folio` |
+| Dim rooms, evening meetings, systems and performance work | `nocturne` |
+| Content-heavy surveys and mid-term reviews split into blocks | `mosaic` |
 
 **Each preset comes with a font list and a base template**
 
@@ -241,12 +258,18 @@ Preset = fonts / font sizes / color semantics / grid + a set of slide archetypes
 | `editorial` | Palatino Linotype | Source Han Serif | [template.pptx](paper-ppt/styles/editorial/template.pptx) |
 | `defense-cn` | Arial | Microsoft YaHei | [template.pptx](paper-ppt/styles/defense-cn/template.pptx) |
 | `jp-gothic` | Noto Sans JP | Noto Sans JP | [template.pptx](paper-ppt/styles/jp-gothic/template.pptx) |
+| `graphite` | Arial | Microsoft YaHei | [template.pptx](paper-ppt/styles/graphite/template.pptx) |
+| `violet` | Arial | Microsoft YaHei | [template.pptx](paper-ppt/styles/violet/template.pptx) |
+| `bandgrid` | Arial | Microsoft YaHei | [template.pptx](paper-ppt/styles/bandgrid/template.pptx) |
+| `folio` | Arial | Microsoft YaHei | [template.pptx](paper-ppt/styles/folio/template.pptx) |
+| `nocturne` | Arial | Microsoft YaHei | [template.pptx](paper-ppt/styles/nocturne/template.pptx) |
+| `mosaic` | Arial | Microsoft YaHei | [template.pptx](paper-ppt/styles/mosaic/template.pptx) |
 
 - **Templates**: each slide is a real layout of that style, with the text replaced by placeholder guidance like “[assertion title + keywords]”, and the speaker notes describe what content belongs on that slide;
 - **Fonts**: [fonts.md](paper-ppt/references/fonts.md) lists each font's source, license and open-source alternative, plus the “safe font set” to use when presenting on a venue computer; `python paper-ppt/scripts/check_fonts.py domestic` checks which ones are missing on your machine.
 - **Open fonts**: open-licensed Latin fonts are bundled in `paper-ppt/fonts/`; CJK fonts (Noto Sans SC / Noto Serif SC / Noto Sans JP) are fetched and installed with `python paper-ppt/scripts/get_fonts.py --install`. Set `PAPER_PPT_FONTS=open` when generating and any preset switches to the open font track, so decks render identically on every machine (details in [fonts.md](paper-ppt/references/fonts.md) §0).
 
-Curious where these styles come from? The [style atlas](paper-ppt/references/slide-style-atlas.md) records measured fonts, text density and layout clusters for 105 real decks (for example, the highest-rated decks have a median of 38 words per slide, the lower-rated ones 51).
+Curious where these styles come from? The [style atlas](paper-ppt/references/slide-style-atlas.md) records measured fonts, text density and layout clusters for 105 real decks (for example, the highest-rated decks have a median of 38 words per slide, the lower-rated ones 51); colour evidence and source screenshots for the last six live in each preset's `refs/ATTRIBUTION.md`. The [layout atlas](paper-ppt/references/layout-atlas.md) maps each preset to its layout skeletons, and [styles/README.md](paper-ppt/styles/README.md) lists all presets at a glance.
 
 ---
 
@@ -309,10 +332,12 @@ cd paper-ppt
 npm install
 python -m pip install -r requirements.txt
 python scripts/bridge.py doctor          # check the environment
-node assets/build-style-samples.js out   # build sample decks for all 9 presets
+node assets/build-style-samples.js out   # build sample decks for all 15 presets
 ```
 
-Equations: `scripts/math_assets.py` / `assets/equations.js` render LaTeX to SVG/PNG or simple native OMML (see [math-equations.md](paper-ppt/references/math-equations.md)); structural check: `python scripts/check_deck.py deck.pptx`.
+Equations: `scripts/math_assets.py` / `assets/equations.js` render LaTeX to SVG/PNG or simple native OMML (see [math-equations.md](paper-ppt/references/math-equations.md)); structural check: `python scripts/check_deck.py deck.pptx`; style check: `python scripts/lint_style.py deck.pptx --preset international` (text overflow, accent length, bullet length in characters or lines, figure numbering).
+
+Hand-drawn diagrams: `python scripts/diagram.py fig.html --out fig.png` renders HTML/SVG to PNG with a headless browser and trims to the content by default (`--pad` for margin, `--no-trim` to keep the viewport size).
 
 Real rendering needs LibreOffice and Poppler. Without LibreOffice, `scripts/svg_preview.py` gives an approximate preview (line breaks are estimated from character widths; the PPTX as actually opened is what counts). See [INSTALL.md](paper-ppt/INSTALL.md) for details.
 </details>
@@ -368,16 +393,16 @@ paper-skills/
 │
 ├── paper-ppt/                     paper → presentation PPT
 │   ├── SKILL.md                   AI workflow manual (start reading here)
-│   ├── styles/                    9 style presets: STYLE.md · tokens.json · template.pptx · refs/ · samples/
+│   ├── styles/                    15 style presets: STYLE.md · tokens.json · template.pptx · refs/ · samples/
 │   ├── references/                interview question bank, slide content guide, font list, style guide, visual review protocol, style atlas
 │   ├── assets/                    PPTX drawing: style-presets*.js, ppt-helpers.js
-│   └── scripts/                   bridge.py rendering · check_deck.py · check_fonts.py · math_assets.py · svg_preview.py
+│   └── scripts/                   bridge.py rendering · check_deck.py · lint_style.py · check_review.py · check_fonts.py · math_assets.py · diagram.py · svg_preview.py
 │
 ├── docs/images/                   README images
 └── tests/                         tool tests
 ```
 
-**Design references**: [Academic Evidence style case study](paper-ppt/styles/academic-evidence/STYLE.md) · [Equation rendering](paper-ppt/references/math-equations.md) · [Interview question bank](paper-ppt/references/intake.md) · [Slide content guide](paper-ppt/references/page-content-guide.md) · [Font list](paper-ppt/references/fonts.md) · [Style guide](paper-ppt/references/style-guide.md) · [Talk structure](paper-ppt/references/talk-structure.md) · [Visual review protocol](paper-ppt/references/visual-review.md) · [Style distillation gallery](paper-ppt/references/slide-style-gallery.md) · [Style atlas](paper-ppt/references/slide-style-atlas.md) · [Academic Clean](paper-ppt/references/academic-clean.md) / [Rich](paper-ppt/references/academic-rich.md)
+**Design references**: [Academic Evidence style case study](paper-ppt/styles/academic-evidence/STYLE.md) · [Equation rendering](paper-ppt/references/math-equations.md) · [Interview question bank](paper-ppt/references/intake.md) · [Slide content guide](paper-ppt/references/page-content-guide.md) · [Font list](paper-ppt/references/fonts.md) · [Style guide](paper-ppt/references/style-guide.md) · [Talk structure](paper-ppt/references/talk-structure.md) · [Visual review protocol](paper-ppt/references/visual-review.md) · [Style distillation gallery](paper-ppt/references/slide-style-gallery.md) · [Style atlas](paper-ppt/references/slide-style-atlas.md) · [Layout atlas](paper-ppt/references/layout-atlas.md) · [Academic Clean](paper-ppt/references/academic-clean.md) / [Rich](paper-ppt/references/academic-rich.md)
 
 ---
 
@@ -387,7 +412,7 @@ paper-skills/
 python -m unittest discover -s tests -v
 ```
 
-The tests check tool wiring, version records, preset builds and low-level script behavior; they **do not replace fact-checking against the paper, vision-model review of the slides, or real PowerPoint compatibility testing**.
+GitHub Actions runs the same command on every push and PR (including the optional OMML equation dependencies). The tests check tool wiring, version records, that every preset builds, each `lint_style` rule, and low-level script behavior; they **do not replace fact-checking against the paper, vision-model review of the slides, or real PowerPoint compatibility testing**.
 
 The project does not include a paper library, model keys or personal configuration; `paper-ppt/fonts/` contains only redistributable open-licensed fonts (each with its licence), and no commercial fonts are shipped; real-slide screenshots in `refs/` are low-resolution, credited citations used only to illustrate design techniques.
 
