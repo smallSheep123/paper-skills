@@ -743,10 +743,10 @@ class TemplatesAndFontsTest(unittest.TestCase):
         """Image alt text must not be the absolute path pptxgenjs falls back to.
 
         An empty `altText` makes pptxgenjs write `descr="<path>"`, so the published
-        templates carried one machine's `D:\\Project\\...\\_sample-figures\\fig.png`
-        into a public repo — and made the same code produce a different slide XML on
-        Linux, which is what the drift check then reported as a template that had
-        fallen behind. The fallback is now the file name.
+        templates carried one machine's `…\\styles\\_sample-figures\\fig.png` into a
+        public repo — and made the same code produce a different slide XML on Linux,
+        which is what the drift check then reported as a template that had fallen
+        behind. The fallback is now the file name.
         """
         root = Path(__file__).resolve().parent.parent / 'paper-ppt' / 'styles'
         for p in self.PRESETS:
