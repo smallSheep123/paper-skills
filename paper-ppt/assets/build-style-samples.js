@@ -65,11 +65,11 @@ const sampleNote = (spec) => spec.notes
 // the same numbers is how sample decks start contradicting each other.
 const KIT = {
   en: {
-    kicker: 'OSDI 2026 · PAPER READING',
+    kicker: 'PLACEHOLDER VENUE 2026 · PAPER READING',
     title: 'SPARQ: Speculative\nPrefetching for\nVector Index Scans',
     subtitle: 'A query batch already reveals which lists come next — score the current one while the next one is still in flight.',
     authors: 'L. CHEN · M. ITO · R. GUPTA',
-    affil: 'UC Berkeley · Microsoft Research',
+    affil: 'Example University · Example Lab',
     meta: '汇报人 张×× · 2026.11',
     outline: ['Why vector scans stall', 'Design: prefetch inside the batch', 'Evaluation on SIFT1B', 'Limits and discussion'],
     section1: {index: 1, word: 'Motivation', line: 'IVF 扫描的瓶颈不在算力，而在随机读的等待。'},
@@ -116,7 +116,7 @@ const KIT = {
       claim: '同一召回率下，p95 延迟从 128 ms 降到 53 ms。',
       big: '2.4×', bigLabel: 'p95 延迟下降倍数',
       bigNote: 'SIFT1B，recall@10 = 0.95，nprobe = 40，单节点 32 核。\n对照为同召回率下的最优配置。',
-      caption: '图 3：同一召回率下的 p95 延迟（论文 Table 2 重绘）',
+      caption: '图 3：同一召回率下的 p95 延迟（论文 Table 2 重绘，占位数据）',
     },
     table: {
       cols: ['系统', 'p95 (ms)', 'QPS', 'recall@10', '内存 (GB)'],
@@ -126,14 +126,14 @@ const KIT = {
         {cells: ['DiskANN', '96', '1040', '0.95', '46.0']},
         {cells: ['SPARQ（本文）', '53', '1260', '0.95', '34.5'], ours: true},
       ],
-      note: '测试集 SIFT1B，单节点 32 核 / 256 GB，nprobe 各自调到相同 recall@10 的最优值。',
+      note: '占位数据 · 测试集 SIFT1B，单节点 32 核 / 256 GB，nprobe 各自调到相同 recall@10 的最优值。',
     },
     summaryBlocks: [
       {label: '主要贡献', items: ['把随机读识别为向量检索的真瓶颈，而不是距离计算', '利用批次内部的簇号可预测性，预取覆盖 78% 的随机读']},
       {label: '局限与边界', items: ['单批次查询数 < 8 时预取窗口不足，收益降到 1.2×', '依赖 SSD 队列深度 ≥ 4，机械盘与远端存储未验证']},
       {label: '讨论', items: ['能否把同样的预取思路用到图索引（DiskANN）的邻居扩展上？']},
     ],
-    thanks: 'SPARQ · OSDI 2026 · 汇报人：张××',
+    thanks: 'SPARQ（占位论文） · Placeholder Venue 2026 · 汇报人：张××',
   },
 };
 
@@ -156,7 +156,7 @@ const KIT_RESULT_EN = {
     {label: 'DiskANN', value: 96},
     {label: 'SPARQ', value: 53, ours: true},
   ],
-  caption: '图 3　同一召回率下的 p95 延迟（论文 Table 2 重绘，仅用论文标注值）',
+  caption: '图 3　同一召回率下的 p95 延迟（论文 Table 2 重绘，占位数据）',
 };
 
 // The three "second round" presets (folio / nocturne / mosaic) narrow the four
@@ -178,7 +178,7 @@ const KIT_SUMMARY_ITEMS = [
 // accent differently (nocturne keeps gold to six CJK characters or fewer).
 function kitNarrowSample(name) {
   const z = KIT.zh;
-  const kicker = name === 'nocturne' ? 'SYSTEMS TALK / OSDI 2026' : '论文分享 · 系统组周会';
+  const kicker = name === 'nocturne' ? 'SYSTEMS TALK / PLACEHOLDER 2026' : '论文分享 · 系统组周会';
   const pages = [
     {type: 'cover', kicker, title: z.title, subtitle: z.subtitle,
       meta: '汇报人：张××　2026.11.04', authors: 'L. Chen · M. Ito · R. Gupta',
@@ -188,14 +188,14 @@ function kitNarrowSample(name) {
     {type: 'section', index: 1, title: '动机', note: KIT.en.section1.line, page: 3},
     {type: 'claim', kicker: 'MOTIVATION', title: '一、瓶颈不在算力，而在 40 次随机跳转',
       claim: KIT_STATEMENT.claim, claimNote: KIT_STATEMENT.claimNote, metrics: KIT_STATEMENT.metrics,
-      source: '来源：论文 §2.1 与 Fig. 2；SIFT1B / nprobe = 40 实测', page: 4},
+      source: '来源：占位论文 §2.1 与 Fig. 2；SIFT1B / nprobe = 40（占位数据）', page: 4},
     {type: 'section', index: 2, title: '设计', note: KIT.en.section2.line, page: 5},
     {type: 'method', kicker: 'DESIGN', title: '二、方法：预取、剪枝、回填三步重叠',
       claim: z.method.claim, bullets: z.method.bullets, stages: z.method.stages, hot: z.method.hot,
       takeaway: '关键不是把 I/O 做快，而是让 I/O 和计算落在同一段时间里。', page: 6},
     {type: 'result', kicker: 'EVALUATION', title: '三、结果：同等召回率下 p95 降到 53 ms',
       big: z.result.big, bigLabel: z.result.bigLabel, bigNote: z.result.bigNote,
-      data: KIT_RESULT_EN.data, caption: z.result.caption, source: 'Table 2 · §5.2', page: 7},
+      data: KIT_RESULT_EN.data, caption: z.result.caption, source: 'Table 2 · §5.2 · 占位数据', page: 7},
     {type: 'table', kicker: 'EVALUATION', title: '三、结果：多花 2.5 GB 内存换 75 ms',
       cols: z.table.cols, widths: z.table.widths, rows: z.table.rows, tableNote: z.table.note, page: 8},
     {type: 'summary', kicker: 'CONCLUSION', title: '四、小结：贡献、边界与待验证的问题',
@@ -205,6 +205,19 @@ function kitNarrowSample(name) {
   ];
   return pages;
 }
+
+// The six style-kit presets used to hardcode 'SPARQ · OSDI 2026' as their footer
+// when a page passed no footLeft, so every deck built from them carried a paper
+// that does not exist. The presets now draw a footer only when one is given; the
+// samples supply it, the way a real deck does.
+const KIT_FOOT = {
+  graphite: 'SPARQ (PLACEHOLDER) · PAPER READING',
+  violet: '论文：SPARQ（占位） · L. Chen, M. Ito, R. Gupta',
+  bandgrid: '论文分享 · SPARQ（占位）',
+  folio: 'SPARQ（占位） · 组会汇报',
+  nocturne: 'SPARQ (PLACEHOLDER)',
+  mosaic: 'SPARQ（占位） · 组会汇报',
+};
 
 const SAMPLES = {
   international: [
@@ -305,7 +318,7 @@ const SAMPLES = {
     {type: 'cover', kicker: '论文分享 · 系统组周会', date: '2026.11.04', title: KIT.zh.title,
       subtitle: KIT.zh.subtitle,
       meta: [{k: '汇报人', v: '张××'}, {k: '导师', v: '×× 教授'}, {k: '单位', v: '×× 大学 计算机学院 · 系统组'}],
-      foot: '论文：SPARQ (OSDI 2026) · L. Chen, M. Ito, R. Gupta', page: 1},
+      foot: '论文：SPARQ（占位） · L. Chen, M. Ito, R. Gupta', page: 1},
     {type: 'outline', title: '汇报提纲', headRight: '张×× · 2026.11.04 · 2/10', items: KIT.zh.outline, page: 2},
     {type: 'section', index: 1, title: '背景与动机', note: '向量检索为什么会被 I/O 卡住', page: 3},
     {type: 'twoCol', title: '一、问题：40 次随机跳转吃掉六成时间', headRight: '张×× · 2026.11.04 · 4/10',
@@ -327,8 +340,8 @@ const SAMPLES = {
   ],
   bandgrid: [
     {type: 'cover', kicker: '论文分享 · 系统组周会', date: '2026.11.04', title: KIT.zh.title,
-      subtitle: KIT.zh.subtitle, venue: 'OSDI 2026 · 会议论文（12 页，含附录）',
-      authors: 'L. Chen（一作）· M. Ito · R. Gupta　UC Berkeley / MSR',
+      subtitle: KIT.zh.subtitle, venue: 'Placeholder Venue 2026 · 会议论文（占位，12 页）',
+      authors: 'L. Chen（一作）· M. Ito · R. Gupta　Example University / Example Lab',
       takeaway: '批次内部的簇号可预测，预取能把 p95 延迟压到 53 ms。',
       foot: '汇报人：张××　·　2026 年 11 月 4 日', page: 1},
     {type: 'outline', title: '汇报提纲：一篇论文的四次转折', headRight: '张×× · 4/10',
@@ -369,6 +382,11 @@ const SAMPLES = {
   nocturne: kitNarrowSample('nocturne'),
   mosaic: kitNarrowSample('mosaic'),
 };
+
+// A page that already names its own footer keeps it; the rest get the pack's.
+for (const [name, foot] of Object.entries(KIT_FOOT)) {
+  SAMPLES[name] = SAMPLES[name].map((page) => ({...page, footLeft: page.footLeft || page.foot || foot}));
+}
 
 async function main() {
   const outDir = path.resolve(process.argv[2] || 'style-samples');

@@ -20,7 +20,8 @@ module.exports = function makeNocturne({pageNo}) {
       color: t.color.rule, w: 0.6});
   }
   function foot(c, t, s) {
-    c.text(s.footLeft || 'SPARQ · OSDI 2026', {x: MX(t), y: t.grid.footerY - 0.08,
+    // No default paper name: the deck supplies the footer, or there is none.
+    if (s.footLeft) c.text(s.footLeft, {x: MX(t), y: t.grid.footerY - 0.08,
       w: 8, h: 0.22, size: t.size.footer, color: t.color.faint, charSpacing: 1.4});
     if (s.page) c.text(`${String(s.page).padStart(2, '0')} / ${String(s.total || 10).padStart(2, '0')}`,
       {x: W(t) - MX(t) - 1.5, y: t.grid.footerY - 0.08, w: 1.5, h: 0.22,

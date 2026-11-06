@@ -20,7 +20,8 @@ module.exports = function makeFolio({pageNo}) {
   function foot(c, t, s) {
     c.line({x1: MX(t), y1: t.grid.footerY - 0.2, x2: W(t) - MX(t), y2: t.grid.footerY - 0.2,
       color: t.color.rule, w: 0.5});
-    c.text(s.footLeft || 'SPARQ · OSDI 2026 · 组会汇报', {x: MX(t), y: t.grid.footerY - 0.1,
+    // No default paper name: the deck supplies the footer, or there is none.
+    if (s.footLeft) c.text(s.footLeft, {x: MX(t), y: t.grid.footerY - 0.1,
       w: 8, h: 0.22, size: t.size.footer, color: t.color.faint});
     if (s.page) c.text(`${s.page} / ${s.total || 10}`, {x: W(t) - MX(t) - 1.4,
       y: t.grid.footerY - 0.1, w: 1.4, h: 0.22, size: t.size.footer,

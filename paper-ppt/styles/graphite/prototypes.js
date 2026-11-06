@@ -32,8 +32,12 @@ module.exports = function makeGraphite({pageNo}) {
       c.text(caps(s.source), {x: MX(t), y: y - 0.38, w: 9, h: 0.2, size: 8.5,
         color: t.color.faint, charSpacing: 1.4});
     }
-    c.text(caps(s.footLeft || 'SPARQ · OSDI 2026'), {
-      x: MX(t), y, w: 7, h: 0.2, size: t.size.footer, color: t.color.faint, charSpacing: 1.6});
+    // No paper name is baked in: a deck that passes no footLeft gets no footer,
+    // rather than someone else's title on every page.
+    if (s.footLeft) {
+      c.text(caps(s.footLeft), {
+        x: MX(t), y, w: 7, h: 0.2, size: t.size.footer, color: t.color.faint, charSpacing: 1.6});
+    }
     if (s.page) {
       c.text(`${String(s.page).padStart(2, '0')} / ${String(s.total || 10).padStart(2, '0')}`, {
         x: W(t) - MX(t) - 1.4, y, w: 1.4, h: 0.2, size: t.size.footer, color: t.color.faint,

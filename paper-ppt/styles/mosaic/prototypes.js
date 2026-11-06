@@ -13,7 +13,8 @@ module.exports = function makeMosaic({pageNo}) {
     c.rect({x: MX(t), y: 1.42, w: 0.7, h: 0.05, fill: t.color.primary});
   }
   function foot(c, t, s) {
-    c.text(s.footLeft || 'SPARQ · OSDI 2026 · 组会汇报', {x: MX(t), y: t.grid.footerY - 0.06,
+    // No default paper name: the deck supplies the footer, or there is none.
+    if (s.footLeft) c.text(s.footLeft, {x: MX(t), y: t.grid.footerY - 0.06,
       w: 8, h: 0.22, size: t.size.footer, color: t.color.faint});
     if (s.page) c.text(`${s.page} / ${s.total || 10}`,
       {x: W(t) - MX(t) - 1.4, y: t.grid.footerY - 0.06, w: 1.4, h: 0.22,
