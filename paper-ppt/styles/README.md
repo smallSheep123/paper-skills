@@ -44,7 +44,7 @@
 | `nocturne` | Arial | Microsoft YaHei | [template.pptx](nocturne/template.pptx) |
 | `mosaic` | Arial | Microsoft YaHei | [template.pptx](mosaic/template.pptx) |
 
-完整字体清单、开源替代和放映环境策略见 [fonts.md](../references/fonts.md)；`python scripts/check_fonts.py` 检查本机缺哪些字体；`node assets/build-templates.js` 把模板重建到 `paper-ppt/template-build/`（不进仓库），`--check` 比对仓库里的 `template.pptx` 与当前代码是否一致（CI 会跑），`--publish` 只把真正变了的模板写回 `styles/`；改完要重新渲染该预设的 `template-preview/overview.png`。
+完整字体清单、开源替代和放映环境策略见 [fonts.md](../references/fonts.md)；`python scripts/check_fonts.py` 检查本机缺哪些字体；`node assets/build-templates.js` 把模板重建到 `paper-ppt/template-build/`（不进仓库），`--check` 比对仓库里的 `template.pptx` 与当前代码是否一致（CI 会跑；比的是整包内容——每张幻灯片、备注、版式、母版、主题、图片字节、文档属性的哈希，只有构建时钟和形状内部 id 被忽略，所以改颜色、改字体也算漂移），`--publish` 只把真正变了的模板写回 `styles/`；`--check --against <dir>` 可以比对另一份模板目录而不是 `styles/`。改完要重新渲染该预设的 `template-preview/overview.png`。
 
 每个预设目录包含：
 

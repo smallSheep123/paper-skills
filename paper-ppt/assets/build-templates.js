@@ -2,6 +2,7 @@
 //
 //   node assets/build-templates.js            -> paper-ppt/template-build/ (ignored by git)
 //   node assets/build-templates.js --check    -> build to a temp dir, diff against styles/, exit 1 on drift
+//   node assets/build-templates.js --check --against <dir>  -> same, comparing with another tree
 //   node assets/build-templates.js --publish  -> overwrite the tracked styles/<name>/template.pptx
 //
 // Writing into styles/ by default used to leave 15 tracked binaries dirty after a
@@ -146,45 +147,95 @@ const CONTRACT = {
   thanks: '致谢 / Q&A：可与总结或讨论页合并。',
 };
 
-// A page's identity: every shape's name, geometry and text, in document order.
-// Zip timestamps and PowerPoint's own ids are left out on purpose — two builds of
-// the same code must match, one moved shape must not.
-function slideDigest(xml) {
-  const parts = [];
-  for (const m of xml.matchAll(/<p:cNvPr[^>]*?name="([^"]*)"/g)) parts.push(`n:${m[1]}`);
-  for (const m of xml.matchAll(/<a:off x="(-?\d+)" y="(-?\d+)"/g)) parts.push(`o:${m[1]},${m[2]}`);
-  for (const m of xml.matchAll(/<a:ext cx="(\d+)" cy="(\d+)"/g)) parts.push(`e:${m[1]},${m[2]}`);
-  for (const m of xml.matchAll(/<a:t>([^<]*)<\/a:t>/g)) parts.push(`t:${m[1]}`);
-  return crypto.createHash('sha256').update(parts.join('\n')).digest('hex').slice(0, 12);
+// ---------- drift detection ----------
+//
+// The unit of comparison is the part, not a list of fields picked out of it. An
+// earlier version hashed shape name, offset, extent and text, which satisfied the
+// half of the contract everyone thinks of first (two builds of the same code must
+// agree) and failed the half that matters (anything a reader can notice must not).
+// A recoloured accent and a swapped typeface both left those four fields untouched,
+// so `--check` said "match" while the published template still showed the old
+// design. Size happened to be caught only because the title box is sized from the
+// type size — a fixed-size box would have slipped through the same way.
+//
+// So every part of the package is hashed: slides, notes, layouts, masters, theme,
+// rels, docProps and the raw bytes of ppt/media. Three things are removed first,
+// because they are build noise rather than content:
+//   - the core.xml clock: pptxgenjs stamps the second it ran,
+//   - `<p:cNvPr id="N">`: a per-part counter that nothing references,
+//   - `<p:extLst>` blocks: PowerPoint editor-state extensions.
+// Everything else is compared verbatim, so colours, fills, lines, typefaces, sizes,
+// weight, alignment and speaker notes are all covered by construction, and a new or
+// edited image changes the hash of its part under ppt/media.
+const XML_PART = /\.(xml|rels)$/i;
+
+function normalisePart(name, buf) {
+  if (!XML_PART.test(name)) return buf;
+  let s = buf.toString('utf8');
+  if (name === 'docProps/core.xml') {
+    s = s.replace(/(<dcterms:(?:created|modified)\b[^>]*>)[^<]*(<\/)/g, '$1$2');
+  }
+  s = s.replace(/(<p:cNvPr\b[^>]*?)\s+id="\d+"/g, '$1');
+  s = s.replace(/<p:extLst>[\s\S]*?<\/p:extLst>/g, '');
+  return Buffer.from(s, 'utf8');
 }
 
-async function pageDigests(file) {
+// {pages: Map<slideNumber, hash>, parts: {partPath: hash}}
+async function packageDigest(file) {
   const zip = await JSZip.loadAsync(fs.readFileSync(file));
-  const slides = Object.keys(zip.files)
-    .filter((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n))
-    .sort((a, b) => Number(a.match(/(\d+)/)[1]) - Number(b.match(/(\d+)/)[1]));
-  const digests = [];
-  for (const name of slides) digests.push(slideDigest(await zip.file(name).async('string')));
-  return digests;
+  const digest = {pages: new Map(), parts: {}};
+  for (const name of Object.keys(zip.files).sort()) {
+    if (zip.files[name].dir) continue;
+    const hash = crypto.createHash('sha256')
+      .update(normalisePart(name, await zip.file(name).async('nodebuffer')))
+      .digest('hex').slice(0, 16);
+    const page = name.match(/^ppt\/slides\/slide(\d+)\.xml$/);
+    if (page) digest.pages.set(Number(page[1]), hash);
+    else digest.parts[name] = hash;
+  }
+  return digest;
 }
 
-// Which pages differ between two builds, by index; [] means identical.
-function pageDiff(a, b) {
-  if (!a || !b) return ['missing'];
-  const out = [];
-  const n = Math.max(a.length, b.length);
-  for (let i = 0; i < n; i += 1) if (a[i] !== b[i]) out.push(`${i + 1}${a[i] ? '' : '(absent)'}`);
-  return out;
+// What differs between two builds: {pages: ['2', '5(now gone)'], parts: ['ppt/theme/theme1.xml']}
+function diffDigests(a, b) {
+  const pages = [];
+  const numbers = [...new Set([...a.pages.keys(), ...b.pages.keys()])].sort((x, y) => x - y);
+  for (const n of numbers) {
+    if (a.pages.get(n) === b.pages.get(n)) continue;
+    const only = a.pages.has(n) ? 'now gone' : 'new';
+    pages.push(a.pages.has(n) && b.pages.has(n) ? String(n) : `${n}(${only})`);
+  }
+  const parts = [...new Set([...Object.keys(a.parts), ...Object.keys(b.parts)])]
+    .filter((n) => a.parts[n] !== b.parts[n]).sort();
+  return {pages, parts};
+}
+
+function summariseDiff({pages, parts}, slideCount) {
+  const bits = [`${slideCount} slides`];
+  if (pages.length) bits.push(`page(s) ${pages.join(', ')} differ`);
+  if (parts.length) {
+    const names = parts.map((n) => n.replace(/^ppt\//, ''));
+    const shown = names.slice(0, 3).join(', ');
+    bits.push(`${parts.length} other part(s) differ: ${shown}${names.length > 3 ? `, +${names.length - 3} more` : ''}`);
+  }
+  return bits.join(', ');
 }
 
 // `writeSvg` is off when publishing: the tracked artifact is template.pptx plus the
 // one overview.png per preset, and dropping 100+ untracked .svg files into styles/
 // was half of what made the old command look like it had done something.
-async function build(outRoot, {writeSvg = true} = {}) {
+//
+// `presets` and `tokens` exist for the tests: build one preset, or nudge a token
+// (a colour, a typeface) and assert the digest moves. `tokens` receives the loaded
+// tokens for a preset and returns the ones to draw with.
+async function build(outRoot, {writeSvg = true, presets = Object.keys(SAMPLES), tokens} = {}) {
   const built = [];
-  for (const [name, slides] of Object.entries(SAMPLES)) {
+  for (const name of presets) {
+    const slides = SAMPLES[name];
+    if (!slides) throw new Error(`unknown preset: ${name}`);
     const lang = LANG[name] || 'en';
-    const t = loadTokens(name);
+    const loaded = loadTokens(name);
+    const t = tokens ? tokens(loaded, name) : loaded;
     const deck = new pptxgen();
     deck.layout = t.slide.layout;
     deck.title = `${t.label} template`;
@@ -214,21 +265,26 @@ const STYLES = path.join(__dirname, '..', 'styles');
 async function main() {
   const args = process.argv.slice(2);
   const flag = (f) => args.includes(f);
-  const outArg = args.find((a) => !a.startsWith('--'));
+  const option = (f) => { const i = args.indexOf(f); return i >= 0 ? args[i + 1] : undefined; };
+  const outArg = args.filter((a, i) => !a.startsWith('--') && args[i - 1] !== '--against')[0];
+  // `--against <dir>` points the comparison at another tree of templates instead of
+  // styles/ — what the tests use to prove a stale colour is reported, and what you
+  // want when checking a candidate before `--publish` moves it into place.
+  const against = option('--against') ? path.resolve(option('--against')) : STYLES;
 
   if (flag('--check')) {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'templates-'));
     const fresh = await build(tmp);
     const drifted = [];
     for (const {name, file, slides} of fresh) {
-      const tracked = path.join(STYLES, name, 'template.pptx');
+      const tracked = path.join(against, name, 'template.pptx');
       if (!fs.existsSync(tracked)) { drifted.push(`${name}: no tracked template`); continue; }
-      const diff = pageDiff(await pageDigests(tracked), await pageDigests(file));
-      if (diff.length) drifted.push(`${name}: ${slides} slides, page(s) ${diff.join(', ')} differ`);
+      const diff = diffDigests(await packageDigest(tracked), await packageDigest(file));
+      if (diff.pages.length || diff.parts.length) drifted.push(`${name}: ${summariseDiff(diff, slides)}`);
     }
     fs.rmSync(tmp, {recursive: true, force: true});
     if (drifted.length) {
-      console.error('template drift://n  ' + drifted.join('\n  '));
+      console.error('template drift:\n  ' + drifted.join('\n  '));
       console.error('\nRun `node assets/build-templates.js --publish`, check the previews, and commit.');
       process.exitCode = 1;
       return;
@@ -246,7 +302,10 @@ async function main() {
     const changed = [];
     for (const {name, file} of fresh) {
       const tracked = path.join(STYLES, name, 'template.pptx');
-      if (fs.existsSync(tracked) && !pageDiff(await pageDigests(tracked), await pageDigests(file)).length) continue;
+      if (fs.existsSync(tracked)) {
+        const diff = diffDigests(await packageDigest(tracked), await packageDigest(file));
+        if (!diff.pages.length && !diff.parts.length) continue;
+      }
       fs.copyFileSync(file, tracked);
       changed.push(name);
     }
@@ -268,4 +327,4 @@ async function main() {
 }
 
 if (require.main === module) main().catch((e) => { console.error(e); process.exit(1); });
-module.exports = {fill, CONTRACT};
+module.exports = {fill, CONTRACT, build, packageDigest, diffDigests};

@@ -392,6 +392,79 @@ const {PptxCanvas,loadTokens,drawSlide,writeDeck}=require(process.argv[1]);
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('templates match the code', result.stdout)
 
+    def test_template_check_sees_colour_and_typeface_drift(self):
+        """The digest hashes whole parts, not four fields picked out of a slide.
+
+        Recolouring an accent and swapping a typeface both leave shape name, offset,
+        extent and text untouched, so a field-wise digest called those templates
+        identical while the published file still showed the old design. Type size was
+        only caught by luck: the title box is sized from it. These cases go through
+        the CLI so the exit code and the page it names are covered too.
+        """
+        script = str(ROOT / 'paper-ppt/assets/build-templates.js')
+        cwd = str(ROOT / 'paper-ppt')
+        with tempfile.TemporaryDirectory() as td:
+            built = Path(td) / 'built'
+            result = subprocess.run([self.node, script, str(built)], capture_output=True,
+                                    text=True, cwd=cwd)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            check = [self.node, script, '--check', '--against', str(built)]
+
+            clean = subprocess.run(check, capture_output=True, text=True, cwd=cwd)
+            self.assertEqual(clean.returncode, 0, clean.stdout + clean.stderr)
+
+            def tamper(page, old, new):
+                """Rewrite one slide's XML in place, changing nothing but `old`."""
+                path = built / 'international' / 'template.pptx'
+                with zipfile.ZipFile(path) as z:
+                    parts = {n: z.read(n) for n in z.namelist()}
+                name = f'ppt/slides/slide{page}.xml'
+                self.assertIn(old, parts[name], f'fixture moved: {old!r} is not on page {page}')
+                parts[name] = parts[name].replace(old, new)
+                with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED) as z:
+                    for n, data in parts.items():
+                        z.writestr(n, data)
+
+            for label, (page, old, new) in {
+                'colour': (2, b'C0392B', b'00A651'),
+                'typeface': (3, b'typeface="Arial"', b'typeface="Comic Sans MS"'),
+            }.items():
+                tamper(page, old, new)
+                drift = subprocess.run(check, capture_output=True, text=True, cwd=cwd)
+                self.assertEqual(drift.returncode, 1, f'{label} drift was not reported')
+                self.assertIn(f'page(s) {page} differ', drift.stderr, label)
+                self.assertNotIn('drift://n', drift.stderr, 'the drift header is still mangled')
+                tamper(page, new, old)  # put it back for the next case
+                restored = subprocess.run(check, capture_output=True, text=True, cwd=cwd)
+                self.assertEqual(restored.returncode, 0, restored.stderr)
+
+    def test_template_digest_is_stable_across_builds(self):
+        """Two builds a second apart must hash the same, or `--check` cries wolf.
+
+        pptxgenjs stamps docProps/core.xml with the second it ran, so a naive
+        whole-package hash reports every template as drifted on every run. The
+        normaliser blanks that clock; the sleep is what makes this test exercise the
+        blanking instead of passing by landing in the same second by accident.
+        """
+        code = """
+const bt = require(process.argv[1]);
+const fs = require('node:fs'); const os = require('node:os'); const path = require('node:path');
+const root = fs.mkdtempSync(path.join(os.tmpdir(), 'same-'));
+(async () => {
+  const [a] = await bt.build(path.join(root, 'a'), {writeSvg: false, presets: ['international']});
+  await new Promise((r) => setTimeout(r, 1100));
+  const [b] = await bt.build(path.join(root, 'b'), {writeSvg: false, presets: ['international']});
+  const diff = bt.diffDigests(await bt.packageDigest(a.file), await bt.packageDigest(b.file));
+  fs.rmSync(root, {recursive: true, force: true});
+  console.log(JSON.stringify(diff));
+})().catch((e) => { console.error(e); process.exit(1); });
+"""
+        script = str(ROOT / 'paper-ppt/assets/build-templates.js')
+        result = subprocess.run([self.node, '-e', code, script], capture_output=True, text=True,
+                                cwd=str(ROOT / 'paper-ppt'))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), {'pages': [], 'parts': []})
+
     def test_image_contain_api_and_notes(self):
         from PIL import Image
         with tempfile.TemporaryDirectory() as td:
