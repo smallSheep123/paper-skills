@@ -7,9 +7,10 @@
 <p align="center">
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-2E86DE"></a>
   <img alt="Skills" src="https://img.shields.io/badge/skills-paper--extract%20%7C%20paper--ppt-8E44AD">
-  <img alt="Presets" src="https://img.shields.io/badge/style%20presets-9-E4572E">
+  <img alt="Presets" src="https://img.shields.io/badge/style%20presets-15-E4572E">
   <img alt="Atlas" src="https://img.shields.io/badge/distilled%20from-105%20real%20decks-27AE60">
   <img alt="Output" src="https://img.shields.io/badge/output-editable%20PPTX-555">
+  <a href="https://github.com/smallSheep123/paper-skills/actions/workflows/tests.yml"><img alt="tests" src="https://github.com/smallSheep123/paper-skills/actions/workflows/tests.yml/badge.svg"></a>
 </p>
 
 <p align="center">
@@ -21,7 +22,7 @@
   <a href="#-三步用起来">三步用起来</a> ·
   <a href="#-对-ai-说什么">对 AI 说什么</a> ·
   <a href="#-每页放什么内容蒸馏">内容蒸馏</a> ·
-  <a href="#-9-套风格预设">风格预设</a> ·
+  <a href="#-15-套风格预设">风格预设</a> ·
   <a href="#-工作流">工作流</a> ·
   <a href="#-本地工具链可选">本地工具链</a> ·
   <a href="#-常见问题">FAQ</a>
@@ -34,8 +35,8 @@
 | | |
 |---|---|
 | 🎯 **讲得清楚** | AI 先读懂论文、定主线，再决定每页讲什么；数字和结论都能追溯到论文原文 |
-| 🎨 **看起来专业** | 9 套风格预设，蒸馏自 105 套真实学术 deck（系统顶会、ML 教程、名校课程、国内答辩、日韩技术发表） |
-| 👀 **真的看过** | 每批页面都实际渲染成图，AI 看图找问题再改，不是“生成完就交” |
+| 🎨 **看起来专业** | 15 套风格预设：9 套蒸馏自 105 套真实学术 deck（系统顶会、ML 教程、名校课程、国内答辩、日韩技术发表），6 套蒸馏自公开课件与 Typst 主题 |
+| 👀 **真的看过** | 每批页面都实际渲染成图，AI 看图找问题再改；`check_deck` / `lint_style` 再自动查越界、溢出、红字过长、要点超长，不是“生成完就交” |
 | 🗣 **先问清楚** | 开工前访谈场景、时长、听众、风格；读完论文给你看大纲，做完样页再确认，不会闷头做完才发现方向不对 |
 | ✏️ **能继续改** | 输出可编辑 PPTX，文字、标注、自绘图都可改；每页带中文/英文演讲备注 |
 | 🧾 **过程可复核** | 保留 `source-notes` / `storyboard` / `qa-summary`，后续局部修改不用从头来 |
@@ -185,7 +186,7 @@ Assertion titles, one idea per slide, speaker notes in English.
 
 ---
 
-## 🎨 9 套风格预设
+## 🎨 15 套风格预设
 
 预设 = 字体 / 字号 / 配色语义 / 网格 + 一组页面原型。它是起点不是模板：AI 会按论文内容改构图、拆页。
 
@@ -205,6 +206,16 @@ Assertion titles, one idea per slide, speaker notes in English.
 <td align="center"><img src="paper-ppt/styles/editorial/samples/04-chips.png"><br><a href="paper-ppt/styles/editorial/STYLE.md"><b>editorial</b></a><br><sub>插画杂志风：衬线斜体、一页一图</sub></td>
 <td align="center"><img src="paper-ppt/styles/jp-gothic/samples/03-read.png"><br><a href="paper-ppt/styles/jp-gothic/STYLE.md"><b>jp-gothic</b></a><br><sub>日韩技术发表：论文出处行、黑色结论横幅</sub></td>
 </tr>
+<tr>
+<td align="center"><img src="paper-ppt/styles/graphite/samples/04-statement.png"><br><a href="paper-ppt/styles/graphite/STYLE.md"><b>graphite</b></a><br><sub>高对比系统讲座：深色满版、全大写主张、唯一红</sub></td>
+<td align="center"><img src="paper-ppt/styles/violet/samples/04-twoCol.png"><br><a href="paper-ppt/styles/violet/STYLE.md"><b>violet</b></a><br><sub>国内组会 / 中期：紫色页眉带、紫底白字块标题</sub></td>
+<td align="center"><img src="paper-ppt/styles/bandgrid/samples/04-bands.png"><br><a href="paper-ppt/styles/bandgrid/STYLE.md"><b>bandgrid</b></a><br><sub>中文论文精读：蓝色页眉带、PART 分区、横向标签块</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="paper-ppt/styles/folio/samples/04-claim.png"><br><a href="paper-ppt/styles/folio/STYLE.md"><b>folio</b></a><br><sub>编辑式留白：超大留白、靛蓝短横线、满版结论页</sub></td>
+<td align="center"><img src="paper-ppt/styles/nocturne/samples/04-claim.png"><br><a href="paper-ppt/styles/nocturne/STYLE.md"><b>nocturne</b></a><br><sub>深色石板：全稿深色、暖金唯一强调</sub></td>
+<td align="center"><img src="paper-ppt/styles/mosaic/samples/04-claim.png"><br><a href="paper-ppt/styles/mosaic/STYLE.md"><b>mosaic</b></a><br><sub>Bento 卡片：圆角卡片网格、四色 callout</sub></td>
+</tr>
 </table>
 
 **怎么选**
@@ -219,6 +230,12 @@ Assertion titles, one idea per slide, speaker notes in English.
 | HCI、可视化、图形学、科普 | `editorial` |
 | 答辩、开题、中期、基金汇报 | `defense-cn` |
 | 日文 / 韩文，或日系高密度分享 | `jp-gothic` |
+| 英文系统 / 体系结构 talk，想要高对比 | `graphite` |
+| 国内组会、开题、中期，想要页眉色带 | `violet` |
+| 中文论文精读、文献综述、长汇报 | `bandgrid` |
+| 方法与理论类、想让观众“读”的汇报 | `folio` |
+| 暗光投影、晚间组会、系统与性能类 | `nocturne` |
+| 内容点多、需要拆成块的综述与中期 | `mosaic` |
 
 **每套都带字体清单和基础模板**
 
@@ -233,12 +250,18 @@ Assertion titles, one idea per slide, speaker notes in English.
 | `editorial` | Palatino Linotype | 思源宋体 | [template.pptx](paper-ppt/styles/editorial/template.pptx) |
 | `defense-cn` | Arial | 微软雅黑 | [template.pptx](paper-ppt/styles/defense-cn/template.pptx) |
 | `jp-gothic` | Noto Sans JP | Noto Sans JP | [template.pptx](paper-ppt/styles/jp-gothic/template.pptx) |
+| `graphite` | Arial | 微软雅黑 | [template.pptx](paper-ppt/styles/graphite/template.pptx) |
+| `violet` | Arial | 微软雅黑 | [template.pptx](paper-ppt/styles/violet/template.pptx) |
+| `bandgrid` | Arial | 微软雅黑 | [template.pptx](paper-ppt/styles/bandgrid/template.pptx) |
+| `folio` | Arial | 微软雅黑 | [template.pptx](paper-ppt/styles/folio/template.pptx) |
+| `nocturne` | Arial | 微软雅黑 | [template.pptx](paper-ppt/styles/nocturne/template.pptx) |
+| `mosaic` | Arial | 微软雅黑 | [template.pptx](paper-ppt/styles/mosaic/template.pptx) |
 
 - **模板**：每页是该风格的真实版式，文字换成“【结论式标题 + 关键词】”这样的占位说明，演讲备注写着这页该放什么内容；
 - **字体**：[fonts.md](paper-ppt/references/fonts.md) 列出每个字体的来源、授权、开源替代，以及去会场电脑放映时用的“安全字体组”；`python paper-ppt/scripts/check_fonts.py domestic` 检查本机缺哪些。
 - **开源字体**：仓库在 `paper-ppt/fonts/` 自带开源授权的西文字体；中日文字体（Noto Sans SC / Noto Serif SC / Noto Sans JP）用 `python paper-ppt/scripts/get_fonts.py --install` 下载安装。生成时设 `PAPER_PPT_FONTS=open`，任何预设都会切到开源字体轨，每台电脑渲染结果一致（详见 [fonts.md](paper-ppt/references/fonts.md) §0）。
 
-想知道这些风格从哪来：[风格图谱](paper-ppt/references/slide-style-atlas.md) 记录了 105 套真实 deck 的字体实测、文字密度和版式聚类（例如：评分最高的 deck 中位每页 38 词，评分较低的是 51 词）。
+想知道这些风格从哪来：[风格图谱](paper-ppt/references/slide-style-atlas.md) 记录了 105 套真实 deck 的字体实测、文字密度和版式聚类（例如：评分最高的 deck 中位每页 38 词，评分较低的是 51 词）；后 6 套的色值证据和来源截图在各自的 `refs/ATTRIBUTION.md`。每套预设对应哪些版式骨架见 [版式图谱](paper-ppt/references/layout-atlas.md)，全部预设一览见 [styles/README.md](paper-ppt/styles/README.md)。
 
 ---
 
@@ -301,10 +324,12 @@ cd paper-ppt
 npm install
 python -m pip install -r requirements.txt
 python scripts/bridge.py doctor          # 检查环境
-node assets/build-style-samples.js out   # 生成 9 套预设的示例 deck
+node assets/build-style-samples.js out   # 生成 15 套预设的示例 deck
 ```
 
-公式：`scripts/math_assets.py` / `assets/equations.js` 把 LaTeX 渲染为 SVG/PNG 或简单原生 OMML（见 [math-equations.md](paper-ppt/references/math-equations.md)）；结构检查：`python scripts/check_deck.py deck.pptx`。
+公式：`scripts/math_assets.py` / `assets/equations.js` 把 LaTeX 渲染为 SVG/PNG 或简单原生 OMML（见 [math-equations.md](paper-ppt/references/math-equations.md)）；结构检查：`python scripts/check_deck.py deck.pptx`；风格检查：`python scripts/lint_style.py deck.pptx --preset domestic`（文字溢出、红字长度、要点字数/行数、图注编号）。
+
+自绘示意图：`python scripts/diagram.py fig.html --out fig.png` 用无头浏览器把 HTML/SVG 截成图，默认裁到内容边界（`--pad` 留白，`--no-trim` 保持视口尺寸）。
 
 真实渲染需要 LibreOffice 与 Poppler。没有 LibreOffice 时可用 `scripts/svg_preview.py` 做近似预览（换行按字宽估算，最终以 PPTX 实际打开为准）。详见 [INSTALL.md](paper-ppt/INSTALL.md)。
 </details>
@@ -360,16 +385,16 @@ paper-skills/
 │
 ├── paper-ppt/                     论文 → 汇报 PPT
 │   ├── SKILL.md                   AI 工作流说明书（从这里开始读）
-│   ├── styles/                    9 套风格预设：STYLE.md · tokens.json · template.pptx · refs/ · samples/
+│   ├── styles/                    15 套风格预设：STYLE.md · tokens.json · template.pptx · refs/ · samples/
 │   ├── references/                访谈问题库、页面内容指南、字体清单、设计规范、看图审阅协议、风格图谱
 │   ├── assets/                    PPTX 绘制：style-presets*.js、ppt-helpers.js
-│   └── scripts/                   bridge.py 渲染 · check_deck.py · check_fonts.py · math_assets.py · svg_preview.py
+│   └── scripts/                   bridge.py 渲染 · check_deck.py · lint_style.py · check_review.py · check_fonts.py · math_assets.py · diagram.py · svg_preview.py
 │
 ├── docs/images/                   README 配图
 └── tests/                         工具测试
 ```
 
-**设计参考**：[Academic Evidence 风格案例](paper-ppt/styles/academic-evidence/STYLE.md) · [公式渲染](paper-ppt/references/math-equations.md) · [访谈问题库](paper-ppt/references/intake.md) · [页面内容指南](paper-ppt/references/page-content-guide.md) · [字体清单](paper-ppt/references/fonts.md) · [设计规范](paper-ppt/references/style-guide.md) · [讲述结构](paper-ppt/references/talk-structure.md) · [视觉审阅协议](paper-ppt/references/visual-review.md) · [风格蒸馏库](paper-ppt/references/slide-style-gallery.md) · [风格图谱](paper-ppt/references/slide-style-atlas.md) · [Academic Clean](paper-ppt/references/academic-clean.md) / [Rich](paper-ppt/references/academic-rich.md)
+**设计参考**：[Academic Evidence 风格案例](paper-ppt/styles/academic-evidence/STYLE.md) · [公式渲染](paper-ppt/references/math-equations.md) · [访谈问题库](paper-ppt/references/intake.md) · [页面内容指南](paper-ppt/references/page-content-guide.md) · [字体清单](paper-ppt/references/fonts.md) · [设计规范](paper-ppt/references/style-guide.md) · [讲述结构](paper-ppt/references/talk-structure.md) · [视觉审阅协议](paper-ppt/references/visual-review.md) · [风格蒸馏库](paper-ppt/references/slide-style-gallery.md) · [风格图谱](paper-ppt/references/slide-style-atlas.md) · [版式图谱](paper-ppt/references/layout-atlas.md) · [Academic Clean](paper-ppt/references/academic-clean.md) / [Rich](paper-ppt/references/academic-rich.md)
 
 ---
 
@@ -379,7 +404,7 @@ paper-skills/
 python -m unittest discover -s tests -v
 ```
 
-测试检查工具连接、版本记录、预设构建和低层脚本行为，**不能替代论文事实审查、视觉模型看图或真实 PowerPoint 兼容性测试**。
+每次 push / PR 由 GitHub Actions 跑同一条命令（含可选的 OMML 公式依赖）。测试检查工具连接、版本记录、全部预设能否构建、`lint_style` 各条规则和低层脚本行为，**不能替代论文事实审查、视觉模型看图或真实 PowerPoint 兼容性测试**。
 
 项目不包含论文库、模型密钥或个人配置；`paper-ppt/fonts/` 只收录可再分发的开源字体（各自附授权文件），商业字体不随项目分发；`refs/` 中的真实 slides 截图为低分辨率引用并注明出处，仅用于说明设计手法。
 
