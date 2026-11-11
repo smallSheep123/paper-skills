@@ -2,6 +2,7 @@
 // The AI author chooses each page's content, geometry and visual expression.
 const pptxgen = require('pptxgenjs');
 const fs = require('node:fs');
+const path = require('node:path');
 const {containGeometry} = require('./image-geometry');
 
 function createDeck(options = {}) {
@@ -20,7 +21,8 @@ function createDeck(options = {}) {
 
 function containImage(deck, slide, file, box, altText = '') {
   if (!fs.existsSync(file)) throw new Error(`Image not found: ${file}`);
-  slide.addImage({path: file, ...containGeometry(file, box), altText});
+  // See PptxCanvas.image: an empty altText makes pptxgenjs fall back to the path.
+  slide.addImage({path: file, ...containGeometry(file, box), altText: altText || path.basename(file)});
 }
 
 function addNotes(slide, text) {

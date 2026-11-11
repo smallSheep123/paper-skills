@@ -7,6 +7,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import shutil
 from pathlib import Path
 import subprocess
@@ -379,6 +380,92 @@ const {PptxCanvas,loadTokens,drawSlide,writeDeck}=require(process.argv[1]);
             self.assertIn('C30037', bare, 'graphite accent not applied to the marked run')
             self.assertIn('页脚由调用方给', given, 'a supplied footer was dropped')
 
+    def test_published_templates_match_their_presets(self):
+        """`--check` rebuilds every template in a temp dir and diffs the tracked copies.
+
+        The 15 styles/<name>/template.pptx are build artifacts. When a preset moves
+        and nobody republishes, the shipped "fill-in base template" quietly describes
+        an older design — which is exactly what had happened before this check existed.
+        """
+        script = str(ROOT / 'paper-ppt/assets/build-templates.js')
+        result = subprocess.run([self.node, script, '--check'], capture_output=True,
+                                text=True, cwd=str(ROOT / 'paper-ppt'))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('templates match the code', result.stdout)
+
+    def test_template_check_sees_colour_and_typeface_drift(self):
+        """The digest hashes whole parts, not four fields picked out of a slide.
+
+        Recolouring an accent and swapping a typeface both leave shape name, offset,
+        extent and text untouched, so a field-wise digest called those templates
+        identical while the published file still showed the old design. Type size was
+        only caught by luck: the title box is sized from it. These cases go through
+        the CLI so the exit code and the page it names are covered too.
+        """
+        script = str(ROOT / 'paper-ppt/assets/build-templates.js')
+        cwd = str(ROOT / 'paper-ppt')
+        with tempfile.TemporaryDirectory() as td:
+            built = Path(td) / 'built'
+            result = subprocess.run([self.node, script, str(built)], capture_output=True,
+                                    text=True, cwd=cwd)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            check = [self.node, script, '--check', '--against', str(built)]
+
+            clean = subprocess.run(check, capture_output=True, text=True, cwd=cwd)
+            self.assertEqual(clean.returncode, 0, clean.stdout + clean.stderr)
+
+            def tamper(page, old, new):
+                """Rewrite one slide's XML in place, changing nothing but `old`."""
+                path = built / 'international' / 'template.pptx'
+                with zipfile.ZipFile(path) as z:
+                    parts = {n: z.read(n) for n in z.namelist()}
+                name = f'ppt/slides/slide{page}.xml'
+                self.assertIn(old, parts[name], f'fixture moved: {old!r} is not on page {page}')
+                parts[name] = parts[name].replace(old, new)
+                with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED) as z:
+                    for n, data in parts.items():
+                        z.writestr(n, data)
+
+            for label, (page, old, new) in {
+                'colour': (2, b'C0392B', b'00A651'),
+                'typeface': (3, b'typeface="Arial"', b'typeface="Comic Sans MS"'),
+            }.items():
+                tamper(page, old, new)
+                drift = subprocess.run(check, capture_output=True, text=True, cwd=cwd)
+                self.assertEqual(drift.returncode, 1, f'{label} drift was not reported')
+                self.assertIn(f'page(s) {page} differ', drift.stderr, label)
+                self.assertNotIn('drift://n', drift.stderr, 'the drift header is still mangled')
+                tamper(page, new, old)  # put it back for the next case
+                restored = subprocess.run(check, capture_output=True, text=True, cwd=cwd)
+                self.assertEqual(restored.returncode, 0, restored.stderr)
+
+    def test_template_digest_is_stable_across_builds(self):
+        """Two builds a second apart must hash the same, or `--check` cries wolf.
+
+        pptxgenjs stamps docProps/core.xml with the second it ran, so a naive
+        whole-package hash reports every template as drifted on every run. The
+        normaliser blanks that clock; the sleep is what makes this test exercise the
+        blanking instead of passing by landing in the same second by accident.
+        """
+        code = """
+const bt = require(process.argv[1]);
+const fs = require('node:fs'); const os = require('node:os'); const path = require('node:path');
+const root = fs.mkdtempSync(path.join(os.tmpdir(), 'same-'));
+(async () => {
+  const [a] = await bt.build(path.join(root, 'a'), {writeSvg: false, presets: ['international']});
+  await new Promise((r) => setTimeout(r, 1100));
+  const [b] = await bt.build(path.join(root, 'b'), {writeSvg: false, presets: ['international']});
+  const diff = bt.diffDigests(await bt.packageDigest(a.file), await bt.packageDigest(b.file));
+  fs.rmSync(root, {recursive: true, force: true});
+  console.log(JSON.stringify(diff));
+})().catch((e) => { console.error(e); process.exit(1); });
+"""
+        script = str(ROOT / 'paper-ppt/assets/build-templates.js')
+        result = subprocess.run([self.node, '-e', code, script], capture_output=True, text=True,
+                                cwd=str(ROOT / 'paper-ppt'))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), {'pages': [], 'parts': []})
+
     def test_image_contain_api_and_notes(self):
         from PIL import Image
         with tempfile.TemporaryDirectory() as td:
@@ -651,6 +738,26 @@ class TemplatesAndFontsTest(unittest.TestCase):
             self.assertTrue((root / p / 'template.pptx').stat().st_size > 10000, p)
             self.assertTrue((root / p / 'template-preview' / 'overview.png').exists(), p)
             self.assertIn('## 字体与基础模板', (root / p / 'STYLE.md').read_text(encoding='utf-8'), p)
+
+    def test_template_alt_text_does_not_leak_a_path(self):
+        """Image alt text must not be the absolute path pptxgenjs falls back to.
+
+        An empty `altText` makes pptxgenjs write `descr="<path>"`, so the published
+        templates carried one machine's `…\\styles\\_sample-figures\\fig.png` into a
+        public repo — and made the same code produce a different slide XML on Linux,
+        which is what the drift check then reported as a template that had fallen
+        behind. The fallback is now the file name.
+        """
+        root = Path(__file__).resolve().parent.parent / 'paper-ppt' / 'styles'
+        for p in self.PRESETS:
+            with zipfile.ZipFile(root / p / 'template.pptx') as z:
+                for name in z.namelist():
+                    if not re.match(r'ppt/slides/slide\d+\.xml$', name):
+                        continue
+                    for descr in re.findall(rb'descr="([^"]*)"', z.read(name)):
+                        text = descr.decode('utf8')
+                        self.assertNotIn('\\', text, f'{p}/{name}: alt text is a path')
+                        self.assertNotIn('/', text, f'{p}/{name}: alt text is a path')
 
     def test_check_fonts_json(self):
         import json as _json

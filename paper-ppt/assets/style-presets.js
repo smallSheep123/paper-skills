@@ -213,7 +213,11 @@ class PptxCanvas {
       line: {color: o.color, width: o.w || 1, dashType: o.dash ? 'dash' : 'solid', endArrowType: o.arrow ? 'triangle' : undefined}});
   }
   image(file, o) {
-    this.slide.addImage({path: file, ...containGeometry(file, o), altText: o.alt || ''});
+    // Alt text defaults to the file name, never to the path: pptxgenjs writes
+    // `descr="<path>"` when altText is empty, which baked this machine's absolute
+    // path into the published template — and made the template build differently
+    // on Linux, where the path obviously does not exist.
+    this.slide.addImage({path: file, ...containGeometry(file, o), altText: o.alt || path.basename(file)});
   }
   equation(asset, box, options = {}) { return addEquation(this.slide, asset, box, options); }
   background(color) { this.slide.background = {color}; }
