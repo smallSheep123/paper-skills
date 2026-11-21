@@ -40,13 +40,16 @@ function loadTokens(name, opts = {}) {
 // Supported (non-nested):
 //   [[keyword]]  -> accent colour
 //   **bold**     -> bold
-//   *italic*     -> italic (math variables; spaces inside boundaries are ignored so "a * b" stays literal)
+//   *italic*     -> italic, Latin/Greek math variables only ("a * b", "a*b", "52.2%*" and CJK stay literal)
 //   _{sub}       -> native subscript (e.g. *q*_{pos})
 //   ^{sup}       -> native superscript (e.g. 10^{-3})
 //   {{n:sym}}    -> concept colour n (tokens.color.sym[n-1])
 function parseRuns(text, base = {}) {
   const runs = [];
-  const re = /(\[\[[^\]]+\]\]|\*\*[^*]+\*\*|\{\{[1-6]:[^}]+\}\}|_\{[^}]+\}|\^\{[^}]+\}|\*[^*\s](?:[^*]*[^*\s])?\*)/g;
+  // *italic* is for Latin math variables only: the opening * may not follow a letter/digit/*, the closing * may not
+  // precede one, and the span may not contain CJK. So footnote marks ("52.2%*", "见注*"), products ("a*b 与 c*d",
+  // "2*3*4") and **bold** with an inner * all stay literal instead of being swallowed as italic.
+  const re = /(\[\[[^\]]+\]\]|\*\*(?:[^*]|\*(?!\*))+?\*\*|\{\{[1-6]:[^}]+\}\}|_\{[^}]+\}|\^\{[^}]+\}|(?<![A-Za-z0-9*])\*(?![\s*])[^*\n\u2E80-\u9FFF\u3000-\u303F\uFF00-\uFFEF]*?(?<!\s)\*(?![A-Za-z0-9*]))/g;
   let last = 0;
   let m;
   while ((m = re.exec(text))) {
@@ -248,8 +251,11 @@ class PptxCanvas {
         fontFace: fontFor(t, o), colspan: c.colspan, rowspan: c.rowspan, valign: 'middle',
       };
       if (booktabs) {
-        const bTop = ri === 0 ? topRule : none;
-        const bBot = c.head ? midRule : (ri === lastIdx ? botRule : rowRule);
+        // A shared edge is written on both cells: the lower cell's lnT repeats the upper cell's lnB, so PowerPoint
+        // never resolves the edge to "no line" and drops the header rule or the row hairlines.
+        const ruleBelow = (r) => (cells[r] && cells[r][0] && cells[r][0].head ? midRule : (r === lastIdx ? botRule : rowRule));
+        const bTop = ri === 0 ? topRule : ruleBelow(ri - 1);
+        const bBot = ruleBelow(ri);
         cellOpt.border = [bTop, none, bBot, none];
       }
       return {text: cellRuns, options: cellOpt};
@@ -367,7 +373,14 @@ class SvgCanvas {
         if (prev && prev.col === col && prev.b === b && prev.it === it && prev.shift === shift && prev.sz === sz) prev.text += ch.text;
         else merged.push({text: ch.text, col, b, it, shift, sz});
       }
-      const spans = merged.map((m) => `<tspan fill="#${m.col}" font-size="${m.sz}" font-weight="${m.b ? 'bold' : (o.weight || 'normal')}"${m.it ? ' font-style="italic"' : ''}${m.shift ? ` baseline-shift="${m.shift}"` : ''}>${esc(m.text)}</tspan>`).join('');
+      // Sub/superscript use dy, not baseline-shift: cairosvg and several viewers ignore baseline-shift, which made
+      // 10^{-3} preview as "10-3". dy is cumulative, so each span moves by the difference from the previous offset.
+      let cur = 0;
+      const spans = merged.map((m) => {
+        const want = m.shift === 'sub' ? l.sizePx * 0.22 : (m.shift === 'super' ? -l.sizePx * 0.36 : 0);
+        const dy = want - cur; cur = want;
+        return `<tspan fill="#${m.col}" font-size="${m.sz}" font-weight="${m.b ? 'bold' : (o.weight || 'normal')}"${m.it ? ' font-style="italic"' : ''}${dy ? ` dy="${dy.toFixed(2)}"` : ''}>${esc(m.text)}</tspan>`;
+      }).join('');
       const extra = `${o.italic ? ' font-style="italic"' : ''}${o.charSpacing ? ` letter-spacing="${o.charSpacing}"` : ''}`;
       this.parts.push(`<text x="${x}" y="${baseline}" font-family="${font.replace(/"/g, '')}" font-size="${l.sizePx}"${extra} xml:space="preserve">${spans}</text>`);
       y += h;
@@ -846,7 +859,7 @@ const domestic = {
     });
     if (s.takeaway) {
       const ty = t.grid.contentBottom - 0.62;
-      c.rect({x: nx, y: ty, w: nw, h: 0.62, fill: 'F7F9FC'});
+      c.rect({x: nx, y: ty, w: nw, h: 0.62, fill: t.color.calloutBg || t.color.frame});
       c.rect({x: nx, y: ty, w: 0.05, h: 0.62, fill: t.color.primary});
       c.text(s.takeaway, {x: nx + 0.18, y: ty, w: nw - 0.28, h: 0.62, size: 13.5, bold: true, color: t.color.primary, valign: 'middle'});
     }
@@ -923,7 +936,7 @@ const domestic = {
     });
     if (s.note) {
       const ny = t.grid.contentBottom - 0.85;
-      c.rect({x: mx, y: ny, w: t.slide.w - 2 * mx, h: 0.68, fill: 'F7F9FC'});
+      c.rect({x: mx, y: ny, w: t.slide.w - 2 * mx, h: 0.68, fill: t.color.calloutBg || t.color.frame});
       c.rect({x: mx, y: ny, w: 0.06, h: 0.68, fill: t.color.primary});
       c.text(s.note, {x: mx + 0.22, y: ny, w: t.slide.w - 2 * mx - 0.36, h: 0.68, size: t.size.small, bold: true, color: t.color.primary, valign: 'middle'});
     }
@@ -938,7 +951,7 @@ const domestic = {
     this.figureRow(c, t, s.items, {x: mx, y: top, maxW: t.slide.w - 2 * mx, maxH: t.grid.contentBottom - top - leadH, frame: s.frame});
     if (s.lead) {
       const y = t.grid.contentBottom - leadH + 0.14;
-      c.rect({x: mx, y, w: t.slide.w - 2 * mx, h: 0.72, fill: 'F7F9FC'});
+      c.rect({x: mx, y, w: t.slide.w - 2 * mx, h: 0.72, fill: t.color.calloutBg || t.color.frame});
       c.rect({x: mx, y, w: 0.06, h: 0.72, fill: t.color.primary});
       c.text(s.lead, {x: mx + 0.22, y, w: t.slide.w - 2 * mx - 0.36, h: 0.72, size: t.size.small + 1, bold: true, color: t.color.primary, valign: 'middle'});
     }

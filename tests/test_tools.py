@@ -1214,8 +1214,10 @@ console.log(svg.toSVG());
 S.writeDeck(deck, process.argv[1]);
 """
             proc = subprocess.run([self.node, '-e', script, str(deck)], cwd=ROOT / 'paper-ppt', check=True, capture_output=True, text=True)
-            self.assertIn('baseline-shift="sub"', proc.stdout)
-            self.assertIn('baseline-shift="super"', proc.stdout)
+            # dy, not baseline-shift: cairosvg ignores baseline-shift and previews 10^{-3} as "10-3".
+            self.assertNotIn('baseline-shift', proc.stdout)
+            self.assertRegex(proc.stdout, r'dy="[0-9.]+">pos<')
+            self.assertRegex(proc.stdout, r'dy="-[0-9.]+">-3<')
             with zipfile.ZipFile(deck) as z:
                 s1 = z.read('ppt/slides/slide1.xml').decode('utf-8')
                 self.assertIn('Fallback Title Only', s1)
@@ -1227,3 +1229,41 @@ S.writeDeck(deck, process.argv[1]);
                 # Booktabs default: left/right table cell borders have noFill (no vertical gridlines).
                 self.assertIn('<a:lnL', s2)
                 self.assertIn('<a:noFill/>', s2)
+
+    def test_italic_markup_leaves_footnotes_and_products_literal(self):
+        script = r"""
+const {parseRuns} = require('./assets/style-presets');
+const show = (s) => parseRuns(s).map((r) => (r.italic ? 'I:' : r.bold ? 'B:' : r.sub ? '_:' : r.sup ? '^:' : '') + r.text).join('|');
+console.log(JSON.stringify([
+  '延迟降低 52.2%*，见注*', 'a*b 与 c*d', '2*3*4', '**a*b**', '(*x*) 与 *q*_{pos}', '中文 *不斜体*',
+].map(show)));
+"""
+        out = subprocess.run([self.node, '-e', script], cwd=ROOT / 'paper-ppt', check=True, capture_output=True, text=True).stdout
+        self.assertEqual(json.loads(out), [
+            '延迟降低 52.2%*，见注*', 'a*b 与 c*d', '2*3*4', 'B:a*b', '(|I:x|) 与 |I:q|_:pos', '中文 *不斜体*',
+        ])
+
+    def test_booktabs_shared_edges_agree(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            deck = Path(tmp) / 'booktabs.pptx'
+            script = """
+const PptxGenJS = require('pptxgenjs');
+const S = require('./assets/style-presets');
+const t = S.loadTokens('domestic');
+const deck = new PptxGenJS(); deck.layout = t.slide.layout;
+const c = new S.PptxCanvas(deck.addSlide(), t);
+c.table([['Method', 'Acc'], ['A', '90.1'], ['B', '92.0']], {x: 1, y: 2, w: 6, h: 1.5, size: 14});
+c.notes('note');
+S.writeDeck(deck, process.argv[1]);
+"""
+            subprocess.run([self.node, '-e', script, str(deck)], cwd=ROOT / 'paper-ppt', check=True, capture_output=True)
+            with zipfile.ZipFile(deck) as z:
+                xml = z.read('ppt/slides/slide1.xml').decode('utf-8')
+            rows = re.findall(r'<a:tr\b.*?</a:tr>', xml, re.S)
+            self.assertEqual(len(rows), 3)
+            width = lambda row, side: re.search(r'<a:ln%s w="(\d+)"' % side, row).group(1)
+            # The lower row's top border repeats the upper row's bottom border, so no edge resolves to "no line".
+            for upper, lower in zip(rows, rows[1:]):
+                self.assertEqual(width(upper, 'B'), width(lower, 'T'))
+                self.assertNotEqual(width(lower, 'T'), '0')
+
