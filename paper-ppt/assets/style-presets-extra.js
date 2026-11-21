@@ -72,7 +72,7 @@ module.exports = function makePresets({sourceLine, pageNo}) {
       K.divide(c, split, top, bottom, t.color.rule, 1);
       K.columnHead(c, 0.85, top, 5.6, s.leftHead || 'Performance', {size: 17, color: t.color.muted, ruleColor: t.color.rule});
       K.columnHead(c, split + 0.45, top, 5.0, s.rightHead || 'Cost', {size: 17, color: t.color.muted, ruleColor: t.color.rule});
-      K.figure(c, t, s.figure, {x: 0.85, y: top + 0.62, w: 5.6, h: bottom - top - 0.72, frame: false});
+      K.figure(c, t, s.figure, {x: 0.85, y: top + 0.62, w: 5.6, h: bottom - top - 0.72}, {frame: false});
       const rows = s.rows || [];
       const rh = Math.min(1.05, (bottom - top - 0.7) / Math.max(1, rows.length));
       rows.forEach((r, i) => {
@@ -82,7 +82,6 @@ module.exports = function makePresets({sourceLine, pageNo}) {
         c.text(r.v, {x: split + 3.1, y, w: 2.25, h: rh, size: 25, bold: true, color: r.on ? t.color.accent : t.color.text, align: 'right', valign: 'middle'});
       });
       if (s.note) c.text(s.note, {x: 0.85, y: bottom + 0.08, w: 5.6, h: 0.35, size: t.size.caption, color: t.color.muted});
-      sourceLine(c, t, s.source); pageNo(c, t, s.page); c.notes(s.notes);
     },
     // Edge-to-edge figure, one sentence underneath. The page is the picture.
     figureFull(c, t, s) {
@@ -90,7 +89,7 @@ module.exports = function makePresets({sourceLine, pageNo}) {
       if (s.claim) c.text(s.claim, {x: 0.6, y: 0.92, w: 12.1, h: 0.36, size: t.size.subtitle, bold: true, color: t.color.body});
       const top = s.claim ? 1.4 : 1.05;
       const lineH = s.line ? 0.85 : 0.25;
-      K.figure(c, t, s.figure, {x: 0.35, y: top, w: 12.63, h: t.grid.contentBottom - top - lineH, frame: false});
+      K.figure(c, t, s.figure, {x: 0.35, y: top, w: 12.63, h: t.grid.contentBottom - top - lineH}, {frame: false});
       if (s.line) c.text(s.line, {x: 0.6, y: t.grid.contentBottom - 0.6, w: 12.1, h: 0.6, size: 21, bold: true, color: t.color.text, valign: 'middle'});
       sourceLine(c, t, s.source); pageNo(c, t, s.page); c.notes(s.notes);
     },
@@ -167,9 +166,12 @@ module.exports = function makePresets({sourceLine, pageNo}) {
         s.insights.forEach((ins, i) => {
           if (s.current !== 'all' && i > s.current) return;
           const on = s.current === 'all' || i === s.current; const col = cardCol(ins, i); const x = m + i * (cw + gap);
-          c.rect({x, y: cy, w: cw, h: ch, radius: 0.1, fill: on ? tintOf(ins, i) : t.color.frame, line: on ? col : null, lineW: 1.5});
+          // Restrained card: whisper-grey fill + 0.6pt neutral hairline + 0.06in left stage bar
+          // instead of pastel candy-filled rounded bubbles.
+          c.rect({x, y: cy, w: cw, h: ch, fill: 'F8F9FB', line: 'E5E7EB', lineW: 0.6});
+          c.rect({x, y: cy, w: 0.06, h: ch, fill: on ? col : t.color.rule});
           c.text([{text: `${label(i)}  ${ins.head}`, bold: true, color: on ? col : t.color.muted}, {text: ins.body, size: 14, color: on ? t.color.body : t.color.muted}],
-            {x: x + 0.15, y: cy + 0.1, w: cw - 0.3, h: ch - 0.2, size: 16, valign: 'middle'});
+            {x: x + 0.18, y: cy + 0.1, w: cw - 0.3, h: ch - 0.2, size: 16, valign: 'middle'});
         });
         return;
       }
@@ -178,10 +180,11 @@ module.exports = function makePresets({sourceLine, pageNo}) {
       s.insights.forEach((ins, i) => {
         if (s.current !== 'all' && i > s.current) return;
         const on = s.current === 'all' || i === s.current; const y = 1.45 + i * (h + 0.18); const col = cardCol(ins, i);
-        c.rect({x, y, w, h, radius: 0.1, fill: on ? tintOf(ins, i) : t.color.frame, line: on ? col : null, lineW: 1.5});
+        c.rect({x, y, w, h, fill: 'F8F9FB', line: 'E5E7EB', lineW: 0.6});
+        c.rect({x, y, w: 0.06, h, fill: on ? col : t.color.rule});
         // label is localisable: insightLabel: '洞察' gives "洞察 1"; previous cards stay readable (muted, not faint)
         c.text([{text: `${label(i)}  ${ins.head}`, bold: true, color: on ? col : t.color.muted}, {text: ins.body, size: 15, color: on ? t.color.body : t.color.muted}],
-          {x: x + 0.2, y, w: w - 0.4, h, size: 17, valign: 'middle', align: 'left'});
+          {x: x + 0.22, y, w: w - 0.38, h, size: 17, valign: 'middle', align: 'left'});
       });
     },
     // result figure + a big "N.N×" arrow annotation and a "better →" axis hint
@@ -250,7 +253,6 @@ module.exports = function makePresets({sourceLine, pageNo}) {
         c.rect({x: t.grid.marginX, y, w: W(t) - 2 * t.grid.marginX, h: 0.7, fill: t.color.tint[(s.stage != null ? s.stage : 0) % t.color.tint.length]});
         c.text(s.takeaway, {x: t.grid.marginX + 0.2, y, w: W(t) - 2 * t.grid.marginX - 0.4, h: 0.7, size: 17, bold: true, color: t.color.text, valign: 'middle'});
       }
-      sourceLine(c, t, s.source); pageNo(c, t, s.page); c.notes(s.notes);
     },
     // Results table with the reader's own row highlighted and a ratio column. Systems decks
     // report a table when the claim is "cheaper at equal quality", not a single ratio.
@@ -264,7 +266,6 @@ module.exports = function makePresets({sourceLine, pageNo}) {
         highlight: [s.highlight || 1], highlightFill: t.color.tint[(s.stage != null ? s.stage : 0) % t.color.tint.length],
         highlightCols: s.highlightCols || [], numAlign: 'right'});
       if (s.note) c.text(s.note, {x: m, y: top + (s.height || 3.6) + 0.12, w, h: 0.5, size: 13, color: t.color.muted, lineSpacing: 1.3});
-      sourceLine(c, t, s.source); pageNo(c, t, s.page); c.notes(s.notes);
     },
   };
 
