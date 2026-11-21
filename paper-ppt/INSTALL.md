@@ -157,7 +157,7 @@ python ../paper-extract/scripts/mineru_extract.py /path/to/paper.pdf
 
 ## 8. 技术参考
 
-含数学公式时先安装可选依赖 `python -m pip install -r requirements-math.txt`，并准备 `pdflatex` 及相关 TeX 包。运行 `npm run math-samples` 生成 Academic Evidence 风格的中英文公式样例。完整操作见 [math-equations.md](references/math-equations.md)。`npm run samples` 继续生成原有九套预设，不依赖 TeX；其中普通文本符号示例不代表 LaTeX 转换。
+含数学公式时先安装可选依赖 `python -m pip install -r requirements-math.txt`，并准备 `pdflatex` 及相关 TeX 包。运行 `npm run math-samples` 生成 Academic Evidence 风格的中英文公式样例。完整操作见 [math-equations.md](references/math-equations.md)。`npm run samples` 生成全部十五套预设样稿，不依赖 TeX；其中普通文本符号示例不代表 LaTeX 转换。
 
 - PptxGenJS 图片 API：<https://gitbrent.github.io/PptxGenJS/docs/api-images/>
 - PptxGenJS speaker notes：<https://gitbrent.github.io/PptxGenJS/docs/speaker-notes/>

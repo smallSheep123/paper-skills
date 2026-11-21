@@ -1137,3 +1137,133 @@ S.writeDeck(deck, process.argv[2]).then(() => console.log('ok'));
                 s for s in shapes if s[0] == 'Short title')
             self.assertGreaterEqual(sub[2] + 0.01, title[2] + title[4],
                                     'subtitle overlaps the title box: %r' % (shapes,))
+
+
+class CanvasAndLintUpgradeTests(unittest.TestCase):
+    """Regression tests for native sub/sup/italic markup, Booktabs tables, and caption namespaces."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.node = shutil.which('node')
+        if not cls.node:
+            raise unittest.SkipTest('node is required for the JS presets')
+        probe = subprocess.run([cls.node, '-e', 'require("pptxgenjs")'],
+                               cwd=ROOT / 'paper-ppt', capture_output=True)
+        if probe.returncode:
+            raise unittest.SkipTest('install paper-ppt dependencies first')
+
+    def test_figure_and_table_numbers_do_not_collide(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            deck = Path(tmp) / 'fig_tbl.pptx'
+            script = """
+const PptxGenJS = require('pptxgenjs');
+const S = require('./assets/style-presets');
+const t = S.loadTokens('domestic');
+const deck = new PptxGenJS(); deck.layout = t.slide.layout;
+const c1 = new S.PptxCanvas(deck.addSlide(), t);
+S.drawSlide(c1, t, {type: 'frame', title: '图与表编号隔离', page: 1, notes: 'note'});
+c1.text('图 1  架构总览', {x: 1, y: 5.8, w: 6, h: 0.4, size: 13, color: t.color.muted, align: 'center'});
+const c2 = new S.PptxCanvas(deck.addSlide(), t);
+S.drawSlide(c2, t, {type: 'frame', title: '表一与图一不撞号', page: 2, notes: 'note'});
+c2.text('表 1  实验主结果', {x: 1, y: 5.8, w: 6, h: 0.4, size: 13, color: t.color.muted, align: 'center'});
+S.writeDeck(deck, process.argv[1]);
+"""
+            subprocess.run([self.node, '-e', script, str(deck)], cwd=ROOT / 'paper-ppt', check=True, capture_output=True)
+            rep = lint_style.audit(deck, 'domestic')
+            self.assertEqual(rep['errors'], [], rep)
+            self.assertEqual(rep['stats']['figures'], [1])
+            self.assertEqual(rep['stats']['tables'], [1])
+
+    def test_violet_structural_accent_heading_not_flagged(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            deck = Path(tmp) / 'violet_head.pptx'
+            script = """
+const PptxGenJS = require('pptxgenjs');
+const S = require('./assets/style-presets');
+const t = S.loadTokens('violet');
+const deck = new PptxGenJS(); deck.layout = t.slide.layout;
+S.drawSlide(new S.PptxCanvas(deck.addSlide(), t), t, {
+  type: 'twoCol', title: '二、方法', blockLabel: '核心设计', claim: '主主张',
+  bullets: ['要点一', '要点二'],
+  stages: [{t: '01 并行重要性打分阶段', d: '说明'}, {t: '02 融合', d: '说明'}],
+  hot: 1, page: 1, notes: 'note',
+});
+S.writeDeck(deck, process.argv[1]);
+"""
+            subprocess.run([self.node, '-e', script, str(deck)], cwd=ROOT / 'paper-ppt', check=True, capture_output=True)
+            rep = lint_style.audit(deck, 'violet')
+            self.assertFalse(any('红色连续' in w for w in rep['warnings']), rep)
+
+    def test_inline_sub_sup_italic_and_booktabs_table(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            deck = Path(tmp) / 'markup.pptx'
+            script = """
+const PptxGenJS = require('pptxgenjs');
+const S = require('./assets/style-presets');
+const t = S.loadTokens('domestic');
+const deck = new PptxGenJS(); deck.layout = t.slide.layout;
+const c = new S.PptxCanvas(deck.addSlide(), t);
+S.drawSlide(c, t, {type: 'cover', title: 'Fallback Title Only', notes: 'note'});
+const c2 = new S.PptxCanvas(deck.addSlide(), t);
+c2.text('正信号 *q*_{pos} 精度 10^{-3} 且 a * b 不斜体', {x: 1, y: 1, w: 8, h: 0.6, size: 18, color: t.color.body});
+c2.table([['Method', 'Acc'], ['Ours', '92.0']], {x: 1, y: 2, w: 6, h: 1.5, size: 14, highlight: [1]});
+c2.notes('note');
+const svg = new S.SvgCanvas(t);
+svg.text('*q*_{pos} 10^{-3}', {x: 1, y: 1, w: 4, h: 0.5, size: 18, color: t.color.body});
+console.log(svg.toSVG());
+S.writeDeck(deck, process.argv[1]);
+"""
+            proc = subprocess.run([self.node, '-e', script, str(deck)], cwd=ROOT / 'paper-ppt', check=True, capture_output=True, text=True)
+            # dy, not baseline-shift: cairosvg ignores baseline-shift and previews 10^{-3} as "10-3".
+            self.assertNotIn('baseline-shift', proc.stdout)
+            self.assertRegex(proc.stdout, r'dy="[0-9.]+">pos<')
+            self.assertRegex(proc.stdout, r'dy="-[0-9.]+">-3<')
+            with zipfile.ZipFile(deck) as z:
+                s1 = z.read('ppt/slides/slide1.xml').decode('utf-8')
+                self.assertIn('Fallback Title Only', s1)
+                self.assertNotIn('undefined', s1)
+                s2 = z.read('ppt/slides/slide2.xml').decode('utf-8')
+                self.assertIn('baseline="-40000"', s2)
+                self.assertIn('baseline="30000"', s2)
+                self.assertIn('i="1"', s2)
+                # Booktabs default: left/right table cell borders have noFill (no vertical gridlines).
+                self.assertIn('<a:lnL', s2)
+                self.assertIn('<a:noFill/>', s2)
+
+    def test_italic_markup_leaves_footnotes_and_products_literal(self):
+        script = r"""
+const {parseRuns} = require('./assets/style-presets');
+const show = (s) => parseRuns(s).map((r) => (r.italic ? 'I:' : r.bold ? 'B:' : r.sub ? '_:' : r.sup ? '^:' : '') + r.text).join('|');
+console.log(JSON.stringify([
+  '延迟降低 52.2%*，见注*', 'a*b 与 c*d', '2*3*4', '**a*b**', '(*x*) 与 *q*_{pos}', '中文 *不斜体*',
+].map(show)));
+"""
+        out = subprocess.run([self.node, '-e', script], cwd=ROOT / 'paper-ppt', check=True, capture_output=True, text=True).stdout
+        self.assertEqual(json.loads(out), [
+            '延迟降低 52.2%*，见注*', 'a*b 与 c*d', '2*3*4', 'B:a*b', '(|I:x|) 与 |I:q|_:pos', '中文 *不斜体*',
+        ])
+
+    def test_booktabs_shared_edges_agree(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            deck = Path(tmp) / 'booktabs.pptx'
+            script = """
+const PptxGenJS = require('pptxgenjs');
+const S = require('./assets/style-presets');
+const t = S.loadTokens('domestic');
+const deck = new PptxGenJS(); deck.layout = t.slide.layout;
+const c = new S.PptxCanvas(deck.addSlide(), t);
+c.table([['Method', 'Acc'], ['A', '90.1'], ['B', '92.0']], {x: 1, y: 2, w: 6, h: 1.5, size: 14});
+c.notes('note');
+S.writeDeck(deck, process.argv[1]);
+"""
+            subprocess.run([self.node, '-e', script, str(deck)], cwd=ROOT / 'paper-ppt', check=True, capture_output=True)
+            with zipfile.ZipFile(deck) as z:
+                xml = z.read('ppt/slides/slide1.xml').decode('utf-8')
+            rows = re.findall(r'<a:tr\b.*?</a:tr>', xml, re.S)
+            self.assertEqual(len(rows), 3)
+            width = lambda row, side: re.search(r'<a:ln%s w="(\d+)"' % side, row).group(1)
+            # The lower row's top border repeats the upper row's bottom border, so no edge resolves to "no line".
+            for upper, lower in zip(rows, rows[1:]):
+                self.assertEqual(width(upper, 'B'), width(lower, 'T'))
+                self.assertNotEqual(width(lower, 'T'), '0')
+

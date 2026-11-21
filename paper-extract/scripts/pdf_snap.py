@@ -291,7 +291,9 @@ def cmd_figure(a) -> None:
         if ink is None or ink.is_empty:
             ink = rough
         else:
-            guard = fitz.Rect(rough.x0 - 64, rough.y0 - 56, rough.x1 + 64, rough.y1 + 64)
+            # Keep the upward guard tighter (-20 pt instead of -56 pt) so loose
+            # regions above a figure do not pull in the body paragraph above it.
+            guard = fitz.Rect(rough.x0 - 64, rough.y0 - 20, rough.x1 + 64, rough.y1 + 64)
             candidate = ink & guard
             if not candidate.is_empty:
                 ink = candidate

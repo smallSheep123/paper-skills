@@ -236,6 +236,9 @@ def main() -> int:
     parser.add_argument('deck', type=Path)
     parser.add_argument('--out', type=Path)
     args = parser.parse_args()
+    if not args.deck.is_file():
+        print(json.dumps({'status': 'fail', 'errors': [f'deck not found: {args.deck}']}, ensure_ascii=False), file=sys.stderr)
+        return 2
     result = audit(args.deck)
     rendered = json.dumps(result, ensure_ascii=False, indent=2)
     if args.out:

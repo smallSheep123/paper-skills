@@ -29,6 +29,7 @@ def entry_key(base: Path, entry: dict) -> tuple[str, str]:
 
 
 def check(manifest_file: Path, log_file: Path) -> list[str]:
+    check.warnings = []
     manifest_file, log_file = manifest_file.resolve(), log_file.resolve()
     errors: list[str] = []
     try:

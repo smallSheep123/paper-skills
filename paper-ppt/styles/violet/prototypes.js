@@ -24,7 +24,7 @@ module.exports = function makeViolet({pageNo}) {
   function foot(c, t, s) {
     c.line({x1: MX(t), y1: t.grid.footerY - 0.18, x2: W(t) - MX(t), y2: t.grid.footerY - 0.18,
       color: t.color.rule, w: 0.5});
-    c.text(s.footLeft || '系统组组会 · 汇报人 张××', {x: MX(t), y: t.grid.footerY - 0.06, w: 8, h: 0.22,
+    if (s.footLeft) c.text(s.footLeft, {x: MX(t), y: t.grid.footerY - 0.06, w: 8, h: 0.22,
       size: t.size.footer, color: t.color.faint});
     if (s.page) c.text(`${s.page} / ${s.total || 10}`, {x: W(t) - MX(t) - 1.4, y: t.grid.footerY - 0.06,
       w: 1.4, h: 0.22, size: t.size.footer, color: t.color.faint, align: 'right'});
@@ -86,8 +86,8 @@ module.exports = function makeViolet({pageNo}) {
       c.rect({x: MX(t), y: 3.92, w: 4.6, h: 0.035, fill: t.color.primary});
       s.meta.forEach((m, i) => {
         const y = 4.28 + i * 0.5;
-        c.text(m.k, {x: MX(t), y, w: 1.3, h: 0.28, size: 11, color: t.color.faint});
-        c.text(m.v, {x: MX(t) + 1.35, y: y - 0.03, w: 6, h: 0.32, size: 14.5, color: t.color.body});
+        c.text(m.k, {x: MX(t), y, w: 1.3, h: 0.34, size: 11, color: t.color.faint});
+        c.text(m.v, {x: MX(t) + 1.35, y: y - 0.03, w: CW(t) - 1.5, h: 0.42, size: 14.5, color: t.color.body});
       });
       c.line({x1: MX(t), y1: 6.36, x2: W(t) - MX(t), y2: 6.36, color: t.color.rule, w: 0.5});
       c.text(s.foot, {x: MX(t), y: 6.5, w: CW(t), h: 0.26, size: 9.5, color: t.color.faint});

@@ -37,9 +37,19 @@ function loadTokens(name, opts = {}) {
 }
 
 // ---------- inline markup ----------
+// Supported (non-nested):
+//   [[keyword]]  -> accent colour
+//   **bold**     -> bold
+//   *italic*     -> italic, Latin/Greek math variables only ("a * b", "a*b", "52.2%*" and CJK stay literal)
+//   _{sub}       -> native subscript (e.g. *q*_{pos})
+//   ^{sup}       -> native superscript (e.g. 10^{-3})
+//   {{n:sym}}    -> concept colour n (tokens.color.sym[n-1])
 function parseRuns(text, base = {}) {
   const runs = [];
-  const re = /(\[\[[^\]]+\]\]|\*\*[^*]+\*\*|\{\{[1-6]:[^}]+\}\})/g;
+  // *italic* is for Latin math variables only: the opening * may not follow a letter/digit/*, the closing * may not
+  // precede one, and the span may not contain CJK. So footnote marks ("52.2%*", "见注*"), products ("a*b 与 c*d",
+  // "2*3*4") and **bold** with an inner * all stay literal instead of being swallowed as italic.
+  const re = /(\[\[[^\]]+\]\]|\*\*(?:[^*]|\*(?!\*))+?\*\*|\{\{[1-6]:[^}]+\}\}|_\{[^}]+\}|\^\{[^}]+\}|(?<![A-Za-z0-9*])\*(?![\s*])[^*\n\u2E80-\u9FFF\u3000-\u303F\uFF00-\uFFEF]*?(?<!\s)\*(?![A-Za-z0-9*]))/g;
   let last = 0;
   let m;
   while ((m = re.exec(text))) {
@@ -47,7 +57,10 @@ function parseRuns(text, base = {}) {
     const tok = m[0];
     if (tok.startsWith('[[')) runs.push({text: tok.slice(2, -2), ...base, accent: true});
     else if (tok.startsWith('{{')) runs.push({text: tok.slice(4, -2), ...base, sym: Number(tok[2])});
-    else runs.push({text: tok.slice(2, -2), ...base, bold: true});  // ** always bold
+    else if (tok.startsWith('_{')) runs.push({text: tok.slice(2, -1), ...base, sub: true});
+    else if (tok.startsWith('^{')) runs.push({text: tok.slice(2, -1), ...base, sup: true});
+    else if (tok.startsWith('**')) runs.push({text: tok.slice(2, -2), ...base, bold: true});
+    else runs.push({text: tok.slice(1, -1), ...base, italic: true});
     last = m.index + tok.length;
   }
   if (last < text.length) runs.push({text: text.slice(last), ...base});
@@ -107,10 +120,19 @@ function fontFor(t, o, src = {}, cjk = false) {
 }
 
 
+// Luminance check so dark presets never get a bright cream fallback in tables.
+function isDarkHex(hex) {
+  const h = String(hex || '').replace(/^#/, '');
+  if (!/^[0-9a-fA-F]{6}$/.test(h)) return false;
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) < 90;
+}
+
 // ---------- tables (page-content-guide: 结果表格页) ----------
 // rows: arrays of cells; a cell is a string or {text, bold, color, fill, align, colspan, rowspan}.
 // o: {x, y, w, h?, colW?: [in], rowH?: in, size, header?: true (row 0 is header), highlight?: [row indexes],
-//     numAlign?: 'right'}. Latin and CJK cells get the preset's latin/cjk font automatically.
+//     numAlign?: 'right', grid?: false (default Booktabs 3-line table without vertical lines)}.
+// Latin and CJK cells get the preset's latin/cjk font automatically; inline markup (sub/sup/italic/accent) works too.
 function tableCells(t, rows, o) {
   const hl = new Set(o.highlight || []); const hasHead = o.header !== false;
   const norm = rows.map((row) => row.map((cell) => (typeof cell === 'string' || typeof cell === 'number' ? {text: String(cell)} : {...cell})));
@@ -122,15 +144,20 @@ function tableCells(t, rows, o) {
     for (let dr = 0; dr < (c.rowspan || 1); dr++) for (let dc = 0; dc < (c.colspan || 1); dc++) taken.add(`${ri + dr},${col + dc}`);
     col += c.colspan || 1;
   }); });
-  const isNum = (x) => /^[\s≤≥<>~±+\-−.\d%×]*\d[\s\d.%×]*$/.test(x || '');
+  const stripMarkup = (x) => String(x || '').replace(/\[\[|\]\]|\*\*|\*|\{\{[1-6]:|\}\}|_\{|\^\{|\}/g, '');
+  const isNum = (x) => /^[\s≤≥<>~±+\-−.\d%×]*\d[\s\d.%×]*$/.test(stripMarkup(x));
   const body = norm.slice(hasHead ? 1 : 0).flat();
   const numCol = (col) => { const cs = body.filter((c) => c.col === col && c.text); return cs.length > 0 && cs.every((c) => isNum(c.text)); };
-  const hlFill = o.highlightFill || (t.color.tint ? t.color.tint[0] : (t.color.blockBody || 'FFF4E5'));
+  const dark = isDarkHex(t.color.bg);
+  const hlFill = o.highlightFill || (dark
+    ? (t.color.accentSoft || t.color.surfaceAlt || '2A3450')
+    : (t.color.tint ? t.color.tint[0] : (t.color.blockBody || t.color.primaryLight || 'EDF3F9')));
+  const headFill = o.headerFill !== undefined ? o.headerFill : (o.grid ? (t.color.frame || t.color.surface || null) : null);
   const hlCols = new Set(o.highlightCols || []);
   return norm.map((row, ri) => row.map((c) => {
     const head = hasHead && ri === 0;
     return {...c, head, bold: c.bold !== undefined ? c.bold : head,
-      fill: c.fill || (head ? t.color.frame : ((hl.has(ri) || hlCols.has(c.col)) ? hlFill : null)),
+      fill: c.fill || (head ? headFill : ((hl.has(ri) || hlCols.has(c.col)) ? hlFill : null)),
       align: c.align || (c.col > 0 && numCol(c.col) ? (o.numAlign || 'right') : 'left')};
   }));
 }
@@ -166,6 +193,8 @@ class PptxCanvas {
           fontSize: r.size || src.size || o.size,
           fontFace: fontFor(t, o, src, r.cjk),
         };
+        if (r.sub) opt.subscript = true;
+        if (r.sup) opt.superscript = true;
         if (j === prs.length - 1 && i < paras.length - 1) opt.breakLine = true;
         if (r.br) opt.softBreakBefore = true;
         // PptxGenJS emits pPr per run; keep paragraph properties identical.
@@ -190,14 +219,53 @@ class PptxCanvas {
   }
   table(rows, o) {
     const t = this.t; const cells = tableCells(t, rows, o);
-    // each cell is split into Latin / CJK runs so "页 page" uses both preset fonts, like c.text
-    const data = cells.map((row) => row.map((c) => ({
-      text: scriptRuns(c.text || ' ').map((r) => ({text: r.text, options: {fontFace: fontFor(t, o, {}, r.cjk), bold: !!c.bold,
-        color: c.color || t.color.text}})),
-      options: {bold: !!c.bold, color: c.color || t.color.text, fill: c.fill ? {color: c.fill} : undefined, align: c.align,
-        fontFace: fontFor(t, o), colspan: c.colspan, rowspan: c.rowspan, valign: 'middle'}})));
-    this.slide.addTable(data, {x: o.x, y: o.y, w: o.w, h: o.h, colW: o.colW, rowH: o.rowH, fontSize: o.size,
-      border: {type: 'solid', pt: 0.75, color: t.color.rule || t.color.ghost || 'D9D9D9'}, margin: o.margin || [0.03, 0.06, 0.03, 0.06], autoPage: false});
+    const ink = t.color.text || t.color.ink || t.color.body || '1A1A1A';
+    const ruleDark = o.ruleColor || t.color.primary || ink;
+    const ruleLight = t.color.rule || t.color.ghost || 'E5E7EB';
+    const none = {type: 'none'};
+    const topRule = {pt: 1.5, color: ruleDark};
+    const midRule = {pt: 0.9, color: ruleDark};
+    const rowRule = {pt: 0.45, color: ruleLight};
+    const botRule = {pt: 1.5, color: ruleDark};
+    const lastIdx = cells.length - 1;
+    const booktabs = o.grid !== true;
+    // Each cell splits into Latin / CJK runs and parses inline markup (sub/sup/italic/accent) like c.text.
+    const data = cells.map((row, ri) => row.map((c) => {
+      const baseColor = c.color || (c.head && booktabs && t.color.primary ? t.color.primary : ink);
+      const cellRuns = paraRuns({text: c.text || ' '}).flatMap((r) =>
+        (r.text === '' ? [{...r, cjk: false}] : scriptRuns(r.text).map((part, k) => ({...r, ...part, br: k === 0 && r.br})))
+      ).map((r) => {
+        const opt = {
+          fontFace: fontFor(t, o, {}, r.cjk),
+          bold: r.bold !== undefined ? !!r.bold : !!c.bold,
+          italic: r.italic !== undefined ? !!r.italic : !!c.italic,
+          color: runColor(t, r, {color: baseColor}, c),
+        };
+        if (r.sub) opt.subscript = true;
+        if (r.sup) opt.superscript = true;
+        if (r.br) opt.softBreakBefore = true;
+        return {text: r.text, options: opt};
+      });
+      const cellOpt = {
+        bold: !!c.bold, color: baseColor, fill: c.fill ? {color: c.fill} : undefined, align: c.align,
+        fontFace: fontFor(t, o), colspan: c.colspan, rowspan: c.rowspan, valign: 'middle',
+      };
+      if (booktabs) {
+        // A shared edge is written on both cells: the lower cell's lnT repeats the upper cell's lnB, so PowerPoint
+        // never resolves the edge to "no line" and drops the header rule or the row hairlines.
+        const ruleBelow = (r) => (cells[r] && cells[r][0] && cells[r][0].head ? midRule : (r === lastIdx ? botRule : rowRule));
+        const bTop = ri === 0 ? topRule : ruleBelow(ri - 1);
+        const bBot = ruleBelow(ri);
+        cellOpt.border = [bTop, none, bBot, none];
+      }
+      return {text: cellRuns, options: cellOpt};
+    }));
+    const tblOpt = {
+      x: o.x, y: o.y, w: o.w, h: o.h, colW: o.colW, rowH: o.rowH, fontSize: o.size,
+      margin: o.margin || [0.04, 0.08, 0.04, 0.08], autoPage: false,
+    };
+    if (!booktabs) tblOpt.border = {type: 'solid', pt: 0.75, color: ruleLight};
+    this.slide.addTable(data, tblOpt);
   }
   rect(o) {
     const opt = {x: o.x, y: o.y, w: o.w, h: o.h,
@@ -298,11 +366,21 @@ class SvgCanvas {
       for (const ch of l.chunks) {
         const col = runColor(t, ch, o, l.src);
         const b = ch.bold !== undefined ? !!ch.bold : !!(o.bold || l.src.bold);
-        const sz = ch.sizePx || l.sizePx;
+        const it = ch.italic !== undefined ? !!ch.italic : !!(o.italic || l.src.italic);
+        const shift = ch.sub ? 'sub' : (ch.sup ? 'super' : '');
+        const sz = (ch.sizePx || l.sizePx) * (shift ? 0.72 : 1);
         const prev = merged[merged.length - 1];
-        if (prev && prev.col === col && prev.b === b && prev.sz === sz) prev.text += ch.text; else merged.push({text: ch.text, col, b, sz});
+        if (prev && prev.col === col && prev.b === b && prev.it === it && prev.shift === shift && prev.sz === sz) prev.text += ch.text;
+        else merged.push({text: ch.text, col, b, it, shift, sz});
       }
-      const spans = merged.map((m) => `<tspan fill="#${m.col}" font-size="${m.sz}" font-weight="${m.b ? 'bold' : (o.weight || 'normal')}">${esc(m.text)}</tspan>`).join('');
+      // Sub/superscript use dy, not baseline-shift: cairosvg and several viewers ignore baseline-shift, which made
+      // 10^{-3} preview as "10-3". dy is cumulative, so each span moves by the difference from the previous offset.
+      let cur = 0;
+      const spans = merged.map((m) => {
+        const want = m.shift === 'sub' ? l.sizePx * 0.22 : (m.shift === 'super' ? -l.sizePx * 0.36 : 0);
+        const dy = want - cur; cur = want;
+        return `<tspan fill="#${m.col}" font-size="${m.sz}" font-weight="${m.b ? 'bold' : (o.weight || 'normal')}"${m.it ? ' font-style="italic"' : ''}${dy ? ` dy="${dy.toFixed(2)}"` : ''}>${esc(m.text)}</tspan>`;
+      }).join('');
       const extra = `${o.italic ? ' font-style="italic"' : ''}${o.charSpacing ? ` letter-spacing="${o.charSpacing}"` : ''}`;
       this.parts.push(`<text x="${x}" y="${baseline}" font-family="${font.replace(/"/g, '')}" font-size="${l.sizePx}"${extra} xml:space="preserve">${spans}</text>`);
       y += h;
@@ -310,14 +388,35 @@ class SvgCanvas {
   }
   table(rows, o) {
     const t = this.t; const cells = tableCells(t, rows, o);
+    const ink = t.color.text || t.color.ink || t.color.body || '1A1A1A';
+    const ruleDark = o.ruleColor || t.color.primary || ink;
+    const ruleLight = t.color.rule || t.color.ghost || 'E5E7EB';
+    const booktabs = o.grid !== true;
     const n = Math.max(...cells.map((r) => r.length)); const colW = o.colW || Array(n).fill(o.w / n);
     const rowH = o.rowH || (o.h ? o.h / cells.length : o.size / 72 * 1.9);
+    const totalW = colW.reduce((a, b) => a + b, 0);
     cells.forEach((row, ri) => { row.forEach((c) => {
       const ci = c.col; const x = o.x + colW.slice(0, ci).reduce((a, b) => a + b, 0);
       const w = colW.slice(ci, ci + (c.colspan || 1)).reduce((a, b) => a + b, 0); const y = o.y + ri * rowH;
-      this.rect({x, y, w, h: rowH * (c.rowspan || 1), fill: c.fill, line: t.color.rule || 'D9D9D9', lineW: 0.75});
-      this.text(c.text, {x: x + 0.05, y, w: w - 0.1, h: rowH, size: o.size, bold: c.bold, color: c.color || t.color.text, align: c.align, valign: 'middle'});
-      }); });
+      const baseColor = c.color || (c.head && booktabs && t.color.primary ? t.color.primary : ink);
+      if (booktabs) {
+        if (c.fill) this.rect({x, y, w, h: rowH * (c.rowspan || 1), fill: c.fill});
+      } else {
+        this.rect({x, y, w, h: rowH * (c.rowspan || 1), fill: c.fill, line: ruleLight, lineW: 0.75});
+      }
+      this.text(c.text, {x: x + 0.06, y, w: w - 0.12, h: rowH, size: o.size, bold: c.bold, color: baseColor, align: c.align, valign: 'middle'});
+    }); });
+    if (booktabs) {
+      this.line({x1: o.x, y1: o.y, x2: o.x + totalW, y2: o.y, color: ruleDark, w: 1.5});
+      cells.forEach((row, ri) => {
+        const yBot = o.y + (ri + 1) * rowH;
+        const isHead = row[0] && row[0].head;
+        const isLast = ri === cells.length - 1;
+        this.line({x1: o.x, y1: yBot, x2: o.x + totalW, y2: yBot,
+          color: (isHead || isLast) ? ruleDark : ruleLight,
+          w: isLast ? 1.5 : (isHead ? 0.9 : 0.45)});
+      });
+    }
   }
   rect(o) {
     const r = o.radius ? o.radius * PX : 0;
@@ -570,9 +669,17 @@ const international = {
 const domestic = {
   title(c, t, s) {
     const x = t.grid.marginX;
+    const text = s.prefix ? `${s.prefix}${s.title}` : s.title;
+    const tagText = s.tag || '';
+    // Size the tag slot from the actual tag instead of reserving a fixed 2.8 in,
+    // and step the title down 4 pt when a long headline would otherwise collide with titleRuleY.
+    const tagW = tagText ? Math.min(2.7, Math.max(1.2, [...tagText].reduce((a, ch) => a + (/[\u2E80-\u9FFF]/.test(ch) ? 1 : 0.56), 0) * (t.size.source + 1) / 72 + 0.25)) : 0;
+    const titleW = t.slide.w - 2 * x - 0.25 - (tagW ? tagW + 0.15 : 0);
+    const plain = String(text || '').replace(/\[\[|\]\]|\*\*|\*|\{\{[1-6]:|\}\}|_\{|\^\{|\}/g, '');
+    const size = K.textLines(plain, t.size.title, titleW - 0.15) > 1 ? t.size.title - 4 : t.size.title;
     c.rect({x, y: t.grid.titleY + 0.17, w: 0.11, h: 0.38, fill: t.color.primary});
-    c.text(s.prefix ? `${s.prefix}${s.title}` : s.title, {x: x + 0.25, y: t.grid.titleY, w: t.slide.w - 2 * x - 0.25 - (s.tag ? 2.8 : 0), h: t.grid.titleH, size: t.size.title, bold: true, color: t.color.primary, valign: 'middle'});
-    if (s.tag) c.text(s.tag, {x: t.slide.w - x - 2.7, y: t.grid.titleY + 0.22, w: 2.7, h: 0.3, size: t.size.source + 1, color: t.color.muted, align: 'right'});
+    c.text(text, {x: x + 0.25, y: t.grid.titleY, w: titleW, h: t.grid.titleH, size, bold: true, color: t.color.primary, valign: 'middle'});
+    if (tagText) c.text(tagText, {x: t.slide.w - x - tagW, y: t.grid.titleY + 0.22, w: tagW, h: 0.3, size: t.size.source + 1, color: t.color.muted, align: 'right'});
     c.line({x1: x, y1: t.grid.titleRuleY, x2: t.slide.w - x, y2: t.grid.titleRuleY, color: t.color.rule, w: 0.75});
   },
   footer(c, t, s) {
@@ -584,11 +691,18 @@ const domestic = {
 
   cover(c, t, s) {
     c.rect({x: 0, y: 0, w: t.slide.w, h: 0.12, fill: t.color.primary});
-    c.text(s.paperTitle, {x: 1.0, y: 1.55, w: 11.3, h: 1.5, size: t.size.cover - 6, bold: true, color: t.color.primary, align: 'center', valign: 'bottom'});
+    const mainTitle = s.paperTitle || s.title || '';
+    const meta = s.paperMeta || [s.authors, s.venue].filter(Boolean).join(' · ');
+    if (mainTitle) c.text(mainTitle, {x: 1.0, y: 1.55, w: 11.3, h: 1.5, size: t.size.cover - 6, bold: true, color: t.color.primary, align: 'center', valign: 'bottom'});
     if (s.titleZh) c.text(s.titleZh, {x: 1.0, y: 3.3, w: 11.3, h: 0.6, size: t.size.subtitle + 2, color: t.color.body, align: 'center'});
-    c.text(s.paperMeta, {x: 1.0, y: 3.95, w: 11.3, h: 0.45, size: t.size.small, color: t.color.muted, align: 'center'});
+    if (meta) c.text(meta, {x: 1.0, y: 3.95, w: 11.3, h: 0.45, size: t.size.small, color: t.color.muted, align: 'center'});
     c.line({x1: 5.2, y1: 4.55, x2: 8.13, y2: 4.55, color: t.color.rule, w: 1});
-    c.text([{text: `汇报人：${s.presenter}`}, {text: s.group}, {text: s.date}], {x: 1.0, y: 4.8, w: 11.3, h: 1.4, size: t.size.small, color: t.color.body, align: 'center', paraSpaceBefore: 4});
+    const lines = [
+      s.presenter ? {text: /^汇报人/.test(s.presenter) ? s.presenter : `汇报人：${s.presenter}`} : null,
+      s.group ? {text: s.group} : null,
+      s.date ? {text: s.date} : null,
+    ].filter(Boolean);
+    if (lines.length) c.text(lines, {x: 1.0, y: 4.8, w: 11.3, h: 1.4, size: t.size.small, color: t.color.body, align: 'center', paraSpaceBefore: 4});
     c.notes(s.notes);
   },
 
@@ -634,23 +748,31 @@ const domestic = {
     this.figureFrame(c, t, s.figure, s.caption, {x: 1.4, y: y0 + 2.05, w: 10.5, h: 3.15});
   },
 
-  // Paper figure on a light grey frame with a short Chinese caption underneath.
+  // Paper figure with a short Chinese caption underneath.
   //
+  // White-background paper figures blend directly onto the white canvas by default
+  // (no heavy grey backing box). Pass `frame: true` to opt into a light backing panel.
   // Two ways to call it:
-  //   box = {x, y, w, h}                      -> fixed panel; the figure is centred inside it
-  //   box = {x, y, maxW, maxH, fit, align}    -> the panel hugs the figure (tight frame)
-  // `fit: 'h'` equalises height, which is what side-by-side figures need so both
-  // captions sit on one baseline. Returns the frame rect so callers can lay out
-  // a second figure or a text column against the real right edge.
+  //   box = {x, y, w, h}                      -> fixed slot; the figure is centred inside it
+  //   box = {x, y, maxW, maxH, fit, align}    -> panel hugs the figure (tight layout)
+  // Returns {x, y, w, h, imgX, imgY, imgW, imgH} so annotations can anchor on the real image rect.
   figureFrame(c, t, file, caption, box = {}) {
-    const capH = caption ? 0.36 : 0.06;
+    const showFrame = box.frame === true;
+    const padX = showFrame ? 0.15 : 0.04;
+    const padY = showFrame ? 0.12 : 0.04;
     const tight = box.maxW != null || box.maxH != null;
-    let fw, fh, fx, fy;
+    const estCapH = (availW) => {
+      if (!caption) return 0.06;
+      const lines = K.textLines(caption, t.size.caption, Math.max(availW - 0.1, 1.0));
+      return Math.max(0.36, lines * t.size.caption * 1.3 / 72 + 0.1);
+    };
+    let fw, fh, fx, fy, imgX, imgY, imgW, imgH, capH;
     if (tight) {
       const maxW = box.maxW != null ? box.maxW : box.w;
       const maxH = box.maxH != null ? box.maxH : box.h;
-      const innerW = maxW - 0.3;
-      const innerH = maxH - 0.24 - capH;
+      capH = estCapH(maxW);
+      const innerW = maxW - 2 * padX;
+      const innerH = Math.max(0.4, maxH - 2 * padY - capH);
       const size = imageDimensions(file);
       const ar = size.w / size.h;
       let w, h;
@@ -660,26 +782,33 @@ const domestic = {
       } else {
         w = Math.min(innerW, innerH * ar); h = w / ar;
       }
-      fw = w + 0.3; fh = h + 0.24 + capH;
+      fw = w + 2 * padX;
+      capH = estCapH(Math.max(fw, 2.2));
+      fh = h + 2 * padY + capH;
       fx = box.align === 'center' ? box.x + (maxW - fw) / 2 : box.x;
       fy = box.y;
-      c.rect({x: fx, y: fy, w: fw, h: fh, fill: t.color.frame, radius: 0.06});
-      c.image(file, {x: fx + 0.15, y: fy + 0.12, w, h});
-      if (caption) c.text(caption, {x: fx, y: fy + fh - 0.375, w: fw, h: 0.26, size: t.size.caption, color: t.color.muted, align: 'center'});
-      return {x: fx, y: fy, w: fw, h: fh};
+      imgX = fx + padX; imgY = fy + padY; imgW = w; imgH = h;
+      if (showFrame) c.rect({x: fx, y: fy, w: fw, h: fh, fill: t.color.frame, radius: 0.06});
+      c.image(file, {x: imgX, y: imgY, w: imgW, h: imgH});
+      if (caption) c.text(caption, {x: fx, y: imgY + imgH + 0.06, w: fw, h: capH - 0.04, size: t.size.caption, color: t.color.muted, align: 'center'});
+      return {x: fx, y: fy, w: fw, h: fh, imgX, imgY, imgW, imgH};
     }
     fw = box.w; fh = box.h; fx = box.x; fy = box.y;
-    c.rect({x: fx, y: fy, w: fw, h: fh, fill: t.color.frame, radius: 0.06});
-    c.image(file, {x: fx + 0.15, y: fy + 0.12, w: fw - 0.3, h: fh - (caption ? 0.55 : 0.24)});
-    if (caption) c.text(caption, {x: fx, y: fy + fh - 0.42, w: fw, h: 0.36, size: t.size.caption, color: t.color.muted, align: 'center'});
-    return {x: fx, y: fy, w: fw, h: fh};
+    capH = estCapH(fw);
+    const inner = {x: fx + padX, y: fy + padY, w: fw - 2 * padX, h: Math.max(0.4, fh - 2 * padY - capH)};
+    const fitted = K.fitBox(file, inner);
+    imgX = fitted.x; imgY = fitted.y; imgW = fitted.w; imgH = fitted.h;
+    if (showFrame) c.rect({x: fx, y: fy, w: fw, h: fh, fill: t.color.frame, radius: 0.06});
+    c.image(file, {x: imgX, y: imgY, w: imgW, h: imgH});
+    if (caption) c.text(caption, {x: fx, y: imgY + imgH + 0.08, w: fw, h: capH - 0.04, size: t.size.caption, color: t.color.muted, align: 'center'});
+    return {x: fx, y: fy, w: fw, h: fh, imgX, imgY, imgW, imgH};
   },
 
   // Several figures on one row with a shared height, so every caption sits on the
   // same baseline. Frames hug their figures and centre inside equal-width slots.
   // items: [{file, caption}]; box: {x, y, maxW, maxH, gap}
   figureRow(c, t, items, box) {
-    const capH = 0.36;
+    const capH = 0.42;
     const gap = box.gap != null ? box.gap : 0.35;
     const slot = (box.maxW - gap * (items.length - 1)) / items.length;
     const ars = items.map((it) => {
@@ -687,20 +816,20 @@ const domestic = {
       return size.w / size.h;
     });
     const h = Math.min(
-      ...items.map((it, i) => Math.min(box.maxH - 0.24 - capH, (slot - 0.3) / ars[i]))
+      ...items.map((it, i) => Math.min(box.maxH - 0.16 - capH, (slot - 0.16) / ars[i]))
     );
     return items.map((it, i) => {
-      const fw = h * ars[i] + 0.3;
+      const fw = h * ars[i] + 0.16;
       const fx = box.x + i * (slot + gap) + (slot - fw) / 2;
-      return this.figureFrame(c, t, it.file, it.caption, {x: fx, y: box.y, maxW: fw, maxH: h + 0.6});
+      return this.figureFrame(c, t, it.file, it.caption, {x: fx, y: box.y, maxW: fw, maxH: h + capH + 0.16, frame: box.frame});
     });
   },
 
-  // 方法页：左图（承托框+图注）右要点（关键词标红、出处小字）
+  // 方法页：左图（白图融底 + 图注）右要点（关键词标红、出处小字）
   method(c, t, s) {
     this.frame(c, t, s);
     const top = t.grid.contentY + 0.15;
-    this.figureFrame(c, t, s.figure, s.caption, {x: t.grid.marginX, y: top, w: 7.6, h: 5.1});
+    this.figureFrame(c, t, s.figure, s.caption, {x: t.grid.marginX, y: top, w: 7.6, h: 5.1, frame: s.frame});
     const nx = t.grid.marginX + 7.6 + 0.45; const nw = t.slide.w - t.grid.marginX - nx;
     c.text(s.points.map((p) => ({text: p, bullet: true})), {x: nx, y: top + 0.2, w: nw, h: 4.9, size: t.size.body - 1, color: t.color.body, paraSpaceBefore: 16});
   },
@@ -711,9 +840,12 @@ const domestic = {
   annotatedFigure(c, t, s) {
     this.frame(c, t, s);
     const top = t.grid.contentY + 0.15;
-    const card = this.figureFrame(c, t, s.figure, s.caption, {x: t.grid.marginX, y: top, w: 8.0, h: 5.1});
+    const card = this.figureFrame(c, t, s.figure, s.caption, {x: t.grid.marginX, y: top, w: 8.0, h: 5.1, frame: s.frame});
+    // Anchor rings and badges on the REAL fitted image rectangle, not the outer slot,
+    // so wide figures (e.g. AR > 2.5) never drop annotations onto empty whitespace.
+    const imgRect = {x: card.imgX, y: card.imgY, w: card.imgW, h: card.imgH};
     (s.marks || []).forEach((m) => {
-      const p = K.at(card, m.f);
+      const p = K.at(imgRect, m.f);
       K.ring(c, p, 0.19, t.color.accent, 2);
       K.badge(c, {x: p.x - 0.34, y: p.y - 0.3}, m.n, {fill: t.color.accent, color: 'FFFFFF'});
     });
@@ -727,8 +859,9 @@ const domestic = {
     });
     if (s.takeaway) {
       const ty = t.grid.contentBottom - 0.62;
-      c.rect({x: nx, y: ty, w: nw, h: 0.62, fill: t.color.primaryLight});
-      c.text(s.takeaway, {x: nx + 0.16, y: ty, w: nw - 0.32, h: 0.62, size: 13.5, bold: true, color: t.color.primary, valign: 'middle'});
+      c.rect({x: nx, y: ty, w: nw, h: 0.62, fill: t.color.calloutBg || t.color.frame});
+      c.rect({x: nx, y: ty, w: 0.05, h: 0.62, fill: t.color.primary});
+      c.text(s.takeaway, {x: nx + 0.18, y: ty, w: nw - 0.28, h: 0.62, size: 13.5, bold: true, color: t.color.primary, valign: 'middle'});
     }
   },
 
@@ -802,9 +935,10 @@ const domestic = {
       c.text(item.body, {x, y: bodyTop + (item.title ? 0.4 : 0), w: cw, h: Math.max(0.6, room - 0.4), size: t.size.small - 1, color: t.color.body, lineSpacingMultiple: 1.35});
     });
     if (s.note) {
-      const ny = t.grid.contentBottom - 0.95;
-      c.rect({x: mx, y: ny, w: t.slide.w - 2 * mx, h: 0.72, fill: t.color.primaryLight, radius: 0.05});
-      c.text(s.note, {x: mx + 0.24, y: ny, w: t.slide.w - 2 * mx - 0.48, h: 0.72, size: t.size.small, bold: true, color: t.color.primary, valign: 'middle'});
+      const ny = t.grid.contentBottom - 0.85;
+      c.rect({x: mx, y: ny, w: t.slide.w - 2 * mx, h: 0.68, fill: t.color.calloutBg || t.color.frame});
+      c.rect({x: mx, y: ny, w: 0.06, h: 0.68, fill: t.color.primary});
+      c.text(s.note, {x: mx + 0.22, y: ny, w: t.slide.w - 2 * mx - 0.36, h: 0.68, size: t.size.small, bold: true, color: t.color.primary, valign: 'middle'});
     }
   },
 
@@ -812,13 +946,14 @@ const domestic = {
   twoFigures(c, t, s) {
     this.frame(c, t, s);
     const mx = t.grid.marginX;
-    const leadH = s.lead ? 0.95 : 0.1;
+    const leadH = s.lead ? 0.90 : 0.1;
     const top = t.grid.contentY + 0.1;
-    this.figureRow(c, t, s.items, {x: mx, y: top, maxW: t.slide.w - 2 * mx, maxH: t.grid.contentBottom - top - leadH});
+    this.figureRow(c, t, s.items, {x: mx, y: top, maxW: t.slide.w - 2 * mx, maxH: t.grid.contentBottom - top - leadH, frame: s.frame});
     if (s.lead) {
-      const y = t.grid.contentBottom - leadH + 0.15;
-      c.rect({x: mx, y, w: t.slide.w - 2 * mx, h: 0.78, fill: t.color.primaryLight, radius: 0.05});
-      c.text(s.lead, {x: mx + 0.24, y, w: t.slide.w - 2 * mx - 0.48, h: 0.78, size: t.size.small + 1, bold: true, color: t.color.primary, valign: 'middle'});
+      const y = t.grid.contentBottom - leadH + 0.14;
+      c.rect({x: mx, y, w: t.slide.w - 2 * mx, h: 0.72, fill: t.color.calloutBg || t.color.frame});
+      c.rect({x: mx, y, w: 0.06, h: 0.72, fill: t.color.primary});
+      c.text(s.lead, {x: mx + 0.22, y, w: t.slide.w - 2 * mx - 0.36, h: 0.72, size: t.size.small + 1, bold: true, color: t.color.primary, valign: 'middle'});
     }
   },
 
@@ -834,7 +969,7 @@ const domestic = {
       const x = mx + (i % 2) * (cw + gapX);
       const y = top + Math.floor(i / 2) * (ch + gapY);
       const fw = cw * 0.5;
-      const box = this.figureFrame(c, t, cell.figure, cell.caption, {x, y, maxW: fw, maxH: ch - 0.15});
+      const box = this.figureFrame(c, t, cell.figure, cell.caption, {x, y, maxW: fw, maxH: ch - 0.15, frame: s.frame});
       const tx = box.x + box.w + 0.22;
       c.text(cell.head, {x: tx, y: y + 0.05, w: cw - fw - 0.25, h: 0.34, size: t.size.small, bold: true, color: t.color.text});
       c.text(cell.body, {x: tx, y: y + 0.45, w: cw - fw - 0.25, h: Math.max(0.5, ch - 0.7), size: t.size.small - 2, color: t.color.body, lineSpacingMultiple: 1.35});
@@ -864,26 +999,41 @@ const domestic = {
       top += 0.36;
     }
     if (s.formulaNote) {
-      c.text(s.formulaNote, {x: mx, y: top, w: t.slide.w - 2 * mx, h: 0.28, size: t.size.source, color: t.color.muted});
-      top += 0.34;
+      const noteLines = K.textLines(s.formulaNote, t.size.source, t.slide.w - 2 * mx - 0.1);
+      const noteH = Math.max(0.28, noteLines * t.size.source * 1.35 / 72 + 0.06);
+      c.text(s.formulaNote, {x: mx, y: top, w: t.slide.w - 2 * mx, h: noteH, size: t.size.source, color: t.color.muted});
+      top += noteH + 0.08;
     }
     if (s.figure) {
-      this.figureFrame(c, t, s.figure, s.caption, {x: mx, y: top, maxW: leftW, maxH: t.grid.contentBottom - top - 0.1});
+      this.figureFrame(c, t, s.figure, s.caption, {x: mx, y: top, maxW: leftW, maxH: t.grid.contentBottom - top - 0.1, frame: s.frame});
     }
     const rx = mx + leftW + 0.55;
     const rw = t.slide.w - mx - rx;
-    (s.rows || []).forEach((row, i) => {
-      const y = top + i * 0.44;
-      c.text(row[0], {x: rx, y, w: rw * 0.6, h: 0.3, size: t.size.small, color: t.color.body});
-      c.text(row[1], {x: rx + rw * 0.6, y, w: rw * 0.22, h: 0.3, size: t.size.small, bold: true, color: t.color.text, align: 'right'});
-      if (row[2]) c.text(row[2], {x: rx + rw * 0.84, y, w: rw * 0.16, h: 0.3, size: t.size.source, color: t.color.muted, align: 'right'});
+    // Flow row y-positions dynamically so a 2-line Chinese label never collides with the next row.
+    let ry = top;
+    const labelW = rw * 0.62;
+    (s.rows || []).forEach((row) => {
+      const lines = K.textLines(String(row[0] || ''), t.size.small, labelW - 0.12);
+      const rh = Math.max(0.34, lines * t.size.small * 1.35 / 72 + 0.06);
+      c.text(row[0], {x: rx, y: ry, w: labelW, h: rh, size: t.size.small, color: t.color.body});
+      c.text(row[1], {x: rx + labelW, y: ry, w: rw * 0.22, h: rh, size: t.size.small, bold: true, color: t.color.text, align: 'right'});
+      if (row[2]) c.text(row[2], {x: rx + labelW + rw * 0.22, y: ry, w: rw * 0.16, h: rh, size: t.size.source, color: t.color.muted, align: 'right'});
+      ry += rh + 0.10;
     });
-    const totalY = top + (s.rows || []).length * 0.44 + 0.15;
-    if (s.total) c.text(s.total, {x: rx, y: totalY, w: rw, h: 0.3, size: t.size.small, color: t.color.muted});
+    let totalY = ry + 0.08;
+    if (s.total) {
+      const tLines = K.textLines(s.total, t.size.small, rw - 0.12);
+      const tH = Math.max(0.32, tLines * t.size.small * 1.35 / 72 + 0.06);
+      c.text(s.total, {x: rx, y: totalY, w: rw, h: tH, size: t.size.small, color: t.color.muted});
+      totalY += tH + 0.12;
+    }
     if (s.bigNumber) {
-      c.line({x1: rx, y1: totalY + 0.5, x2: rx + rw, y2: totalY + 0.5, color: t.color.rule, w: 0.75});
-      c.text(s.bigNumber, {x: rx, y: totalY + 0.62, w: 2.6, h: 0.8, size: t.size.bigNumber, bold: true, color: t.color.accent});
-      c.text(s.bigLabel || '', {x: rx + 2.7, y: totalY + 0.82, w: rw - 2.7, h: 0.5, size: t.size.small, color: t.color.muted});
+      c.line({x1: rx, y1: totalY, x2: rx + rw, y2: totalY, color: t.color.rule, w: 0.75});
+      const lblW = rw - 2.65;
+      const lblLines = K.textLines(s.bigLabel || '', t.size.small, lblW - 0.1);
+      const lblH = Math.max(0.55, lblLines * t.size.small * 1.35 / 72 + 0.08);
+      c.text(s.bigNumber, {x: rx, y: totalY + 0.14, w: 2.55, h: 0.8, size: t.size.bigNumber, bold: true, color: t.color.accent});
+      c.text(s.bigLabel || '', {x: rx + 2.65, y: totalY + 0.24, w: lblW, h: lblH, size: t.size.small, color: t.color.muted});
     }
   },
 

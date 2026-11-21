@@ -62,23 +62,22 @@
 
 | 原型 | 用途 | 结构约束 | 参考 |
 |---|---|---|---|
-| `cover` | 封面 | 原文题目 / 中文译名 / 会议·作者·单位 / 汇报人·课题组·日期；顶部主色细条 | — |
+| `cover` | 封面 | `paperTitle`（兼容 `title`）/ `titleZh` / `paperMeta`（兼容 `authors` + `venue`）/ `presenter` / `group` / `date`；顶部主色细条 | — |
 | `outline` | 汇报提纲 | 3–5 项，“一、二、三”方块编号；章节开头可再次出现并高亮当前项 | — |
 | `section` | 章节页 | 大号浅色编号（02）+ 主色竖条 + 标题 + 一句核心问题；给 `keys` 则多一条"本节 · 三个关键词" | — |
 | `paperGlance` | 一页看懂 | “研究目标 / 核心挑战 / 本文方法”三行（各 ≤ 1 行）+ 一张总览图 | `refs/huhan-title-keyword.jpg` |
-| `method` | 方法页 | 左图（承托框 + 图注）右要点；每条最多 1 个红色关键词 | `refs/huhan-figure-caption.jpg`、`refs/hylee-diagram-vocabulary.jpg` |
-| `annotatedFigure` | 方法页（读图顺序版） | 原图上圈 ①②③，右侧按编号逐条解释；要点必须落在图上锚点，而不是并列 bullet。`marks: [{f:[fx,fy],n,text}]` | `refs/hylee-diagram-vocabulary.jpg` |
-| `compare3` / `twoFigures` / `metricGrid` / `formulaTable` | 三方案对照 / 并排图 / 指标网格 / 公式表 | 见 `docs/review/style-lint-and-archetypes.md` | — |
+| `method` | 方法页 | 左图（白图融底 + 图注）右要点；每条最多 1 个红色关键词 | `refs/huhan-figure-caption.jpg`、`refs/hylee-diagram-vocabulary.jpg` |
+| `annotatedFigure` | 方法页（读图顺序版） | 原图上圈 ①②③（锚点严格对齐实际图像矩形），右侧按编号逐条解释。`marks: [{f:[fx,fy],n,text}]` | `refs/hylee-diagram-vocabulary.jpg` |
 | `figureRow` | 并排多图 | 同一行统一高度、图注同基线；比并排两个 `method` 更稳 | — |
-| `compare3` | 三方案对比 | 上：一条示意图带（可省）；下：三栏各一两句；可选收束条 `note` | — |
-| `twoFigures` | 并排双图 | 两图等高、图注同基线；底部一句 `lead` | — |
+| `compare3` | 三方案对比 | 上：一条示意图带（可省）；下：三栏各一两句；可选左竖线收束条 `note` | — |
+| `twoFigures` | 并排双图 | 两图等高、图注同基线；底部一句左竖线收束条 `lead` | — |
 | `metricGrid` | 2×2 指标矩阵 | 每格图 50% + 文字 50%，用于"其余指标"页 | — |
-| `formulaTable` | 公式 + 成本表 | 公式独占整行，左侧图、右侧分项与唯一大数字 | — |
+| `formulaTable` | 公式 + 成本表 | 公式独占整行，左侧图、右侧流式分项与唯一大数字 | — |
 | `result` | 结果页 | 原图 + 唯一红色大数字 + 比较对象 + 实验条件 | — |
 | `summary` | 总结与讨论 | 默认两栏“结论 / 讨论”；给 `limits` 换成"结论 / 边界"；两者都给才是三栏。可选 `takeaway` 深色收束条与 `closing` 结束语 | — |
 | `thanks` | 结束页 | 可选，一句话，最多一页 | — |
 
-九套预设的版式骨架对照见 [references/layout-atlas.md](../../references/layout-atlas.md)：换预设必须换构图，只改颜色和字体不算换风格。
+十五套预设的版式骨架对照见 [references/layout-atlas.md](../../references/layout-atlas.md)：换预设必须换构图，只改颜色和字体不算换风格。
 
 自绘图词汇：用具体例子（一个中文词、一个 token）走完机制，同一套图元全稿复用（`refs/hylee-visual-equation.jpg`、`refs/hylee-example-driven.jpg`）。
 
@@ -123,7 +122,7 @@ cover → outline
 
 ```js
 const pptxgen = require('pptxgenjs');
-const {loadTokens, PptxCanvas, drawSlide} = require('./assets/style-presets');
+const {loadTokens, PptxCanvas, drawSlide, writeDeck} = require('./assets/style-presets');
 
 const t = loadTokens('domestic');
 const deck = new pptxgen(); deck.layout = t.slide.layout;
@@ -133,11 +132,11 @@ drawSlide(new PptxCanvas(deck.addSlide(), t), t, {
   title: '方法：路由器决定 token 走 [[深层]] 还是浅层',
   tag: '[Author 等, 2026]',
   figure: 'figs/fig2-crop.png', caption: '图 2  方法框架',
-  points: ['编码器输出后，[[路由器]]为每个 token 打分', '得分前 k 的 token 进入深层路径'],
+  points: ['编码器输出后，[[路由器]]为每个 token 打分', '得分前 *k* 的 token 进入深层路径'],
   footer: 'XX 课题组 组会 · 张三', page: 5,
   notes: '这页先看左边框架图……',
 });
-await deck.writeFile({fileName: 'deck.pptx'});
+await writeDeck(deck, 'deck.pptx');
 ```
 
 ## 7. 参考图来源

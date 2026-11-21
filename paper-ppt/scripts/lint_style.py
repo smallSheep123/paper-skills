@@ -38,7 +38,7 @@ MONO_FONT = re.compile(r'(consola|courier|monaco|menlo|mono|code)', re.I)
 
 LEADING_PUNCT = '。，、；：？！）】》」』”’…·,.;:?!)]}'
 TITLE_MAX_ZONE = 1.25          # shapes above this y are titles/headers
-CAPTION_RE = re.compile(r'^\s*(?:图|Figure|Fig\.?|表|Table)\s*(\d+)', re.I)
+CAPTION_RE = re.compile(r'^\s*(图|Figure|Fig\.?|表|Table)\s*(\d+)', re.I)
 
 # Per-rule severity. A blanket --strict made every warning fatal, so a 29-character
 # bullet blocked delivery while a duplicated figure number did not.
@@ -46,6 +46,7 @@ SEVERITY = {
     'overflow': 'warn',        # 3–15% over: look at it
     'overflow_hard': 'error',  # >15% over: it will visibly spill
     'figure_duplicate': 'error',
+    'table_duplicate': 'error',
     'leading_punct': 'error',
     'red_runs': 'warn',
     'red_length': 'warn',
@@ -63,10 +64,19 @@ def load_tokens(preset: str) -> dict:
 
 
 def text_width_em(text: str) -> float:
-    """Approximate rendered width in em units (CJK full width, Latin half)."""
+    """Approximate rendered width in em units (CJK full width, Latin half).
+
+    Adds a small transition margin where CJK meets ASCII/Latin because LibreOffice
+    and PowerPoint insert extra inter-script spacing there.
+    """
     width = 0.0
+    prev_cjk = None
     for ch in text:
         code = ord(ch)
+        is_cjk = 0x4E00 <= code <= 0x9FFF or 0x3000 <= code <= 0x303F or 0xFF00 <= code <= 0xFF60
+        if prev_cjk is not None and is_cjk != prev_cjk and ch != ' ':
+            width += 0.12
+        prev_cjk = is_cjk
         if code < 128:
             if ch == ' ':
                 width += 0.28
@@ -78,7 +88,7 @@ def text_width_em(text: str) -> float:
                 width += 0.52
             else:
                 width += 0.38
-        elif 0x4E00 <= code <= 0x9FFF or 0x3000 <= code <= 0x303F or 0xFF00 <= code <= 0xFF60:
+        elif is_cjk:
             width += 1.0
         else:
             width += 0.6
@@ -245,8 +255,12 @@ def declared_nav(root) -> set[int]:
 def audit(path: Path, preset: str, strict: bool = False) -> dict:
     tokens = load_tokens(preset)
     accent = tokens['color']['accent'].upper()
+    primary_dark = tokens['color'].get('primaryDark', '').upper()
+    # Presets whose accent is identical to their structural dark primary (e.g. violet #401845)
+    # use that colour for card/stage headings, not red inline keyword emphasis.
+    accent_is_structural = bool(primary_dark and accent == primary_dark)
     limits = tokens.get('limits', {})
-    warnings, errors, stats = [], [], {'slides': 0, 'figures': [], 'accents': []}
+    warnings, errors, stats = [], [], {'slides': 0, 'figures': [], 'tables': [], 'accents': []}
 
     def add(rule: str, message: str) -> None:
         (errors if SEVERITY.get(rule) == 'error' else warnings).append(message)
@@ -310,8 +324,9 @@ def audit(path: Path, preset: str, strict: bool = False) -> dict:
                     if reds > limits.get('keywordsPerBullet', 1):
                         add('red_runs', f'{label}: {reds} red runs in one paragraph — 「{text[:18]}」')
                     # Only a red *phrase inside* body text is the keyword emphasis this
-                    # rule is about; an accent label on a navigation rail is state.
-                    whole_accent = in_rail and len(para['red_runs']) == 1 \
+                    # rule is about; an accent label on a navigation rail or a full-line
+                    # heading in a monochrome-accent preset (e.g. violet) is structural.
+                    whole_accent = (in_rail or accent_is_structural) and len(para['red_runs']) == 1 \
                         and para['red_runs'][0].strip() == text
                     for run_text in para['red_runs']:
                         # 「6 个字」指的是汉字个数：数字/英文标注（deadline、35%）不占字数
@@ -333,11 +348,15 @@ def audit(path: Path, preset: str, strict: bool = False) -> dict:
                         add('chars', f'{label}: bullet {len(text)} chars > {limits.get("charsPerBulletZh", 28)}')
                     # Only caption-shaped text counts: a body sentence that mentions
                     # 「如图 3 所示」is a reference, not the caption of figure 3.
+                    # Figures and tables are tracked in separate namespaces so Figure 1
+                    # and Table 1 never collide as a duplicate figure number.
                     caption = CAPTION_RE.match(text)
                     looks_like_caption = caption and (size <= tokens['size']['caption'] + 2
                                                       or tokens['color']['muted'].upper() in para['colours'])
                     if looks_like_caption:
-                        stats['figures'].append(int(caption.group(1)))
+                        head_tok = caption.group(1).lower()
+                        bucket = 'tables' if head_tok in ('表', 'table') else 'figures'
+                        stats[bucket].append(int(caption.group(2)))
                 if is_list and len(paras) > limits.get('bulletsPerSlide', 4):
                     add('bullets', f'{label}: {len(paras)} paragraphs in one body frame '
                                    f'(limit {limits.get("bulletsPerSlide", 4)})')
@@ -356,6 +375,11 @@ def audit(path: Path, preset: str, strict: bool = False) -> dict:
         missing = [n for n in range(min(numbers), max(numbers) + 1) if n not in numbers]
         if missing and len(numbers) >= 8:
             add('figure_gap', f'figure numbers missing: {missing} (captions are typed, not generated)')
+    t_numbers = stats['tables']
+    if t_numbers:
+        t_dups = sorted({n for n in t_numbers if t_numbers.count(n) > 1})
+        if t_dups:
+            add('table_duplicate', f'table numbers repeated: {t_dups}')
     if strict:
         errors, warnings = errors + warnings, []
 
@@ -371,6 +395,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument('--json', type=Path)
     ap.add_argument('--strict', action='store_true', help='treat warnings as errors (exit 1)')
     args = ap.parse_args(argv)
+    if not args.deck.is_file():
+        print(f'error: deck not found: {args.deck}', file=sys.stderr)
+        return 2
     report = audit(args.deck, args.preset, args.strict)
     if args.json:
         args.json.parent.mkdir(parents=True, exist_ok=True)
