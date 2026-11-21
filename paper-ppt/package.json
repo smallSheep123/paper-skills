@@ -7,6 +7,7 @@
     "node": ">=20"
   },
   "dependencies": {
+    "jszip": "3.10.2",
     "pptxgenjs": "4.0.0"
   },
   "scripts": {

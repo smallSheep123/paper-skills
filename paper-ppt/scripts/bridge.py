@@ -177,7 +177,8 @@ def render(source: Path, output: Path, soffice: str | None = None,
         raise ValueError('Output directory already exists; use a new revision directory')
     # Poppler is optional: PyMuPDF can rasterise the same PDF, but one of the two must exist.
     poppler = executable('pdftoppm', pdftoppm or os.environ.get('PDFTOPPM_PATH'))
-    if not poppler and importlib.util.find_spec('fitz') is None:
+    has_pymupdf = importlib.util.find_spec('pymupdf') is not None or importlib.util.find_spec('fitz') is not None
+    if not poppler and not has_pymupdf:
         raise RuntimeError('No PDF rasteriser found: install Poppler, or `pip install pymupdf`')
     lo = powerpoint = None
     if source.suffix.lower() == '.pptx':
@@ -247,17 +248,19 @@ def doctor() -> dict:
     node = executable('node')
     package = False
     if node:
+        pkg_root = Path(__file__).resolve().parent.parent
         try:
             result = subprocess.run([node, '-e', 'require("pptxgenjs")'],
-                                    capture_output=True, timeout=10, check=False)
+                                    cwd=str(pkg_root), capture_output=True, timeout=10, check=False)
             package = result.returncode == 0
         except (OSError, subprocess.TimeoutExpired):
             pass
+    has_pymupdf = importlib.util.find_spec('pymupdf') is not None or importlib.util.find_spec('fitz') is not None
     return {'python': sys.version.split()[0], 'node': node, 'pptxgenjs': package,
             'soffice': executable('soffice', os.environ.get('LIBREOFFICE_PATH')),
             'powerpoint': powerpoint_available(),
             'pdftoppm': executable('pdftoppm', os.environ.get('PDFTOPPM_PATH')),
-            'pymupdf': importlib.util.find_spec('fitz') is not None,
+            'pymupdf': has_pymupdf,
             'pillow': importlib.util.find_spec('PIL') is not None,
             'visual_model': 'NOT_CHECKED: discover a real image-capable tool in your AI client'}
 

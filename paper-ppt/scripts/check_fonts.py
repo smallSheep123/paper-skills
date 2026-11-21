@@ -46,12 +46,36 @@ ALIASES = {
 def installed_families() -> set[str]:
     names: set[str] = set()
     if shutil.which("fc-list"):
-        out = subprocess.run(["fc-list", ":", "family"], capture_output=True, text=True).stdout
+        out = subprocess.run(["fc-list", ":", "family"], capture_output=True, text=True,
+                             encoding="utf-8", errors="replace").stdout
         for line in out.splitlines():
             for n in line.split(","):
                 names.add(n.strip().lower())
     dirs = []
     if platform.system() == "Windows":
+        # Read the Windows font registry so machines without fontconfig (`fc-list`)
+        # still resolve families like "Microsoft YaHei" (msyh.ttc) and "Cambria Math" (cambria.ttc).
+        try:
+            import winreg  # noqa: PLC0415
+            for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+                try:
+                    with winreg.OpenKey(hive, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts") as key:
+                        idx = 0
+                        while True:
+                            try:
+                                val_name, _, _ = winreg.EnumValue(key, idx)
+                            except OSError:
+                                break
+                            idx += 1
+                            cleaned = val_name.split("(")[0].strip()
+                            for part in cleaned.split("&"):
+                                fam = part.strip().lower()
+                                if fam:
+                                    names.add(fam)
+                except OSError:
+                    continue
+        except ImportError:
+            pass
         windir = os.environ.get("WINDIR", r"C:\Windows")
         dirs += [Path(windir) / "Fonts", Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft/Windows/Fonts"]
     elif platform.system() == "Darwin":
@@ -109,11 +133,15 @@ def check(preset: str, have: set[str], track: str = "default") -> dict:
 def fc_match(font: str) -> str | None:
     if not shutil.which("fc-match"):
         return None
-    out = subprocess.run(["fc-match", "-f", "%{family}", font], capture_output=True, text=True).stdout.strip()
+    out = subprocess.run(["fc-match", "-f", "%{family}", font], capture_output=True, text=True,
+                         encoding="utf-8", errors="replace").stdout.strip()
     return out.split(",")[0] or None
 
 
 def check_deck(deck: Path, have: set[str]) -> int:
+    if not deck.is_file():
+        print(f"error: deck not found: {deck}", file=sys.stderr)
+        return 2
     import re
     import zipfile
     names: dict[str, int] = {}

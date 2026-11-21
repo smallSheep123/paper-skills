@@ -82,12 +82,13 @@ def native_math(source, font_size, color):
         for node in omml.iter():
             if node.tag.startswith('{http://schemas.openxmlformats.org/wordprocessingml/'):
                 raise ValueError('WordprocessingML is not valid in DrawingML math')
+        math_font = 'STIX Two Math' if os.environ.get('PAPER_PPT_FONTS') == 'open' else 'Cambria Math'
         for run in omml.iter(q('m', 'r')):
             props = ET.Element(q('a', 'rPr'), {'sz': str(round(font_size * 100))})
             fill = ET.SubElement(props, q('a', 'solidFill'))
             ET.SubElement(fill, q('a', 'srgbClr'), {'val': color})
-            ET.SubElement(props, q('a', 'latin'), {'typeface': 'Cambria Math'})
-            ET.SubElement(props, q('a', 'ea'), {'typeface': 'Cambria Math'})
+            ET.SubElement(props, q('a', 'latin'), {'typeface': math_font})
+            ET.SubElement(props, q('a', 'ea'), {'typeface': math_font})
             run.insert(1 if len(run) and run[0].tag == q('m', 'rPr') else 0, props)
         # Omit the radical degree explicitly for square roots.
         for rad in omml.iter(q('m', 'rad')):
@@ -259,11 +260,23 @@ def replace_math_pictures(original, replacements):
     return result
 
 
+def _resolve_asset_path(raw: str, manifest_path: Path) -> Path:
+    p = Path(raw)
+    if p.is_absolute() or p.is_file():
+        return p
+    rel = (manifest_path.resolve().parent / p).resolve()
+    return rel if rel.is_file() else p
+
+
 def finalize(source, manifest, out):
-    source, out = Path(source).resolve(), Path(out).resolve()
+    source, manifest, out = Path(source).resolve(), Path(manifest).resolve(), Path(out).resolve()
+    if not source.is_file():
+        raise FileNotFoundError(f'Source PPTX not found: {source}')
+    if not manifest.is_file():
+        raise FileNotFoundError(f'Math manifest not found: {manifest}')
     if source == out or out.exists():
         raise ValueError('Final output must be a new file, different from the source')
-    data = json.loads(Path(manifest).read_text(encoding='utf-8'))['equations']
+    data = json.loads(manifest.read_text(encoding='utf-8'))['equations']
     changes, count = {}, {'native': 0, 'svg': 0}
     with zipfile.ZipFile(source) as z:
         types = ET.fromstring(z.read('[Content_Types].xml'))
@@ -288,13 +301,15 @@ def finalize(source, manifest, out):
                 asset = data[placement['id']]
                 if placement['latex'] != asset['latex'] or placement['fontSize'] != asset['fontSize']:
                     raise ValueError('Math placement and prepared source disagree')
+                resolved = {ext: _resolve_asset_path(asset[ext], manifest) for ext in ('svg', 'png')}
                 for ext in ('svg', 'png'):
-                    if digest(asset[ext]) != asset[f'{ext}Sha256']:
-                        raise ValueError(f'Math asset changed: {asset[ext]}')
+                    if digest(resolved[ext]) != asset[f'{ext}Sha256']:
+                        raise ValueError(f'Math asset changed: {resolved[ext]}')
                 native = asset['representation'] == 'native'
                 count[asset['representation']] += 1
-                media = f'paper-math-{hashlib.sha256(Path(asset["svg"]).read_bytes()).hexdigest()[:20]}.svg'
-                changes['ppt/media/' + media] = Path(asset['svg']).read_bytes()
+                svg_bytes = resolved['svg'].read_bytes()
+                media = f'paper-math-{hashlib.sha256(svg_bytes).hexdigest()[:20]}.svg'
+                changes['ppt/media/' + media] = svg_bytes
                 existing = {r.get('Id') for r in rels}
                 number = 1
                 while f'rId{number}' in existing:
@@ -342,11 +357,15 @@ def main():
     final.add_argument('--manifest', required=True, type=Path)
     final.add_argument('--out', required=True, type=Path)
     args = parser.parse_args()
-    if args.command == 'prepare':
-        result = prepare(args.request, args.out)
-        print(json.dumps({k: v['representation'] for k, v in result.items()}))
-    else:
-        print(json.dumps(finalize(args.source, args.manifest, args.out)))
+    try:
+        if args.command == 'prepare':
+            result = prepare(args.request, args.out)
+            print(json.dumps({k: v['representation'] for k, v in result.items()}))
+        else:
+            print(json.dumps(finalize(args.source, args.manifest, args.out)))
+    except (FileNotFoundError, ValueError, RuntimeError) as exc:
+        print(json.dumps({'error': str(exc)}, ensure_ascii=False), file=sys.stderr)
+        raise SystemExit(2)
 
 
 if __name__ == '__main__':
